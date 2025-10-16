@@ -172,7 +172,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 
 	int bump_count = 0;
 
-	for (bump_count = 0; bump_count < 3; bump_count++)
+	for (bump_count = 0; bump_count < 1; bump_count++)
 	{	
 		if (p_moveX == 0 && p_moveY == 0)
 		{
@@ -372,7 +372,7 @@ bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
 	float low_floor = new_sector->floor;
 	float range = max(ceil, floor) - min(ceil, floor);
 
-	if (!Trace_CheckBoxPosition(obj, x, y, obj->size - 1.0, &floor, &ceil, &low_floor))
+	if (!Trace_CheckBoxPosition(obj, x, y, obj->size - 0.5, &floor, &ceil, &low_floor))
 	{
 		return false;
 	}
@@ -383,7 +383,7 @@ bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
 		return false;
 	}
 	//you will bonk your head
-	if (ceil < obj->z + obj->height * 2.0)
+	if (ceil < obj->z + obj->height)
 	{
 		return false;
 	}
@@ -395,7 +395,7 @@ bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
 	//too big of a fall
 	if ((floor - low_floor) - obj->z > obj->dropoff_height)
 	{
-		//return false;
+		return false;
 	}
 
 	if (r_sectorIndex) *r_sectorIndex = new_sector->index;
@@ -407,23 +407,61 @@ bool Move_SetPosition(Object* obj, float x, float y)
 {
 	int new_sector_index = -1;
 
+	//just spawned? try to corrent to proper position
+	if (obj->sector_index < 0)
+	{
+		Sector* new_sector = Map_FindSector(x, y);
+
+		obj->z = new_sector->floor;
+
+		float move_z = -100;
+		float next_z = obj->z + move_z;
+		float z = obj->z;
+
+		if (move_z < 0 && next_z < new_sector->floor + obj->height * 0.5)
+		{
+			z = new_sector->floor + obj->height * 0.5;
+		}
+		else if (move_z > 0 && next_z > new_sector->ceil)
+		{
+			z = obj->z;
+		}
+		else
+		{
+			z = next_z;
+		}
+
+		obj->z = z;
+		obj->sprite.z = obj->z + 64;
+	}
+
 	if (!Move_CheckPosition(obj, x, y, &new_sector_index))
 	{
 		return false;
 	}
 
-	Render_LockObjectMutex();
+	Render_LockObjectMutex(true);
 
 	//we can move
 	obj->x = x;
 	obj->y = y;
-	obj->sector_index = new_sector_index;
+
+	//also update sprite
+	obj->sprite.x = obj->x + obj->sprite.offset_x;
+	obj->sprite.y = obj->y + obj->sprite.offset_y;
+	obj->sprite.z = obj->z + 64;
 
 	//setup sector links
-	Object_UnlinkSector(obj);
-	Object_LinkSector(obj);
+	if (new_sector_index != obj->sector_index)
+	{
+		Object_UnlinkSector(obj);
 
-	Render_UnlockObjectMutex();
+		obj->sector_index = new_sector_index;
+		Object_LinkSector(obj);
+	}
+	
+
+	Render_UnlockObjectMutex(true);
 
 	//update bvh
 	if (obj->spatial_id >= 0)
@@ -471,6 +509,7 @@ bool Move_ZMove(Object* obj, float p_moveZ)
 	}
 
 	obj->z = z;
+	obj->sprite.z = obj->z + 64;
 
 	return false;
 }
@@ -498,4 +537,29 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide)
 	
 
 	return moved;
+}
+
+bool Move_Teleport(Object* obj, float x, float y)
+{
+
+
+	return false;
+}
+bool Move_Unstuck(Object* obj)
+{
+	for (int i = 0; i < 8; i++)
+	{
+		float x_random = Math_randf();
+		float y_random = Math_randf();
+
+		int x_sign = (rand() % 100 > 50) ? 1 : -1;
+		int y_sign = (rand() % 100 > 50) ? 1 : -1;
+
+		if (Move_Object(obj, x_random * x_sign, y_random * y_sign, false))
+		{
+			return true;
+		}
+	}
+
+	return false;
 }

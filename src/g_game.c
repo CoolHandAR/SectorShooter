@@ -221,7 +221,7 @@ void Game_Update(float delta)
 
 }
 
-void Game_Draw(Image* image, FontData* fd, float* depth_buffer, DrawSpan* draw_spans, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY)
+void Game_Draw(Image* image, FontData* fd)
 {
 	switch (game.state)
 	{
@@ -232,9 +232,7 @@ void Game_Draw(Image* image, FontData* fd, float* depth_buffer, DrawSpan* draw_s
 	}
 	case GS__LEVEL:
 	{
-		//sort and draw map objects
-		Map_DrawObjects(image, depth_buffer, draw_spans, p_x, p_y, p_dirX, p_dirY, p_planeX, p_planeY);
-
+		//handled by the renderer
 		break;
 	}
 	case GS__LEVEL_END:
@@ -278,12 +276,6 @@ void Game_DrawHud(Image* image, FontData* fd)
 void Game_SetState(GameState state)
 {
 	Render_FinishAndStall();
-
-	if (state != game.state)
-	{
-		Render_RedrawWalls();
-		Render_RedrawSprites();
-	}
 
 	game.state = state;
 
@@ -362,9 +354,6 @@ void Game_Reset(bool to_start)
 	Map_Load(level);
 
 	Player_Init(false);
-
-	Render_RedrawWalls();
-	Render_RedrawSprites();
 
 	//resume
 	Render_Resume();

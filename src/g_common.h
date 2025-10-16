@@ -26,7 +26,6 @@
 
 #define MAX_RENDER_SCALE 3
 
-typedef int8_t TileID;
 typedef int16_t ObjectID;
 
 typedef struct
@@ -100,7 +99,7 @@ void Game_Exit();
 bool Game_LoadAssets();
 void Game_DestructAssets();
 void Game_Update(float delta);
-void Game_Draw(Image* image, FontData* fd, float* depth_buffer, DrawSpan* draw_spans, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY);
+void Game_Draw(Image* image, FontData* fd);
 void Game_DrawHud(Image* image, FontData* fd);
 void Game_SetState(GameState state);
 GameState Game_GetState();
@@ -156,7 +155,6 @@ typedef enum
 	OT__TRIGGER,
 	OT__TARGET,
 	OT__DOOR,
-	OT__SPECIAL_TILE,
 	OT__PARTICLE,
 	OT__MAX
 } ObjectType;
@@ -203,10 +201,6 @@ typedef enum
 	SUB__DOOR_VERTICAL,
 	SUB__DOOR_MAX,
 
-	//SPECIAL TILE
-	SUB__SPECIAL_TILE_FAKE,
-	SUB__SPECIAL_TILE_MAX,
-
 	//LIGHTS
 	SUB__LIGHT_TORCH,
 	SUB__LIGHT_LAMP,
@@ -239,6 +233,9 @@ typedef enum
 	OBJ_FLAG__TRIGGER_SWITCHED_ON = 1 << 4,
 
 	OBJ_FLAG__GODMODE = 1 << 5,
+
+	OBJ_FLAG__DONT_COLLIDE_WITH_OBJECTS = 1 << 6,
+	OBJ_FLAG__DONT_COLLIDE_WITH_LINES = 1 << 7,
 } ObjectFlag;
 
 typedef struct
@@ -258,7 +255,7 @@ typedef struct
 	float height;
 	float step_height;
 	float dropoff_height;
-	float dir_x, dir_y;
+	float dir_x, dir_y, dir_z;
 	float size;
 	float speed;
 
@@ -272,7 +269,7 @@ typedef struct
 	//for monsters and triggers
 	struct Object* target;
 
-	//for doors and general debugging
+	//for various collision checks
 	struct Object* col_object;
 
 	//for rendering when traversing through the subsectors
@@ -287,16 +284,6 @@ typedef struct
 	DirEnum dir_enum;
 	int state;
 } Object;
-
-typedef struct
-{
-	uint8_t light;
-	uint8_t light_north;
-	uint8_t light_west;
-	uint8_t light_south;
-	uint8_t light_east;
-	uint8_t temp_light;
-} LightTile;
 
 typedef enum
 {
@@ -400,6 +387,9 @@ typedef struct
 	int num_sidedefs;
 	Sidedef* sidedefs;
 
+	int reject_size;
+	unsigned char* reject_matrix;
+
 	int num_objects;
 	Object objects[MAX_OBJECTS];
 
@@ -408,8 +398,6 @@ typedef struct
 
 	ObjectID sorted_list[MAX_OBJECTS];
 	int num_sorted_objects;
-
-	ObjectID* object_tiles;
 
 	int player_spawn_point_x;
 	int player_spawn_point_y;
@@ -428,21 +416,16 @@ Map* Map_GetMap();
 Object* Map_NewObject(ObjectType type);
 bool Map_LoadFromIndex(int index);
 bool Map_Load(const char* filename);
-TileID Map_GetTile(int x, int y);
-TileID Map_GetFloorTile(int x, int y);
-TileID Map_GetCeilTile(int x, int y);
 Object* Map_GetObject(ObjectID id);
-Object* Map_GetObjectAtTile(int x, int y);
 void Map_SetTempLight(int x, int y, int size, int light);
-TileID Map_Raycast(float p_x, float p_y, float dir_x, float dir_y, float* r_hitX, float* r_hitY);
 void Map_GetSize(int* r_width, int* r_height);
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot);
-bool Map_UpdateObjectTile(Object* obj);
-void Map_DrawObjects(Image* image, float* depth_buffer, DrawSpan* draw_spans, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY);
 void Map_UpdateObjects(float delta);
 void Map_DeleteObject(Object* obj);
 Subsector* Map_FindSubsector(float p_x, float p_y);
 Sector* Map_FindSector(float p_x, float p_y);
+Sector* Map_GetSector(int index);
+bool Map_CheckSectorReject(int s1, int s2);
 void Map_Destruct();
 
 
@@ -457,15 +440,12 @@ void Player_Rotate(float rot);
 void Player_Hurt(float dir_x, float dir_y);
 void Player_HandlePickup(Object* obj);
 void Player_Update(GLFWwindow* window, float delta);
-void Player_GetView(float* r_x, float* r_y, float* r_dirX, float* r_dirY, float* r_planeX, float* r_planeY);
-void Player_GetView2(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle);
+void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle);
 void Player_MouseCallback(float x, float y);
 void Player_Draw(Image* image, FontData* font);
 float Player_GetSensitivity();
 void Player_SetSensitivity(float sens);
 
-//Explosion stuff
-void Explosion(Object* obj, float size, int damage);
 
 //Movement stuff
 float Move_GetLineDot(float x, float y, Line* line);
@@ -475,13 +455,11 @@ bool Move_SetPosition(Object* obj, float x, float y);
 bool Move_CheckStep(Object* obj, float p_stepX, float p_stepY, float p_size);
 bool Move_ZMove(Object* obj, float p_moveZ);
 bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide);
-bool Move_CheckArea(Object* obj, float x, float y, float size);
 bool Move_Unstuck(Object* obj);
 bool Move_Teleport(Object* obj, float x, float y);
 bool Move_Door(Object* obj, float delta);
 
 //Checking
-bool Check_IsBlockingTile(int x, int y);
 bool Check_CanObjectFitInSector(Object* obj, Sector* sector, Sector* backsector);
 
 //Missile stuff
@@ -490,21 +468,18 @@ void Missile_DirectHit(Object* obj, Object* target);
 void Missile_Explode(Object* obj);
 
 //Trace stuff
-typedef void (*IsVisibleFun)(int center_x, int center_y, int x, int y);
-void Trace_ShadowCast(int x, int y, int radius, IsVisibleFun is_visible_fun);
-
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ);
 int Trace_FindSlideHit(Object* obj, Line* vel_line, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac);
 int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
+bool Trace_CheckLineToTarget(Object* obj, Object* target);
+int Trace_AreaObjects(Object* obj, float x, float y, float size);
 
 
 //Object stuff
+bool Object_ZPassCheck(Object* obj, Object* col_obj);
 void Object_UnlinkSector(Object* obj);
 void Object_LinkSector(Object* obj);
 void Object_Hurt(Object* obj, Object* src_obj, int damage);
-bool Object_IsSpecialCollidableTile(Object* obj);
-bool Object_CheckLineToTile(Object* obj, float target_x, float target_y);
-bool Object_CheckLineToTile2(Object* obj, float target_x, float target_y);
 bool Object_CheckLineToTarget(Object* obj, Object* target);
 bool Object_CheckSight(Object* obj, Object* target);
 Object* Object_Missile(Object* obj, Object* target, int type);
@@ -512,6 +487,7 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj);
 bool Object_HandleSwitch(Object* obj);
 void Object_HandleTriggers(Object* obj, Object* trigger);
 Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float z);
+int Object_AreaEffect(Object* obj, float radius);
 
 //Dir stuff
 DirEnum DirVectorToDirEnum(int x, int y);

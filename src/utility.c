@@ -45,3 +45,60 @@ unsigned char* File_Parse(const char* p_filePath, int* r_length)
 
 	return buffer;
 }
+
+void ReaderWriterLockMutex_Init(ReaderWriterLockMutex* lock)
+{
+	memset(lock, 0, sizeof(ReaderWriterLockMutex));
+
+	lock->num_readers = 0;
+
+	InitializeCriticalSection(&lock->write_mutex);
+	InitializeCriticalSection(&lock->reader_count_mutex);
+
+	lock->readers_cleared_event = CreateEvent(NULL, TRUE, TRUE, NULL);
+}
+
+void ReaderWriterLockMutex_Destruct(ReaderWriterLockMutex* lock)
+{
+	WaitForSingleObject(lock->readers_cleared_event, INFINITE);
+
+	CloseHandle(lock->readers_cleared_event);
+	DeleteCriticalSection(&lock->write_mutex);
+	DeleteCriticalSection(&lock->reader_count_mutex);
+}
+
+void ReaderWriterLockMutex_EnterRead(ReaderWriterLockMutex* lock)
+{
+	EnterCriticalSection(&lock->write_mutex);
+	EnterCriticalSection(&lock->reader_count_mutex);
+
+	if (++lock->num_readers == 1)
+	{
+		ResetEvent(lock->readers_cleared_event);
+	}
+	
+	LeaveCriticalSection(&lock->reader_count_mutex);
+	LeaveCriticalSection(&lock->write_mutex);
+}
+void ReaderWriterLockMutex_ExitRead(ReaderWriterLockMutex* lock)
+{
+	EnterCriticalSection(&lock->reader_count_mutex);
+
+	if (--lock->num_readers == 0)
+	{
+		SetEvent(lock->readers_cleared_event);
+	}
+
+	LeaveCriticalSection(&lock->reader_count_mutex);
+}
+
+void ReaderWriterLockMutex_EnterWrite(ReaderWriterLockMutex* lock)
+{
+	EnterCriticalSection(&lock->write_mutex);
+	WaitForSingleObject(lock->readers_cleared_event, INFINITE);
+}
+
+void ReaderWriterLockMutex_ExitWrite(ReaderWriterLockMutex* lock)
+{
+	LeaveCriticalSection(&lock->write_mutex);
+}

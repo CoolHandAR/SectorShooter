@@ -9,7 +9,7 @@
 #include "u_math.h"
 
 #define HIT_TIME 0.1
-#define PLAYER_SIZE 0.4
+#define PLAYER_SIZE 5
 #define PLAYER_MAX_HP 100
 #define PLAYER_MAX_AMMO 100
 #define PLAYER_OVERHEAL_HP_TICK_TIME 0.25
@@ -133,95 +133,39 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 
 	int hit = Trace_Line(player.obj, p_x, p_y, p_x + p_dirX, p_y + p_dirY, player.obj->z + player.obj->height, &inter_x, &inter_y, &inter_z, &frac);
 
-	if (hit != TRACE_NO_HIT)
+	if (hit == TRACE_NO_HIT)
 	{
-		float dx = (p_x + p_dirX) - p_x;
-		float dy = (p_y + p_dirY) - p_y;
-
-		frac -= 1.0 / 127.0;
-
-		inter_x = p_x + dx * frac;
-		inter_y = p_y + dy * frac;
-
-
-		if (hit < 0)
-		{
-			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_WALL_HIT, inter_x, inter_y, inter_z);
-		}
-		else
-		{
-			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD, inter_x, inter_y, inter_z);
-		}
-	
-
-		//Move_SetPosition(player.obj, inter_x, inter_y);
+		return;
 	}
 
-	return;
+	float dx = (p_x + p_dirX) - p_x;
+	float dy = (p_y + p_dirY) - p_y;
 
-	float map_hit_x = 0;
-	float map_hit_y = 0;
+	frac -= 1.0 / 127.0;
 
-	int render_w;
-	Render_GetRenderSize(&render_w, NULL);
+	inter_x = p_x + dx * frac;
+	inter_y = p_y + dy * frac;
 
-	int half_w = render_w / 2;
-	int center_x = (half_w) - 1;
-	int shoot_delta = render_w / 8;
-
-	Map* map = Map_GetMap();
-
-	Object* closest = NULL;
-	Object* prev_closest = NULL;
-
-	float max_dist = FLT_MAX;
-
-	while (true)
+	//hit a an object
+	if (hit >= 0)
 	{
-		prev_closest = closest;
+		Object* hit_obj = Map_GetObject(hit);
 
-		for (int i = 0; i < map->num_sorted_objects; i++)
-		{
-			ObjectID id = map->sorted_list[i];
-			Object* object = &map->objects[id];
-
-		
-		}
-
-		if (closest == prev_closest)
-		{
-			if (Map_Raycast(p_x, p_y, p_dirX, p_dirY, &map_hit_x, &map_hit_y) != EMPTY_TILE)
-			{
-				//Object_Spawn(OT__PARTICLE, SUB__PARTICLE_WALL_HIT, (map_hit_x), (map_hit_y));
-				return;
-			}
-			return;
-		}
-
-		if (Object_CheckLineToTarget(player.obj, closest))
-		{
-			break;
-		}
-	}
-
-	Object* ray_obj = closest;
-
-	if (ray_obj && ray_obj->type == OT__MONSTER)
-	{
 		int dmg = player.gun_info->damage;
+		float dist = Math_XY_Distance(p_x, p_y, hit_obj->x, hit_obj->y);
 
 		//modify damage based on distance
-		if (max_dist <= 5)
+		if (dist <= 5)
 		{
 			dmg *= 4;
 		}
-		else if (max_dist <= 10)
+		else if (dist <= 10)
 		{
 			dmg *= 2;
 		}
 
 		//way too far away
-		if (max_dist >= 100)
+		if (dist >= 1000)
 		{
 			return;
 		}
@@ -229,16 +173,23 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		//spawn blood particles
 		if (rand() % 100 > 25)
 		{
-			//Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD, (ray_obj->x) + (Math_randf() * 0.5), (ray_obj->y) + (Math_randf() * 0.5));
+			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD, (inter_x) + (Math_randf() * 0.5), (inter_y) + (Math_randf() * 0.5), inter_z);
 		}
 
-		if (ray_obj->hp > 0)
+		if (hit_obj->hp > 0)
 		{
 			player.hit_timer = HIT_TIME;
 		}
 
-		Object_Hurt(ray_obj, player.obj, dmg);
+		Object_Hurt(hit_obj, player.obj, dmg);
 	}
+	else
+	{
+		Object_Spawn(OT__PARTICLE, SUB__PARTICLE_WALL_HIT, inter_x, inter_y, inter_z);
+	}
+
+
+	return;
 }
 
 static void Player_SetGun(GunType gun_type)
@@ -632,6 +583,11 @@ void Player_Init(int keep)
 
 	player.obj = Map_NewObject(OT__PLAYER);
 
+	Map* map = Map_GetMap();
+
+	float bbox[2][2];
+	Math_SizeToBbox(spawn_x, spawn_y, PLAYER_SIZE, bbox);;
+	player.obj->spatial_id = BVH_Tree_Insert(&map->spatial_tree, bbox, player.obj->id);
 	player.obj->x = spawn_x;
 	player.obj->y = spawn_y;
 
@@ -879,22 +835,7 @@ void Player_Update(GLFWwindow* window, float delta)
 	player.stored_hp = player.obj->hp;
 }
 
-void Player_GetView(float* r_x, float* r_y, float* r_dirX, float* r_dirY, float* r_planeX, float* r_planeY)
-{
-	if (!player.obj)
-	{
-		return;
-	}
-
-	if(r_x) *r_x = player.obj->x;
-	if(r_y) *r_y = player.obj->y;
-	if(r_dirX) *r_dirX = player.obj->dir_x;
-	if(r_dirY) *r_dirY = player.obj->dir_y;
-	if(r_planeX) *r_planeX = player.plane_x;
-	if(r_planeY) *r_planeY = player.plane_y;
-}
-
-void Player_GetView2(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle)
+void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle)
 {
 	if (!player.obj)
 	{

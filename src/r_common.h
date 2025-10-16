@@ -7,6 +7,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
+#include <windows.h>
 
 #define MAX_IMAGE_MIPMAPS 8
 #define DEPTH_CLEAR 9999999
@@ -273,16 +274,6 @@ typedef struct
 	int frame_offset_x;
 	int frame_offset_y;
 
-	//for rendering
-	int r_draw_start_x;
-	int r_draw_end_x;
-	int r_draw_start_y;
-	int r_draw_end_y;
-	int r_width, r_height;
-	int r_light;
-	int r_screen_x;
-	float r_transform_y;
-
 	//image data
 	Image* img;
 } Sprite;
@@ -297,17 +288,17 @@ typedef struct
 	float scale_x, scale_y;
 	float dist;
 
-	int frame;
+	short frame;
 
-	int frame_offset_x;
-	int frame_offset_y;
+	short frame_offset_x;
+	short frame_offset_y;
 
-	int sprite_rect_width;
-	int sprite_rect_height;
+	short sprite_rect_width;
+	short sprite_rect_height;
 
 	float transparency;
 
-	int light;
+	short light;
 
 	bool flip_h;
 	bool flip_v;
@@ -316,16 +307,18 @@ typedef struct
 void Sprite_UpdateAnimation(Sprite* sprite, float delta);
 void Sprite_ResetAnimState(Sprite* sprite);
 
+#define MAX_CLIPSEGMENTS 2000
+
 typedef struct
 {
 	short first;
 	short last;
-} Cliprange2;
+} Cliprange;
 
 typedef struct
 {
-	Cliprange2 solidsegs[100];
-	Cliprange2* newend;
+	Cliprange solidsegs[MAX_CLIPSEGMENTS];
+	Cliprange* newend;
 } ClipSegments;
 
 typedef struct
@@ -346,6 +339,19 @@ typedef struct
 	int index;
 } DrawCollumns;
 
+#define MAX_DRAWSPRITES 1024
+
+typedef struct
+{
+	DrawSprite draw_sprites[MAX_DRAWSPRITES];
+	int num_draw_sprites;
+
+	ClipSegments clip_segs;
+
+	uint64_t* visited_sectors_bitset;
+	size_t bitset_size;
+} RenderData;
+
 typedef struct
 {
 	float view_x, view_y, view_z;
@@ -356,7 +362,8 @@ typedef struct
 	short* yclip_top;
 	short* yclip_bottom;
 
-	ClipSegments* clipsegments;
+	RenderData* render_data;
+
 	DrawCollumns* drawcollumns;
 	float* depth_buffer;
 } DrawingArgs;
@@ -410,22 +417,52 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite);
 typedef void (*ShaderFun)(Image* image, int x, int y, int tx, int ty);
 void Video_Shade(Image* image, ShaderFun shader_fun, int x0, int y0, int x1, int y1);
 
+typedef enum
+{
+	TS__NONE,
+	TS__SLEEPING,
+	TS__WORKING,
+} ThreadState;
+
+typedef enum
+{
+	TWT__NONE,
+
+	TWT__SHADER,
+	TWT__DRAW_LEVEL
+} ThreadWorkType;
+
+typedef struct
+{
+	RenderData render_data;
+
+	ThreadState state;
+	ThreadWorkType work_type;
+
+	HANDLE thread_handle;
+
+	CRITICAL_SECTION mutex;
+	HANDLE start_work_event;
+	HANDLE active_event;
+	HANDLE finished_work_event;
+
+	int x_start, x_end;
+	bool shutdown;
+} RenderThread;
+
 bool Render_Init(int width, int height);
 void Render_ShutDown();
 void Render_LockThreadsMutex();
 void Render_UnlockThreadsMutex();
-void Render_LockObjectMutex();
-void Render_UnlockObjectMutex();
+void Render_LockObjectMutex(bool writer);
+void Render_UnlockObjectMutex(bool writer);
 void Render_FinishAndStall();
 void Render_Resume();
-void Render_AddSpriteToQueue(Sprite* sprite);
 void Render_AddScreenSpriteToQueue(Sprite* sprite);
 void Render_QueueFullscreenShader(ShaderFun shader_fun);
 
-void Render_RedrawWalls();
-void Render_RedrawSprites();
 void Render_ResizeWindow(int width, int height);
-void Render_View(float x, float y, float dir_x, float dir_y, float plane_x, float plane_y);
+void Render_View(float x, float y, float z, float angleCos, float angleSin);
 void Render_GetWindowSize(int* r_width, int* r_height);
 void Render_GetRenderSize(int* r_width, int* r_height);
 int Render_GetRenderScale();
@@ -435,7 +472,11 @@ int Render_IsFullscreen();
 void Render_ToggleFullscreen();
 int Render_GetTicks();
 
-typedef void (*ClipSegFun)(Image* image);
+void RenderUtl_ResetClip(ClipSegments* clip, short left, short right);
+void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_end);
+bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector);
+void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector);
+void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light);
 
 void Scene_ResetClip(ClipSegments* clip, short left, short right);
 void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args);
@@ -445,7 +486,7 @@ void Scene_ProcessSubsector(Image* image, struct Map* map, struct Subsector* sub
 int Scene_ProcessBSPNode(Image* image, struct Map* map, int node_index, DrawingArgs* args);
 void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer);
 void Scene_Reset();
-void Scene_Init();
+void Scene_Setup(int width, int height, float h_fov, float v_fov);
 
 #define MAX_FONT_GLYPHS 100
 

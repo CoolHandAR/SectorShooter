@@ -58,6 +58,30 @@ static const float y_diags[DIR_MAX] =
 
 typedef enum
 {
+	ROT__FORWARD,
+	ROT__FORWARD_SIDE,
+	ROT__SIDE,
+	ROT__BACK_SIDE,
+	ROT__BACK
+} RotType;
+
+static const RotType SPRITE_ROTATION_OFFSET_LUT[11] =
+{
+	ROT__FORWARD, //0
+	ROT__FORWARD_SIDE, //1
+	ROT__SIDE, //2,
+	ROT__BACK, //3
+	ROT__BACK, //4
+	ROT__SIDE, //5
+	ROT__FORWARD_SIDE, //6
+	ROT__FORWARD, //7
+	ROT__BACK_SIDE, //8 (3 + 5)
+	ROT__BACK_SIDE, //9 (4 + 5)
+	ROT__FORWARD, //10
+};
+
+typedef enum
+{
 	MSOUND__ALERT,
 	MSOUND__HIT,
 	MSOUND__DEATH,
@@ -185,12 +209,13 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 	float obj_angle = atan2(-obj->dir_y, -obj->dir_x);
 	 
 	float rotation = angle - obj_angle;
+	rotation += Math_DegToRad(45.0 / 2 * 9 - 180.0 / 16);
 
 	float abs_dir = fabs(rotation);
 	int round_dir = roundl(abs_dir);
 	float fraction = abs_dir - round_dir;
 
-	int sign = (round_dir >= 4) ? -1 : 1;
+	int sign = (round_dir >= 7) ? 1 : -1;
 
 	if (obj->state != MS__DIE)
 	{
@@ -204,125 +229,46 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 		}
 	}
 
+	round_dir = abs(round_dir - 3);
+
+	if (obj->state != MS__HIT)
+	{
+		//hack!!
+		if ((fraction < 0.1 && round_dir == 3) || (fraction > 0.1 && round_dir == 4))
+		{
+			round_dir += 5;
+		}
+	}
+
 	if (obj->state == MS__WALK || obj->state == MS__IDLE)
 	{
-		switch (round_dir)
-		{
-		//fallthrough
-		case 0:
-		case 6:
-		{
-			return MAS__WALK_FORWARD;
-		}
-		//fallthrough
-		case 1:
-		case 5:
-		{
-			return MAS__WALK_FORWARD_SIDE;
-		}
-		//fallthrough
-		case 2:
-		case 4:
-		{
-			//hack!!
-			if ((fraction < 0.2 && round_dir == 4) || (fraction > 0.2 && round_dir == 2))
-			{
-				return MAS__WALK_BACK_SIDE;
-			}
+		RotType offset = MAS__WALK_FORWARD + SPRITE_ROTATION_OFFSET_LUT[round_dir];
 
-			return MAS__WALK_SIDE;
-		}
-		case 3:
-		{
-			return MAS__WALK_BACK;
-		}
-		default:
-			break;
-		}
+		return offset;
 	}
 	else if (obj->state == MS__MISSILE)
 	{
-		switch (round_dir)
-		{
-			//fallthrough
-		case 0:
-		case 6:
-		{
-			return MAS__ATTACK_FORWARD;
-		}
-		//fallthrough
-		case 1:
-		case 5:
-		{
-			return MAS__ATTACK_FORWARD_SIDE;
-		}
-		//fallthrough
-		case 2:
-		case 4:
-		{
-			//hack!!
-			if ((fraction < 0.2 && round_dir == 4) || (fraction > 0.2 && round_dir == 2))
-			{
-				return MAS__ATTACK_BACK_SIDE;
-			}
+		RotType offset = MAS__ATTACK_FORWARD + SPRITE_ROTATION_OFFSET_LUT[round_dir];
 
-			return MAS__ATTACK_SIDE;
-		}
-		case 3:
-		{
-			return MAS__ATTACK_BACK;
-		}
-		default:
-			break;
-		}
+		return offset;
 	}
 	else if (obj->state == MS__MELEE)
 	{
-		switch (round_dir)
-		{
-		//fallthrough
-		case 0:
-		case 6:
-		{
-			return MAS__MELEE_FORWARD;
-		}
-		//fallthrough
-		case 1:
-		case 5:
-		{
-			return MAS__MELEE_FORWARD_SIDE;
-		}
-		//fallthrough
-		case 2:
-		case 4:
-		{
-			//hack!!
-			if ((fraction < 0.2 && round_dir == 4) || (fraction > 0.2 && round_dir == 2))
-			{
-				return MAS__MELEE_BACK_SIDE;
-			}
+		RotType offset = MAS__MELEE_FORWARD + SPRITE_ROTATION_OFFSET_LUT[round_dir];
 
-			return MAS__MELEE_SIDE;
-		}
-		case 3:
-		{
-			return MAS__MELEE_BACK;
-		}
-		default:
-			break;
-		}
+		return offset;
 	}
 	else if (obj->state == MS__HIT)
 	{
-		if (round_dir == 0 || round_dir == 6)
+		if (round_dir == 0 || round_dir == 1 || round_dir == 6 || round_dir == 7)
 		{
 			return MAS__HIT_FORWARD;
 		}
-		else if (round_dir == 1 || round_dir == 5 || round_dir == 2 || round_dir == 4)
+		else if (round_dir == 2 || round_dir == 5)
 		{
 			return MAS__HIT_SIDE;
 		}
-		else if (round_dir == 3)
+		else if (round_dir == 3 || round_dir == 4)
 		{
 			return MAS__HIT_BACK;
 		}
@@ -377,6 +323,8 @@ static bool Monster_TryStep(Object* obj, float delta)
 	float dir_x = x_diags[obj->dir_enum];
 	float dir_y = y_diags[obj->dir_enum];
 
+	obj->speed = 24;
+
 	delta *= obj->speed;
 
 	if (!Move_CheckStep(obj, dir_x * delta, dir_y * delta, obj->size))
@@ -394,7 +342,7 @@ static bool Monster_Walk(Object* obj, float delta)
 {
 	delta *= obj->speed;
 
-	if (Move_Object(obj, obj->dir_x * delta, obj->dir_y * delta, false))
+	if (Move_Object(obj, obj->dir_x * delta, obj->dir_y * delta, true))
 	{
 		Monster_SetState(obj, MS__WALK);
 		return true;
@@ -681,7 +629,7 @@ void Monster_Spawn(Object* obj)
 	obj->sprite.scale_y = monster_info->sprite_scale;
 	obj->sprite.v_offset = monster_info->sprite_v_offset;
 	obj->hp = monster_info->spawn_hp;
-	obj->size = 0.5;
+	obj->size = 5.5;
 	obj->speed = monster_info->speed;
 
 	Monster_SetState(obj, MS__IDLE);
@@ -745,9 +693,10 @@ void Monster_Update(Object* obj, float delta)
 		Monster_SetState(obj, MS__DIE);
 		return;
 	}
-	
-	Object* target = obj->target;
+	//always update z
+	Move_ZMove(obj, -128 * delta);
 
+	Object* target = obj->target;
 	//no target
 	if (!target)
 	{

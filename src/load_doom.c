@@ -660,7 +660,9 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         float object_x = (int)mt->x >> DOOM_VERTEX_SHIFT;
         float object_y = (int)mt->y >> DOOM_VERTEX_SHIFT;
 
-        Object_Spawn(OT__THING, SUB__THING_BLUE_COLLUMN, object_x, object_y, 128);
+        Object_Spawn(OT__MONSTER, SUB__MOB_IMP, object_x, object_y, 128);
+
+        //Object_Spawn(OT__THING, SUB__THING_RED_COLLUMN, object_x, object_y, 128);
     }
 
     if (player_thing)
@@ -749,6 +751,11 @@ bool Load_Doommap(const char* filename, Map* map)
     Load_Nodes(node_lump, num_nodes, map);
     Load_Sidedefs(sidedef_lump, num_sidedefs, map);
     Load_LineSegs(seg_lump, num_segs, vertex_lump, sidedef_lump, linedef_lump, map);
+
+    //load rejectblock
+    int reject_size = 0;
+    map->reject_matrix = MallocLump(file, file_infos, lump_start, ML_REJECT, sizeof(unsigned char), &reject_size);
+    map->reject_size = reject_size;
 
     //post processing step
     Load_PostProcessMap(map);

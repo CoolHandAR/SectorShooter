@@ -163,17 +163,6 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 
 		break;
 	}
-	case OT__SPECIAL_TILE:
-	{
-		if (collision_obj->sub_type == SUB__SPECIAL_TILE_FAKE)
-		{
-			return true;
-		}
-
-		return false;
-
-		break;
-	}
 	case OT__PICKUP:
 	{
 		//pickup pickups for player
@@ -276,6 +265,12 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 				return true;
 			}
 		}
+		//check z 
+		if (Object_ZPassCheck(obj, collision_obj))
+		{
+			return true;
+		}
+
 
 		//if we have collided with player or a monster
 		//perform direct hit damage
@@ -285,245 +280,28 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 	//we can't move
 	return false;
 }
-bool Object_CheckLineToTile(Object* obj, float target_x, float target_y)
-{
-	const int max_tiles = 0;
-
-	float x_point = obj->x - target_x;
-	float y_point = obj->y - target_y;
-
-	float ray_dir_x = x_point;
-	float ray_dir_y = y_point;
-
-	//length of ray from one x or y-side to next x or y-side
-	float delta_dist_x = (ray_dir_x == 0) ? 1e30 : fabs(1.0 / ray_dir_x);
-	float delta_dist_y = (ray_dir_y == 0) ? 1e30 : fabs(1.0 / ray_dir_y);
-
-	int map_x = (int)obj->x;
-	int map_y = (int)obj->y;
-
-	int target_tile_x = (int)target_x;
-	int target_tile_y = (int)target_y;
-
-	//we have already reached the target
-	if (map_x == target_tile_x && map_y == target_tile_y)
-	{
-		return true;
-	}
-
-	//length of ray from current position to next x or y-side
-	float side_dist_x = 0;
-	float side_dist_y = 0;
-
-	int step_x = 0;
-	int step_y = 0;
-
-	if (x_point > 0)
-	{
-		step_x = -1;
-		side_dist_x = (obj->x - map_x) * delta_dist_x;
-	}
-	else
-	{
-		step_x = 1;
-		side_dist_x = (map_x + 1.0 - obj->x) * delta_dist_x;
-	}
-	if (y_point > 0)
-	{
-		step_y = -1;
-		side_dist_y = (obj->y - map_y) * delta_dist_y;
-	}
-	else
-	{
-		step_y = 1;
-		side_dist_y = (map_y + 1.0 - obj->y) * delta_dist_y;
-	}
-
-	//perform DDA
-	for (int step = 0; step < max_tiles; step++)
-	{
-		if (map_x == target_tile_x && map_y != target_tile_y)
-		{
-			side_dist_y += delta_dist_y;
-			map_y += step_y;
-		}
-		else if (map_y == target_tile_y && map_x != target_tile_x)
-		{
-			side_dist_x += delta_dist_x;
-			map_x += step_x;
-		}
-		else if (map_x != target_tile_x && map_y != target_tile_y)
-		{
-			if (side_dist_x < side_dist_y)
-			{
-				side_dist_x += delta_dist_x;
-				map_x += step_x;
-			}
-			else
-			{
-				side_dist_y += delta_dist_y;
-				map_y += step_y;
-			}
-		}
-
-		//we have reached the target
-		if (map_x == target_tile_x && map_y == target_tile_y)
-		{
-			break;
-		}
-
-		//tile blocks the line
-		if (Map_GetTile(map_x, map_y) != EMPTY_TILE)
-		{
-			return false;
-		}
-
-		//check for blocking objects
-		Object* tile_obj = Map_GetObjectAtTile(map_x, map_y);
-
-		if (!tile_obj)
-		{
-			continue;
-		}
-
-		//tile blocks the line
-		if (Object_IsSpecialCollidableTile(tile_obj))
-		{
-			return false;
-		}
-
-		//thing blocks the line
-		if (tile_obj->type == OT__THING)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-bool Object_CheckLineToTile2(Object* obj, float target_x, float target_y)
-{
-	const int max_tiles = 0;
-
-	float x_point = obj->x - target_x;
-	float y_point = obj->y - target_y;
-
-	float ray_dir_x = x_point;
-	float ray_dir_y = y_point;
-
-	//length of ray from one x or y-side to next x or y-side
-	float delta_dist_x = (ray_dir_x == 0) ? 1e30 : fabs(1.0 / ray_dir_x);
-	float delta_dist_y = (ray_dir_y == 0) ? 1e30 : fabs(1.0 / ray_dir_y);
-
-	int map_x = (int)obj->x;
-	int map_y = (int)obj->y;
-
-	int target_tile_x = (int)target_x;
-	int target_tile_y = (int)target_y;
-
-	//we have already reached the target
-	if (map_x == target_tile_x && map_y == target_tile_y)
-	{
-		return true;
-	}
-
-	//length of ray from current position to next x or y-side
-	float side_dist_x = 0;
-	float side_dist_y = 0;
-
-	int step_x = 0;
-	int step_y = 0;
-
-	if (x_point > 0)
-	{
-		step_x = -1;
-		side_dist_x = (obj->x - map_x) * delta_dist_x;
-	}
-	else if (x_point < 0)
-	{
-		step_x = 1;
-		side_dist_x = (map_x + 1.0 - obj->x) * delta_dist_x;
-	}
-	if (y_point > 0)
-	{
-		step_y = -1;
-		side_dist_y = (obj->y - map_y) * delta_dist_y;
-	}
-	else if (y_point < 0)
-	{
-		step_y = 1;
-		side_dist_y = (map_y + 1.0 - obj->y) * delta_dist_y;
-	}
-
-	if (abs(x_point) > 0)
-	{
-		int x = map_x;
-		float y = map_y;
-
-		y += step_y * delta_dist_x;
-		x += step_x;
-
-		while (x != target_tile_x)
-		{
-			if (Map_GetTile(x, y) != EMPTY_TILE)
-			{
-				return false;
-			}
-
-			Object* tile_obj = Map_GetObjectAtTile(x, y);
-
-			if (tile_obj)
-			{
-				if (Object_IsSpecialCollidableTile(tile_obj))
-				{
-					return false;
-				}
-			}
-
-			y += step_y * delta_dist_x;
-			x += step_x;
-		}
-	}
-	if (abs(y_point) > 0)
-	{
-		float x = map_x;
-		int y = map_y;
-
-		x += step_x * delta_dist_y;
-		y += step_y;
-
-		while (y != target_tile_y)
-		{
-			if (Map_GetTile(x, y) != EMPTY_TILE)
-			{
-				return false;
-			}
-			Object* tile_obj = Map_GetObjectAtTile(x, y);
-
-			if (tile_obj)
-			{
-				if (Object_IsSpecialCollidableTile(tile_obj))
-				{
-					return false;
-				}
-			}
-
-			x += step_x * delta_dist_y;
-			y += step_y;
-		}
-	}
-
-	return true;
-}
-
 bool Object_CheckLineToTarget(Object* obj, Object* target)
 {
-	return false;
+	if (!obj || !target)
+	{
+		return false;
+	}
+
+	if (!Map_CheckSectorReject(obj->sector_index, target->sector_index))
+	{
+		return false;
+	}
+
+	return Trace_CheckLineToTarget(obj, target);
 }
 
 bool Object_CheckSight(Object* obj, Object* target)
 {
+	if (!obj || !target)
+	{
+		return false;
+	}
+
 	float x_point = obj->x - target->x;
 	float y_point = obj->y - target->y;
 
@@ -566,29 +344,19 @@ bool Object_CheckSight(Object* obj, Object* target)
 
 	return true;
 }
-bool Object_IsSpecialCollidableTile(Object* obj)
-{
-	//check for closed doors
-	if (obj->type == OT__DOOR)
-	{
-		//door is more than halfway closed
-		if (obj->move_timer >= 0.5)
-		{
-			return true;
-		}
-	}
-	//check for special tiles
-	else if (obj->type == OT__SPECIAL_TILE)
-	{
 
-	}
-	//check for special triggers
-	else if (obj->type == OT__TRIGGER)
+
+bool Object_ZPassCheck(Object* obj, Object* col_obj)
+{
+	//our bottom will not hit top of their body,
+	if (obj->z > col_obj->z + col_obj->height)
 	{
-		if (obj->sub_type == SUB__TRIGGER_SWITCH)
-		{
-			return true;
-		}
+		return true;
+	}
+	//our top will not hit bottom of their body
+	if (obj->z + obj->height < col_obj->z)
+	{
+		return true;
 	}
 
 	return false;
@@ -618,7 +386,6 @@ void Object_UnlinkSector(Object* obj)
 			sector->object_list = obj->sector_next;
 		}
 	}
-
 
 	obj->sector_next = NULL;
 	obj->sector_prev = NULL;
@@ -724,40 +491,40 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage)
 
 Object* Object_Missile(Object* obj, Object* target, int type)
 {
-	Object* missile = Map_NewObject(OT__MISSILE);
+	Object* missile = Object_Spawn(OT__MISSILE, type, obj->x, obj->y, obj->z);
 
 	if (!missile)
 	{
 		return NULL;
 	}
 
-	GameAssets* assets = Game_GetAssets();
-
 	float dir_x = obj->dir_x;
 	float dir_y = obj->dir_y;
+	float dir_z = obj->dir_z;
 
 	//if we have a target calc dir to target
 	if (target)
 	{
-		float point_x = (obj->x) - target->x;
-		float point_y = (obj->y) - target->y;
+		float point_x = (target->x) - obj->x;
+		float point_y = (target->y) - obj->y;
+		float point_z = (target->z + 32) - (obj->z + 32);
 
 		Math_XY_Normalize(&point_x, &point_y);
 
-		dir_x = -point_x;
-		dir_y = -point_y;
+		dir_x = point_x;
+		dir_y = point_y;
+		dir_z = point_z;
 	}
-
 	missile->owner = obj;
-	missile->sub_type = type;
 	missile->x = (obj->x) + dir_x * 2;
 	missile->y = (obj->y) + dir_y * 2;
+	missile->z = (obj->z + 32);
 	missile->dir_x = dir_x;
 	missile->dir_y = dir_y;
-	missile->hp = 1;
-	missile->sprite.light = 1;
-	missile->sprite.img = &assets->missile_textures;
-	missile->size = 0.25;
+	missile->dir_z = dir_z;
+
+	Move_SetPosition(missile, missile->x, missile->y);
+	Move_ZMove(missile, -100);
 
 	return missile;
 }
@@ -786,6 +553,9 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	obj->sprite.y = y + obj->sprite.offset_y;
 	obj->sprite.z = z;
 
+	obj->height = 40;
+	obj->step_height = 12;
+	obj->dropoff_height = 1000;
 	obj->size = 10;
 	obj->spatial_id = -1;
 
@@ -854,10 +624,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->state = DOOR_SLEEP;
 		break;
 	}
-	case OT__SPECIAL_TILE:
-	{
-		break;
-	}
 	case OT__PARTICLE:
 	{
 		ParticleInfo* particle_info = Info_GetParticleInfo(sub_type);
@@ -889,6 +655,18 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 		break;
 	}
+	case OT__MISSILE:
+	{
+		obj->owner = obj;
+		obj->hp = 1;
+		obj->sprite.light = 1;
+		obj->sprite.img = &assets->missile_textures;
+		obj->size = 5.25;
+
+		//Oject_missile will hand the position
+		return obj;
+		break;
+	}
 	default:
 		break;
 	}
@@ -907,4 +685,9 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	Move_ZMove(obj, -100);
 
 	return obj;
+}
+
+int Object_AreaEffect(Object* obj, float radius)
+{
+	return Trace_AreaObjects(obj, obj->x, obj->y, radius);
 }

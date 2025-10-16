@@ -61,7 +61,6 @@ static bool Menu_CheckInput(int key, int state)
 
 	if (glfwGetKey(window, key) == state)
 	{
-		Render_RedrawSprites();
 		menu_core.input_timer = INPUT_COOLDOWN;
 		return true;
 	}
@@ -79,7 +78,6 @@ static bool Menu_CheckMouseInput(int key, int state)
 
 	if (glfwGetMouseButton(window, key) == state)
 	{
-		Render_RedrawSprites();
 		menu_core.input_timer = INPUT_COOLDOWN;
 		return true;
 	}
@@ -161,8 +159,6 @@ static void Menu_HandleOption(int step)
 	default:
 		break;
 	}
-
-	Render_RedrawSprites();
 }
 
 void Menu_Update(float delta)
@@ -330,8 +326,6 @@ void Menu_LevelEnd_Update(float delta, int secret_goal, int secret_max, int mons
 			menu_core.monster_counter = monster_goal;
 		}
 	}
-
-	Render_RedrawSprites();
 
 }
 void Menu_LevelEnd_Draw(Image* image, FontData* fd)

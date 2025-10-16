@@ -23,15 +23,7 @@ static int CompareSpriteDistances(const void* a, const void* b)
 	return 0;
 }
 
-static void Map_ClearTempLight()
-{
-	Render_LockThreadsMutex();
 
-	
-
-	Render_UnlockThreadsMutex();
-	Render_RedrawWalls();
-}
 static void Map_UpdateSortedList()
 {
 	int index = 0;
@@ -218,6 +210,10 @@ Object* Map_NewObject(ObjectType type)
 	obj->type = type;
 	obj->hp = 1;
 	obj->size = 0.5;
+	obj->spatial_id = -1;
+	obj->sector_index = -1;
+	obj->sector_next = NULL;
+	obj->sector_prev = NULL;
 
 	Map_UpdateSortedList();
 
@@ -252,30 +248,10 @@ bool Map_Load(const char* filename)
 
 	//Load_BuildMap("newboard.map", &s_map);
 	Load_DoomIWAD("DOOM.WAD", &s_map);
-	Load_Doommap("test.wad", &s_map);	
+	Load_Doommap("E1M1.WAD", &s_map);	
 	//LoadData();
 
 	return true;
-}
-
-TileID Map_GetTile(int x, int y)
-{
-	
-
-	return 0;
-}
-
-TileID Map_GetFloorTile(int x, int y)
-{
-
-	return 0;
-}
-
-TileID Map_GetCeilTile(int x, int y)
-{
-
-
-	return 0;
 }
 
 Object* Map_GetObject(ObjectID id)
@@ -285,24 +261,11 @@ Object* Map_GetObject(ObjectID id)
 	return &s_map.objects[id];
 }
 
-Object* Map_GetObjectAtTile(int x, int y)
-{
-
-	return 0;
-}
-
-
 void Map_SetTempLight(int x, int y, int size, int light)
 {
-	Trace_ShadowCast(x, y, size, SetTempLightTileCallback);
+
 }
 
-TileID Map_Raycast(float p_x, float p_y, float dir_x, float dir_y, float* r_hitX, float* r_hitY)
-{
-	
-
-	return 0;
-}
 
 
 void Map_GetSize(int* r_width, int* r_height)
@@ -341,97 +304,10 @@ void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot
 	}
 
 }
-bool Map_UpdateObjectTile(Object* obj)
-{
-	return true;
 
-	if (obj->x < 0 || obj->y < 0)
-	{
-		return false;
-	}
-
-	if (obj->type == OT__PARTICLE)
-	{
-		return true;
-	}
-
-	int total_tiles = 0;
-
-	int tile_x = (int)obj->x;
-	int tile_y = (int)obj->y;
-
-	int index = tile_x + tile_y;
-
-	if (index >= total_tiles || index < 0)
-	{
-		return false;
-	}
-
-	ObjectID id = s_map.object_tiles[index];
-
-	if (id != NULL_INDEX)
-	{
-		Object* tile_obj = &s_map.objects[id];
-
-		if (tile_obj != obj)
-		{
-			//if we are a missile don't take take anyone's place
-			if (obj->type == OT__MISSILE)
-			{
-				return true;
-			}
-
-			if (tile_obj->type == OT__PLAYER || tile_obj == OT__MONSTER || tile_obj->type == OT__THING)
-			{
-				return false;
-			}
-
-			//return true, but don't take the spot
-			if (tile_obj->type == OT__DOOR || tile_obj->type == OT__TRIGGER || tile_obj->type == OT__SPECIAL_TILE || tile_obj->type == OT__PICKUP)
-			{
-				return true;
-			}
-			
-		}
-	}
-
-
-	s_map.object_tiles[index] = obj->id;
-
-	return true;
-}
-
-
-void Map_DrawObjects(Image* image, float* depth_buffer, DrawSpan* draw_spans, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY)
-{
-	for (int i = 0; i < s_map.num_sorted_objects; i++)
-	{
-		ObjectID id = s_map.sorted_list[i];
-		Object* object = &s_map.objects[id];
-
-		if (object->type == OT__NONE || !object->sprite.img || object->sprite.skip_draw == true)
-		{
-			continue;
-		}
-
-		if (object->type != OT__THING)
-		{
-			continue;
-		}
-
-		Sprite* sprite = &object->sprite;
-
-		Render_AddSpriteToQueue(sprite);
-	}
-}
 
 void Map_UpdateObjects(float delta)
 {
-	float view_x, view_y, dir_x, dir_y, dir_z, plane_x, plane_y;
-	Player_GetView(&view_x, &view_y, &dir_x, &dir_y, &plane_x, &plane_y);
-
-	float inv_det = 1.0 / (plane_x * dir_y - dir_x * plane_y);
-
 	for (int i = 0; i < s_map.num_sorted_objects; i++)
 	{
 		ObjectID id = s_map.sorted_list[i];
@@ -491,10 +367,6 @@ void Map_UpdateObjects(float delta)
 		{
 			continue;
 		}
-
-		obj->sprite.x = obj->x + obj->sprite.offset_x;
-		obj->sprite.y = obj->y + obj->sprite.offset_y;
-		obj->sprite.z = obj->z + 64;
 		
 	}
 }
@@ -506,9 +378,11 @@ void Map_DeleteObject(Object* obj)
 		BVH_Tree_Remove(&s_map.spatial_tree, obj->spatial_id);
 	}
 
-	Render_LockObjectMutex();
+	Render_LockObjectMutex(true);
 
 	Object_UnlinkSector(obj);
+
+	Render_UnlockObjectMutex(true);
 
 	ObjectID id = obj->id;
 
@@ -522,8 +396,6 @@ void Map_DeleteObject(Object* obj)
 
 	//update sorted list
 	Map_UpdateSortedList();
-
-	Render_UnlockObjectMutex();
 }
 
 Subsector* Map_FindSubsector(float p_x, float p_y)
@@ -545,19 +417,39 @@ Sector* Map_FindSector(float p_x, float p_y)
 	return Map_FindSubsector(p_x, p_y)->sector;
 }
 
+Sector* Map_GetSector(int index)
+{
+	if (index < 0 || index >= s_map.num_sectors)
+	{
+		return NULL;
+	}
+
+	return &s_map.sectors[index];
+}
+
+bool Map_CheckSectorReject(int s1, int s2)
+{
+	if (s_map.reject_size > 0 && s1 >= 0 && s2 >= 0)
+	{
+		int pnum = s1 * s_map.num_sectors + s2;
+		return !(s_map.reject_matrix[pnum >> 3] & (1 << (pnum & 7)));
+	}
+
+	return true;
+}
+
 void Map_Destruct()
 {
 	//keep old level index
 	int old_level_index = s_map.level_index;
-
-	if (s_map.object_tiles) free(s_map.object_tiles);
 
 	if (s_map.line_segs) free(s_map.line_segs);
 	if (s_map.bsp_nodes) free(s_map.bsp_nodes);
 	if (s_map.sectors) free(s_map.sectors);
 	if (s_map.sub_sectors) free(s_map.sub_sectors);
 	if (s_map.sidedefs) free(s_map.sidedefs);
-	
+	if (s_map.reject_matrix) free(s_map.reject_matrix);
+
 	BVH_Tree_Destruct(&s_map.spatial_tree);
 
 	memset(&s_map, 0, sizeof(s_map));

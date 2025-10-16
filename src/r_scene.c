@@ -3,12 +3,9 @@
 
 #include "u_math.h"
 
-#define hfov (0.72f*1080)  // Affects the horizontal field of vision
-#define vfov (.2f)    // Affects the vertical field of vision
-#define W 1920
-#define H 1080
+#define MAX_H 4080
 
-static float yslope[H];
+static float yslope[MAX_H];
 static unsigned char LIGHT_LUT2[256][256];
 
 enum
@@ -19,7 +16,7 @@ enum
 	BOXRIGHT
 };	// bbox coordinates
 
-static bool Scene_checkBBOX(ClipSegments* clipsegments, int width, int height, float p_x, float p_y, float p_sin, float p_cos, float* bspcoord)
+static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x, float p_y, float p_sin, float p_cos, float* bspcoord)
 {
 	static const int checkcoord[12][4] =
 	{
@@ -87,8 +84,8 @@ static bool Scene_checkBBOX(ClipSegments* clipsegments, int width, int height, f
 		return false;
 	}
 
-	ry1 = (hfov) / ry1;
-	ry2 = (hfov) / ry2;
+	ry1 = args->h_fov / ry1;
+	ry2 = args->h_fov / ry2;
 
 	int sx1 = 0;
 	int sx2 = 0;
@@ -105,15 +102,15 @@ static bool Scene_checkBBOX(ClipSegments* clipsegments, int width, int height, f
 
 	if (sx2 > sx1)
 	{
-		sx1 = max(sx1, 0);
-		sx2 = min(sx2, width);
+		sx1 = max(sx1, args->start_x);
+		sx2 = min(sx2, args->end_x);
 
 		if (sx2 <= sx1)
 		{
 			return false;
 		}
 
-		Cliprange2* start = clipsegments->solidsegs;
+		Cliprange* start = args->render_data->clip_segs.solidsegs;
 		int s = 0;
 		while (start->last < sx2)
 		{
@@ -130,34 +127,7 @@ static bool Scene_checkBBOX(ClipSegments* clipsegments, int width, int height, f
 	return true;
 }
 
-static unsigned Pack_Color(unsigned char c[4])
-{
-	unsigned color = 0;
-
-	color |= ((unsigned)c[0] << 24u);
-	color |= ((unsigned)c[1] << 16u);
-	color |= ((unsigned)c[2] << 8u);
-	color |= ((unsigned)c[3]);
-
-	return color;
-}
-static unsigned applyLight(unsigned color, int l)
-{
-	unsigned r = (color & 0xff000000u) >> 24u;
-	unsigned g = (color & 0xff0000u) >> 16u;
-	unsigned b = (color & 0xff00u) >> 8u;
-	unsigned a = (color & 0xffu);
-
-	color = 0;
-
-	color |= (LIGHT_LUT2[r][l] << 24u);
-	color |= (LIGHT_LUT2[g][l] << 16u);
-	color |= (LIGHT_LUT2[b][l] << 8u);
-	color |= (LIGHT_LUT2[a][l]);
-
-	return color;
-}
-static void Scene_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, int depth, int tx, float ty_pos, float ty_step, int light, int height_mask)
+static void Scene_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask)
 {
 	tx &= texture->width_mask;
 
@@ -172,6 +142,7 @@ static void Scene_DrawWallCollumn(Image* image, float* depth_buffer, Texture* te
 
 		size_t i = index * 4;
 
+		//avoid loops
 		dest[i + 0] = LIGHT_LUT2[data[0]][light];
 		dest[i + 1] = LIGHT_LUT2[data[1]][light];
 		dest[i + 2] = LIGHT_LUT2[data[2]][light];
@@ -182,35 +153,6 @@ static void Scene_DrawWallCollumn(Image* image, float* depth_buffer, Texture* te
 		index += image->width;
 	}
 }
-static void Scene_DrawWallCollumnDepth(Image* image, Texture* texture, float* depth_buffer, int x, int y1, int y2, int z, int tx, float ty_pos, float ty_step, int light, int height_mask)
-{
-	tx &= texture->width_mask;
-
-	unsigned* dest = image->data;
-	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
-	size_t depth_index = (size_t)x + (size_t)(y1 + 1);
-
-	//int height_mask = texture->height_mask;
-
-	for (int y = y1 + 1; y < y2; y++)
-	{
-		int ty = (int)ty_pos & height_mask;
-
-		unsigned* data = Image_Get(&texture->img, tx, ty);
-		
-		if (z >= depth_buffer[x + y * image->width])
-		{
-			continue;
-		}
-		depth_buffer[x + y * image->width] = z;
-
-		dest[index += image->width] = *data;
-
-		ty_pos += ty_step;
-	}
-}
-
-
 static void Scene_DrawWallCollumn2(Image* image, CollumnImage* texture, int x, int y1, int y2, int tx, float ty_pos, float ty_step, int light)
 {
 	tx &= texture->width - 1;
@@ -233,18 +175,45 @@ static void Scene_DrawWallCollumn2(Image* image, CollumnImage* texture, int x, i
 		ty_pos += ty_step;
 	}
 }
+static void Scene_DrawWallCollumnDepth(Image* image, Texture* texture, float* depth_buffer, int x, int y1, int y2, int z, int tx, float ty_pos, float ty_step, int light, int height_mask)
+{
+	tx &= texture->width_mask;
 
-static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, int depth, float height, float p_cos, float p_sin, float p_x, float p_y, int light)
+	unsigned* dest = image->data;
+	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
+	size_t depth_index = (size_t)x + (size_t)(y1 + 1);
+
+	//int height_mask = texture->height_mask;
+
+	for (int y = y1 + 1; y < y2; y++)
+	{
+		int ty = (int)ty_pos & height_mask;
+
+		unsigned* data = Image_Get(&texture->img, tx, ty);
+
+		if (z >= depth_buffer[x + y * image->width])
+		{
+			continue;
+		}
+		depth_buffer[x + y * image->width] = z;
+
+		dest[index += image->width] = *data;
+
+		ty_pos += ty_step;
+	}
+}
+
+static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* texture, float h_fov, int x, int y1, int y2, int depth, float height, float p_cos, float p_sin, float p_x, float p_y, int light)
 {
 	if (y2 <= y1)
 	{
 		return;
 	}
 
-	unsigned* dest = image->data;
+	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
-	float x_slope = (W / 2.0 - (float)x) / (float)(hfov);
+	float x_slope = ((float)image->width / 2.0 - (float)x) / (float)(h_fov);
 	float inv = 1.0 / 32.0;
 
 	for (int y = y1; y <= y2; y++)
@@ -266,12 +235,16 @@ static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* te
 		int tx = (int)(TILE_SIZE * (mapx - (int)mapx)) & (TILE_SIZE - 1);
 		int ty = (int)(TILE_SIZE * (mapz - (int)mapz)) & (TILE_SIZE - 1);
 
-		unsigned* texdata = Image_Get(&texture->img, ty, tx);
-		unsigned* d = Image_Get(image, x, y);
+		unsigned char* texdata = Image_Get(&texture->img, ty, tx);
+		
+		size_t i = index * 4;
+		dest[i + 0] = LIGHT_LUT2[texdata[0]][light];
+		dest[i + 1] = LIGHT_LUT2[texdata[1]][light];
+		dest[i + 2] = LIGHT_LUT2[texdata[2]][light];
 
-		*d = *texdata;
+		depth_buffer[index] = depth;
 
-		depth_buffer[x + y * image->width] = depth;
+		index += image->width;
 	}
 }
 
@@ -362,11 +335,11 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 		if (ceil_texture)
 		{
-			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, ceil_texture, x, ctop, c_yceil - 1, depth, args->ceilz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
+			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, ceil_texture, args->draw_args->h_fov, x, ctop, c_yceil - 1, depth, args->ceilz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
 		}
 		if (floor_texture)
 		{
-			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, floor_texture, x, c_yfloor, cbot, depth, args->floorz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
+			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, floor_texture, args->draw_args->h_fov, x, c_yfloor, cbot, depth, args->floorz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
 		}
 
 		if (is_backsector)
@@ -403,7 +376,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 				ty_pos += sidedef->y_offset;
 
-				Scene_StoreDrawCollumn(draw_args->drawcollumns, mid_texture, x, c_yceil, c_yfloor, tx, depth, ty_pos, ty_step);
+				//Scene_StoreDrawCollumn(draw_args->drawcollumns, mid_texture, x, c_yceil, c_yfloor, tx, depth, ty_pos, ty_step);
 			}
 
 
@@ -427,7 +400,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, LineDrawArgs* args, Image* image)
 {
 	ClipSegments* clip = p_clip;
-	Cliprange2* start = clip->solidsegs;
+	Cliprange* start = clip->solidsegs;
 
 	while (start->last < first)
 	{
@@ -448,7 +421,7 @@ void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, Li
 				}
 				else
 				{
-					Cliprange2* next = clip->newend;
+					Cliprange* next = clip->newend;
 					clip->newend++;
 
 					while (next != start)
@@ -476,7 +449,7 @@ void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, Li
 		return;
 	}
 
-	Cliprange2* next = start;
+	Cliprange* next = start;
 	while (last >= (next + 1)->first)
 	{
 		if (args) Scene_DrawLineSeg(image, next->last, (next + 1)->first, args);
@@ -576,7 +549,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	int x2 = (image->half_width) - (int)(tx2 * xscale2);
 
 	//not visible
-	if (x1 > x2 || x2 <= args->start_x || x1 >= args->end_x || x1 == x2)
+	if (x1 >= x2 || x2 <= args->start_x || x1 >= args->end_x)
 	{
 		return false;
 	}
@@ -642,11 +615,16 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 
 		bool is_solid = false;
 
-		Scene_ClipAndDraw(line_draw_args.draw_args->clipsegments, begin_x, end_x, false, &line_draw_args, image);
+		if (backsector->floor >= sector->ceil || backsector->ceil <= sector->floor)
+		{
+			is_solid = true;
+		}
+
+		Scene_ClipAndDraw(&line_draw_args.draw_args->render_data->clip_segs, begin_x, end_x, is_solid, &line_draw_args, image);
 	}
 	else
 	{
-		Scene_ClipAndDraw(line_draw_args.draw_args->clipsegments, begin_x, end_x, true, &line_draw_args, image);
+		Scene_ClipAndDraw(&line_draw_args.draw_args->render_data->clip_segs, begin_x, end_x, true, &line_draw_args, image);
 	}
 
 
@@ -655,9 +633,11 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 
 void Scene_ProcessSubsector(Image* image, Map* map, Subsector* sub_sector, DrawingArgs* args)
 {
-	if (sub_sector->sector->sprite_add_index != Render_GetTicks())
+	if (!RenderUtl_CheckVisitedSectorBitset(args->render_data, sub_sector->sector->index))
 	{
-		Render_LockObjectMutex();
+		Render_LockObjectMutex(false);
+
+		int light = sub_sector->sector->light_level;
 
 		//add object sprites to queue, to be drawn later on
 		Object* obj = sub_sector->sector->object_list;
@@ -665,14 +645,16 @@ void Scene_ProcessSubsector(Image* image, Map* map, Subsector* sub_sector, Drawi
 		while (obj)
 		{
 			Sprite* sprite = &obj->sprite;
-			Render_AddSpriteToQueue(sprite);
+			//Render_AddSpriteToQueue(sprite, light);
+			RenderUtl_AddSpriteToQueue(args->render_data, sprite, light);
 
 			obj = obj->sector_next;
 		}
 
-		Render_UnlockObjectMutex();
+		Render_UnlockObjectMutex(false);
 
 		sub_sector->sector->sprite_add_index = Render_GetTicks();
+		RenderUtl_SetVisitedSectorBitset(args->render_data, sub_sector->sector->index);
 	}
 
 	//keep sector info on the stack
@@ -720,7 +702,7 @@ int Scene_ProcessBSPNode(Image* image, Map* map, int node_index, DrawingArgs* ar
 
 	side = side ^ 1;
 
-	if(Scene_checkBBOX(args->clipsegments, image->width, image->height, args->view_x, args->view_y, args->view_sin, args->view_cos, node->bbox[side]))
+	if(Scene_checkBBOX(args, image->width, image->height, args->view_x, args->view_y, args->view_sin, args->view_cos, node->bbox[side]))
 	{
 		total += Scene_ProcessBSPNode(image, map, node->children[side], args);
 	}
@@ -744,13 +726,13 @@ void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_b
 
 }
 
-void Scene_Init()
+void Scene_Setup(int width, int height, float h_fov, float v_fov)
 {
-	for (int i = 0; i < H; i++)
+	for (int i = 0; i < height; i++)
 	{
-		yslope[i] = ((H * vfov) / ((H / 2.0 - ((float)i)) - 0.0 * H * vfov));
+		yslope[i] = ((height * v_fov) / ((height / 2.0 - ((float)i)) - 0.0 * height * v_fov));
 	}
-	
+
 	//setup light lut
 	for (int i = 0; i < 256; i++)
 	{
@@ -766,5 +748,4 @@ void Scene_Init()
 			LIGHT_LUT2[i][k] = (unsigned char)l;
 		}
 	}
-
 }

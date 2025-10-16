@@ -6,10 +6,9 @@
 #include <glad/glad.h>
 #include "g_common.h"
 #include <main.h>
-#include <windows.h>
+#include "utility.h"
 
 #define NUM_RENDER_THREADS 8
-#define MAX_DRAWSPRITES 1024
 #define MAX_SCREENSPRITES 10
 #define MAX_SCREENTEXTS 10
 
@@ -47,37 +46,6 @@ static const char* FRAGMENT_SHADER_SOURCE[] =
 	"}\n"
 };
 
-typedef enum
-{
-	TS__NONE,
-	TS__SLEEPING,
-	TS__WORKING,
-} ThreadState;
-
-typedef enum
-{
-	TWT__NONE,
-
-	TWT__SHADER,
-	TWT__DRAW_LEVEL
-} ThreadWorkType;
-
-typedef struct
-{
-	ThreadState state;
-	ThreadWorkType work_type;
-
-	HANDLE thread_handle;
-
-	CRITICAL_SECTION mutex;
-	HANDLE start_work_event;
-	HANDLE active_event;
-	HANDLE finished_work_event;
-
-	int x_start, x_end;
-
-	bool shutdown;
-} RenderThread;
 
 typedef struct
 {
@@ -90,18 +58,14 @@ typedef struct
 
 	Image framebuffer;
 
-	DrawSpan* draw_spans;
-
 	float* depth_buffer;
 
 	int w, h;
 	int win_w, win_h;
 
-	float view_x, view_y;
-	float dir_x, dir_y;
-	float plane_x, plane_y;
-
 	float hfov, vfov;
+
+	float view_x, view_y, view_z,view_cos, view_sin;
 
 	int scale;
 	bool is_fullscreen;
@@ -110,21 +74,17 @@ typedef struct
 
 	RenderThread threads[NUM_RENDER_THREADS];
 
-	DrawSprite draw_sprites[MAX_DRAWSPRITES];
-	int num_draw_sprites;
-
-	int sorted_draw_sprite_indices[MAX_DRAWSPRITES];
-	int num_sorted_draw_sprites;
-
 	Sprite* screen_sprites[MAX_SCREENSPRITES];
 	int num_screen_sprites;
+
+	RenderData render_data;
 
 	int main_thread_draw_sprite_indices[MAX_DRAWSPRITES];
 	int num_main_thread_draw_sprites;
 
 	ShaderFun fullscreen_shader_fun;
 
-	CRITICAL_SECTION object_mutex;
+	ReaderWriterLockMutex reader_writer_object_mutex;
 	CRITICAL_SECTION main_thread_mutex;
 	CONDITION_VARIABLE main_thread_cv;
 	HANDLE main_thread_active_event;
@@ -166,19 +126,6 @@ static bool Shader_checkCompileErrors(unsigned int p_object, const char* p_type)
 	return true;
 }
 
-static void Render_SetupDrawingArgs(DrawingArgs* args, float p_x, float p_y, float p_z, float p_angle, float p_sin, float p_cos, int start_x, int end_x)
-{
-	args->start_x = start_x;
-	args->end_x = end_x;
-	args->view_cos = p_cos;
-	args->view_sin = p_sin;
-	args->view_x = p_x;
-	args->view_y = p_y;
-	args->view_z = p_z;
-	args->yclip_bottom = s_renderCore.clip_y_bottom;
-	args->yclip_top = s_renderCore.clip_y_top;
-}
-
 static void Render_SizeChanged()
 {
 	EnterCriticalSection(&s_renderCore.main_thread_mutex);
@@ -197,6 +144,41 @@ static void Render_ThreadMutexUnlock(RenderThread* thread)
 	LeaveCriticalSection(&thread->mutex);
 }
 
+static void Render_Level(Map* map, RenderData* render_data, int start_x, int end_x)
+{
+	//setup render data
+	RenderUtl_SetupRenderData(render_data, s_renderCore.w, start_x, end_x);
+
+	DrawingArgs drawing_args;
+	
+	//setup drawing args
+	drawing_args.view_x = s_renderCore.view_x;
+	drawing_args.view_y = s_renderCore.view_y;
+	drawing_args.view_z = s_renderCore.view_z;
+	drawing_args.view_cos = s_renderCore.view_cos;
+	drawing_args.view_sin = s_renderCore.view_sin;
+	drawing_args.yclip_bottom = s_renderCore.clip_y_bottom;
+	drawing_args.yclip_top = s_renderCore.clip_y_top;
+	drawing_args.depth_buffer = s_renderCore.depth_buffer;
+	drawing_args.h_fov = s_renderCore.hfov * (float)s_renderCore.h;
+	drawing_args.v_fov = s_renderCore.vfov * (float)s_renderCore.h;
+	drawing_args.start_x = start_x;
+	drawing_args.end_x = end_x;
+	drawing_args.render_data = render_data;
+
+	int nodes_drawn = Scene_ProcessBSPNode(&s_renderCore.framebuffer, map, map->num_nodes - 1, &drawing_args);
+
+	//draw sprites
+	for (int i = 0; i < render_data->num_draw_sprites; i++)
+	{
+		DrawSprite* sprite = &render_data->draw_sprites[i];
+
+		sprite->scale_x = 32;
+		sprite->scale_y = 32;
+		Video_DrawSprite3(&s_renderCore.framebuffer, &drawing_args, sprite);
+	}
+}
+
 static void Render_MainThreadLoop()
 {
 	GLFWwindow* window = Engine_GetWindow();
@@ -205,10 +187,10 @@ static void Render_MainThreadLoop()
 
 	float view_x = 0;
 	float view_y = 0;
-	float view_dir_x = 0;
-	float view_dir_y = 0;
-	float view_plane_x = 0;
-	float view_plane_y = 0;
+	float view_z = 0;
+	float angle = 0;
+	float angle_cos = 0;
+	float angle_sin = 0;
 
 	SetEvent(s_renderCore.main_thread_active_event);
 
@@ -216,12 +198,9 @@ static void Render_MainThreadLoop()
 	{
 		float aspect = Render_GetWindowAspect();
 
-		Player_GetView(&view_x, &view_y, &view_dir_x, &view_dir_y, &view_plane_x, &view_plane_y);
+		Player_GetView(&view_x, &view_y, &view_z, NULL, &angle);
 
-		view_plane_x *= aspect;
-		view_plane_y *= aspect;
-
-		Render_View(view_x, view_y, view_dir_x, view_dir_y, view_plane_x, view_plane_y);
+		Render_View(view_x, view_y, view_z, cosf(angle), sinf(angle));
 
 		glfwSwapBuffers(window);
 
@@ -261,9 +240,9 @@ static void Render_MainThreadLoop()
 
 static void Render_ThreadLoop(RenderThread* thread)
 {
-	GameAssets* assets = Game_GetAssets();
-
 	SetEvent(thread->finished_work_event);
+
+	Map* map = Map_GetMap();
 
 	while (!thread->shutdown)
 	{
@@ -289,20 +268,9 @@ static void Render_ThreadLoop(RenderThread* thread)
 		}
 		case TWT__DRAW_LEVEL:
 		{
-
-			for (int i = 0; i < s_renderCore.num_sorted_draw_sprites; i++)
-			{
-				int sprite_index = s_renderCore.sorted_draw_sprite_indices[i];
-				//Sprite* sprite = s_renderCore.draw_sprites[sprite_index];
-
-				
-
-				//Video_SpriteClipAndDraw(&s_renderCore.framebuffer, sprite, s_renderCore.depth_buffer, thread->x_start, thread->x_end);
-			}
-
+			Render_Level(map, &thread->render_data, thread->x_start, thread->x_end);
 			break;
 		}
-
 		default:
 			break;
 		}
@@ -489,7 +457,6 @@ bool Render_Init(int width, int height)
 	memset(&s_renderCore, 0, sizeof(RenderCore));
 
 	Video_Setup();
-	Scene_Init();
 
 	if (!Render_SetupGL(width, height))
 	{
@@ -517,7 +484,7 @@ bool Render_Init(int width, int height)
 	DWORD render_thread_id = 0;
 	s_renderCore.main_thread_handle = CreateThread(NULL, 0, Render_MainThreadLoop, NULL, 0, &render_thread_id);
 
-	InitializeCriticalSection(&s_renderCore.object_mutex);
+	ReaderWriterLockMutex_Init(&s_renderCore.reader_writer_object_mutex);
 	InitializeCriticalSection(&s_renderCore.main_thread_mutex);
 	InitializeConditionVariable(&s_renderCore.main_thread_cv);
 	s_renderCore.main_thread_active_event = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -536,6 +503,8 @@ bool Render_Init(int width, int height)
 	}
 
 	Render_ResizeWindow(width, height);
+
+	Scene_Setup(width, height, (float)width * s_renderCore.hfov, (float)height * s_renderCore.vfov);
 
 	return true;
 }
@@ -565,8 +534,8 @@ void Render_ShutDown()
 		CloseHandle(thr->start_work_event);
 	}
 
+	ReaderWriterLockMutex_Destruct(&s_renderCore.reader_writer_object_mutex);
 	DeleteCriticalSection(&s_renderCore.main_thread_mutex);
-	DeleteCriticalSection(&s_renderCore.object_mutex);
 	CloseHandle(s_renderCore.main_thread_active_event);
 	CloseHandle(s_renderCore.main_thread_standby_event);
 
@@ -574,7 +543,6 @@ void Render_ShutDown()
 	Image_Destruct(&s_renderCore.font_data.font_image);
 
 	free(s_renderCore.depth_buffer);
-	free(s_renderCore.draw_spans);
 	free(s_renderCore.clip_y_bottom);
 	free(s_renderCore.clip_y_top);
 }
@@ -600,14 +568,28 @@ void Render_UnlockThreadsMutex()
 	}
 }
 
-void Render_LockObjectMutex()
+void Render_LockObjectMutex(bool writer)
 {
-	EnterCriticalSection(&s_renderCore.object_mutex);
+	if (writer)
+	{
+		ReaderWriterLockMutex_EnterWrite(&s_renderCore.reader_writer_object_mutex);
+	}
+	else
+	{
+		ReaderWriterLockMutex_EnterRead(&s_renderCore.reader_writer_object_mutex);
+	}
 }
 
-void Render_UnlockObjectMutex()
+void Render_UnlockObjectMutex(bool writer)
 {
-	LeaveCriticalSection(&s_renderCore.object_mutex);
+	if (writer)
+	{
+		ReaderWriterLockMutex_ExitWrite(&s_renderCore.reader_writer_object_mutex);
+	}
+	else
+	{
+		ReaderWriterLockMutex_ExitRead(&s_renderCore.reader_writer_object_mutex);
+	}
 }
 
 void Render_FinishAndStall()
@@ -628,43 +610,6 @@ void Render_Resume()
 	Render_ResumeMainThread();
 }
 
-void Render_AddSpriteToQueue(Sprite* sprite)
-{
-	if (s_renderCore.num_draw_sprites >= MAX_DRAWSPRITES)
-	{
-		return;
-	}
-
-	const int h_frames = sprite->img->h_frames;
-	const int v_frames = sprite->img->v_frames;
-
-	int sprite_offset_x = (h_frames > 0) ? sprite->frame % h_frames : 0;
-	int sprite_offset_y = (v_frames > 0) ? sprite->frame / h_frames : 0;
-
-	sprite_offset_x += sprite->frame_offset_x;
-	sprite_offset_y += sprite->frame_offset_y;
-
-	int sprite_rect_width = (h_frames > 0) ? sprite->img->width / h_frames : sprite->img->width;
-	int sprite_rect_height = (v_frames > 0) ? sprite->img->height / v_frames : sprite->img->height;
-
-	//Convert to draw sprite
-	DrawSprite draw_sprite;
-
-	draw_sprite.frame = sprite->frame + (sprite->frame_offset_x) + (sprite->frame_offset_y * sprite->img->h_frames);
-	draw_sprite.img = sprite->img;
-	draw_sprite.x = sprite->x;
-	draw_sprite.y = sprite->y;
-	draw_sprite.z = sprite->z;
-	draw_sprite.scale_x = sprite->scale_x;
-	draw_sprite.scale_y = sprite->scale_y;
-	draw_sprite.frame_offset_x = sprite_offset_x;
-	draw_sprite.frame_offset_y = sprite_offset_y;
-	draw_sprite.sprite_rect_width = sprite_rect_width;
-	draw_sprite.sprite_rect_height = sprite_rect_height;
-
-	s_renderCore.draw_sprites[s_renderCore.num_draw_sprites++] = draw_sprite;
-}
-
 void Render_AddScreenSpriteToQueue(Sprite* sprite)
 {
 	if (s_renderCore.num_screen_sprites >= MAX_SCREENSPRITES)
@@ -681,20 +626,12 @@ void Render_QueueFullscreenShader(ShaderFun shader_fun)
 }
 
 
-void Render_RedrawWalls()
-{
-	//SetEvent(s_renderCore.redraw_walls_event);
-}
-
-void Render_RedrawSprites()
-{
-	//SetEvent(s_renderCore.redraw_sprites_event);
-}
-
 void Render_ResizeWindow(int width, int height)
 {
 	Render_FinishAndStall();
 	Render_SetThreadsStartAndEnd(width);
+
+	Scene_Setup(width, height, s_renderCore.hfov, s_renderCore.vfov);
 
 	Image_Resize(&s_renderCore.framebuffer, width, height);
 
@@ -711,20 +648,6 @@ void Render_ResizeWindow(int width, int height)
 	}
 
 	memset(s_renderCore.depth_buffer, 1e3, sizeof(float) * width * height);
-
-	if (s_renderCore.draw_spans)
-	{
-		free(s_renderCore.draw_spans);
-	}
-
-	s_renderCore.draw_spans = malloc(sizeof(DrawSpan) * width);
-
-	if (!s_renderCore.draw_spans)
-	{
-		return;
-	}
-
-	memset(s_renderCore.draw_spans, 0, sizeof(DrawSpan) * width);
 
 	if (s_renderCore.clip_y_bottom)
 	{
@@ -750,123 +673,54 @@ void Render_ResizeWindow(int width, int height)
 	s_renderCore.w = width;
 	s_renderCore.h = height;
 
-	Render_RedrawSprites();
-	Render_RedrawWalls();
-
 	Render_SizeChanged();
 
 	Render_Resume();
 }
 
-static ClipSegments clipsegs;
-
-void Render_View(float x, float y, float dir_x, float dir_y, float plane_x, float plane_y)
+void Render_View(float x, float y, float z, float angleCos, float angleSin)
 {
-	GameAssets* assets = Game_GetAssets();
 	GameState game_state = Game_GetState();
 
 	//store view information
 	s_renderCore.view_x = x;
 	s_renderCore.view_y = y;
-	s_renderCore.dir_x = dir_x;
-	s_renderCore.dir_y = dir_y;
-	s_renderCore.plane_x = plane_x;
-	s_renderCore.plane_y = plane_y;
+	s_renderCore.view_z = z;
+	s_renderCore.view_cos = angleCos;
+	s_renderCore.view_sin = angleSin;
 
 	//clear image to black
 	Image_Clear(&s_renderCore.framebuffer, 0);
 
-	float xs, ys,angle, yaw, z;
-	Player_GetView2(&xs, &ys, &z, &yaw, &angle);
-
 	Map* map = Map_GetMap();
 
-	DrawingArgs draw_args;
-	Render_SetupDrawingArgs(&draw_args, xs, ys, z, angle, sinf(angle), cosf(angle), 0, s_renderCore.framebuffer.width);
-
-	Scene_ResetClip(&clipsegs, 0, 1920);
-
-	draw_args.clipsegments = &clipsegs;
-	if(s_renderCore.clip_y_top)memset(s_renderCore.clip_y_top, 0, sizeof(short) * s_renderCore.framebuffer.width);
-	if (s_renderCore.clip_y_bottom)
-	{
-		for (int i = 0; i < s_renderCore.framebuffer.width + 1; i++)
-		{
-			s_renderCore.clip_y_bottom[i] = 1080 - 1;
-		}
-	}
-
-	s_renderCore.draw_collumns.index = 0;
-
-	draw_args.drawcollumns = &s_renderCore.draw_collumns;
-	draw_args.depth_buffer = s_renderCore.depth_buffer;
-
-	draw_args.h_fov = s_renderCore.hfov * (float)s_renderCore.h;
-	draw_args.v_fov = s_renderCore.vfov * (float)s_renderCore.h;
+	DrawingArgs drawing_args;
 
 	if (game_state == GS__LEVEL)
 	{
-		bool test = true;
-
-		if (test)
+		//setup top and bottom clips
+		for (int i = 0; i < s_renderCore.w; i++)
 		{
-			//clear wall depth buffer
-			memset(s_renderCore.depth_buffer, (int)DEPTH_CLEAR, sizeof(float) * s_renderCore.w * s_renderCore.h);
-
-			int drawn = Scene_ProcessBSPNode(&s_renderCore.framebuffer, map, map->num_nodes - 1, &draw_args);
-
-			//Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data, s_renderCore.depth_buffer, s_renderCore.draw_spans, x, y, dir_x, dir_y, plane_x, plane_y);
-
-			//setup world draw sprites
-			int index = 0;
-
-			for (int i = 0; i < s_renderCore.num_draw_sprites; i++)
-			{
-				DrawSprite* sprite = &s_renderCore.draw_sprites[i];
-
-				sprite->scale_x = 32;
-				sprite->scale_y = 32;
-				//sprite->z = 64;
-
-				//Video_DrawSprite(&s_renderCore.framebuffer, sprite, s_renderCore.depth_buffer, x, y, dir_x, dir_y, plane_x, plane_y);
-				//Video_DrawSprite2(&s_renderCore.framebuffer, s_renderCore.depth_buffer, sprite, xs, ys, z, angle);
-				Video_DrawSprite3(&s_renderCore.framebuffer, &draw_args, sprite);
-			}
-		
-			//Game_DrawHud(&s_renderCore.framebuffer, &s_renderCore.font_data);
+			s_renderCore.clip_y_top[i] = 0;
+			s_renderCore.clip_y_bottom[i] = s_renderCore.h - 1;
 		}
-		else
-		{
-			Render_LockObjectMutex();
 
-			Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data, s_renderCore.depth_buffer, s_renderCore.draw_spans, x, y, dir_x, dir_y, plane_x, plane_y);
+		//clear wall depth buffer
+		memset(s_renderCore.depth_buffer, (int)DEPTH_CLEAR, sizeof(float) * s_renderCore.w * s_renderCore.h);
 
-			//setup world draw sprites
-			int index = 0;
+		//Render_Level(map, &s_renderCore.render_data, 0, s_renderCore.w);
 
-			
+		//set work state for all threads
+		Render_SetWorkStateForAllThreads(TWT__DRAW_LEVEL);
 
-			s_renderCore.num_sorted_draw_sprites = index;
+		//wait for all threads to finish
+		Render_WaitForAllThreads();
 
-			//clear wall depth buffer
-			memset(s_renderCore.depth_buffer, (int)DEPTH_CLEAR, sizeof(float) * s_renderCore.w * s_renderCore.h);
-
-			//set work state for all thread
-			Render_SetWorkStateForAllThreads(TWT__DRAW_LEVEL);
-
-			//wait for it to finish
-			Render_WaitForAllThreads();
-
-			Render_UnlockObjectMutex();
-
-			Game_DrawHud(&s_renderCore.framebuffer, &s_renderCore.font_data);
-		}
-		
-		
+		Game_DrawHud(&s_renderCore.framebuffer, &s_renderCore.font_data);
 	}
 	else
 	{
-		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data, s_renderCore.depth_buffer, s_renderCore.draw_spans, x, y, dir_x, dir_y, plane_x, plane_y);
+		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
 	}
 	if (s_renderCore.fullscreen_shader_fun)
 	{
@@ -884,10 +738,8 @@ void Render_View(float x, float y, float dir_x, float dir_y, float plane_x, floa
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
 	//reset stuff
-	s_renderCore.num_draw_sprites = 0;
 	s_renderCore.num_screen_sprites = 0;
 	s_renderCore.num_main_thread_draw_sprites = 0;
-	s_renderCore.num_sorted_draw_sprites = 0;
 	s_renderCore.fullscreen_shader_fun = NULL;
 	s_renderCore.render_ticks++;
 }
