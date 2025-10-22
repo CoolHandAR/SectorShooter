@@ -26,4 +26,6 @@ void ReaderWriterLockMutex_ExitRead(ReaderWriterLockMutex* lock);
 void ReaderWriterLockMutex_EnterWrite(ReaderWriterLockMutex* lock);
 void ReaderWriterLockMutex_ExitWrite(ReaderWriterLockMutex* lock);
 
+int QueryNumLogicalProcessors();
+
 #endif

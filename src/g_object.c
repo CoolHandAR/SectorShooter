@@ -413,6 +413,29 @@ void Object_LinkSector(Object* obj)
 	sector->object_list = obj;
 }
 
+bool Object_IsSectorLinked(Object* obj)
+{
+	if (obj->sector_prev)
+	{
+		return true;
+	}
+	if (obj->sector_next)
+	{
+		return true;
+	}
+	else if (obj->sector_index >= 0)
+	{
+		Sector* sector = Map_GetSector(obj->sector_index);
+
+		if (sector->object_list == obj)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void Object_Hurt(Object* obj, Object* src_obj, int damage)
 {
 	//already dead or no damage
@@ -489,6 +512,23 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage)
 	}
 }
 
+bool Object_Crush(Object* obj)
+{
+	if (obj->type == OT__PLAYER || obj->type == OT__MONSTER)
+	{
+		Object_Hurt(obj, NULL, 100000);
+
+		return true;
+	}
+	else if (obj->type == OT__THING)
+	{
+		return false;
+	}
+
+
+	return true;
+}
+
 Object* Object_Missile(Object* obj, Object* target, int type)
 {
 	Object* missile = Object_Spawn(OT__MISSILE, type, obj->x, obj->y, obj->z);
@@ -556,12 +596,13 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	obj->height = 40;
 	obj->step_height = 12;
 	obj->dropoff_height = 1000;
-	obj->size = 10;
+	obj->size = 22;
 	obj->spatial_id = -1;
 
 	obj->sub_type = sub_type;
 
 	bool assign_to_spatial_tree = false;
+	bool handle_position = true;
 
 	switch (type)
 	{
@@ -618,12 +659,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	{
 		break;
 	}
-	case OT__DOOR:
-	{
-		obj->move_timer = 1; // the door spawns closed
-		obj->state = DOOR_SLEEP;
-		break;
-	}
 	case OT__PARTICLE:
 	{
 		ParticleInfo* particle_info = Info_GetParticleInfo(sub_type);
@@ -653,6 +688,8 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 			obj->sprite.frame = rand() % obj->sprite.frame_count;
 		}
 
+		obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
+
 		break;
 	}
 	case OT__MISSILE:
@@ -664,7 +701,20 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->size = 5.25;
 
 		//Oject_missile will hand the position
-		return obj;
+		handle_position = false;
+		break;
+	}
+	case OT__DOOR:
+	{
+		obj->move_timer = 1; // the door spawns closed
+		obj->state = DOOR_SLEEP;
+		handle_position = false;
+		break;
+	}
+	case OT__LIGHT_STROBER:
+	case OT__CRUSHER:
+	{
+		handle_position = false;
 		break;
 	}
 	default:
@@ -681,8 +731,11 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->spatial_id = BVH_Tree_Insert(&map->spatial_tree, box, obj->id);
 	}
 
-	Move_SetPosition(obj, x, y);
-	Move_ZMove(obj, -100);
+	if (handle_position)
+	{
+		Move_SetPosition(obj, x, y);
+		Move_ZMove(obj, -100);
+	}
 
 	return obj;
 }

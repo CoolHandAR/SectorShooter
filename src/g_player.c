@@ -9,6 +9,7 @@
 #include "u_math.h"
 
 #define HIT_TIME 0.1
+#define USE_TIME 0.7
 #define PLAYER_SIZE 5
 #define PLAYER_MAX_HP 100
 #define PLAYER_MAX_AMMO 100
@@ -24,7 +25,6 @@ typedef struct
 {
 	Sprite gun_sprite;
 	Object* obj;
-	float plane_x, plane_y;
 	float yaw, angle;
 	int move_x;
 	int move_y;
@@ -41,6 +41,7 @@ typedef struct
 	float quad_timer;
 	float hp_tick_timer;
 	float hit_timer;
+	float use_timer;
 
 	float bob;
 	float gun_offset_x;
@@ -125,9 +126,6 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 	float inter_y = 0;
 	float inter_z = 0;
 
-	p_dirX = cosf(player.angle);
-	p_dirY = sinf(player.angle);
-	
 	p_dirX *= 1000;
 	p_dirY *= 1000;
 
@@ -188,8 +186,30 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		Object_Spawn(OT__PARTICLE, SUB__PARTICLE_WALL_HIT, inter_x, inter_y, inter_z);
 	}
 
-
 	return;
+}
+
+static void Player_Use()
+{
+	if (player.use_timer > 0)
+	{
+		return;
+	}
+
+	float check_range = 22;
+	int hit = Trace_FindSpecialLine(player.obj->x, player.obj->y, player.obj->x + (player.obj->dir_x * check_range), player.obj->y + (player.obj->dir_y * check_range), player.obj->z + player.obj->height);
+
+	//no special line was found
+	if (hit == TRACE_NO_HIT || hit >= 0)
+	{
+		return;
+	}
+
+	Line* special_line = Map_GetLine(-(hit + 1));
+	
+	Event_TriggerSpecialLine(player.obj, 0, special_line, EVENT_TRIGGER__LINE_USE);
+
+	player.use_timer = USE_TIME;
 }
 
 static void Player_SetGun(GunType gun_type)
@@ -231,6 +251,10 @@ static void Player_ShootGun()
 		return;
 	}
 
+	float dir_x = cosf(player.angle);
+	float dir_y = sinf(player.angle);
+
+
 	switch (player.gun)
 	{
 	case GUN__PISTOL:
@@ -238,14 +262,14 @@ static void Player_ShootGun()
 		//has infinite ammo
 		float randomf = Math_randf();
 
-		randomf = Math_Clamp(randomf, 0.0, 0.05);
+		randomf = Math_Clamp(randomf, 0.0, 0.01);
 
 		if (rand() % 100 > 50)
 		{
 			randomf = -randomf;
 		}
 
-		Player_TraceBullet(player.obj->x, player.obj->y, player.obj->dir_x + randomf, player.obj->dir_y + randomf);
+		Player_TraceBullet(player.obj->x, player.obj->y, dir_x + randomf, dir_y + randomf);
 
 		break;
 	}
@@ -260,14 +284,14 @@ static void Player_ShootGun()
 
 		float randomf = Math_randf();
 
-		randomf = Math_Clamp(randomf, 0.0, 0.2);
+		randomf = Math_Clamp(randomf, 0.0, 0.05);
 
 		if (rand() % 100 > 50)
 		{
 			randomf = -randomf;
 		}
 
-		Player_TraceBullet(player.obj->x, player.obj->y, player.obj->dir_x + randomf, player.obj->dir_y + randomf);
+		Player_TraceBullet(player.obj->x, player.obj->y, dir_x + randomf, dir_y + randomf);
 
 		player.bullet_ammo--;
 
@@ -286,14 +310,14 @@ static void Player_ShootGun()
 		{
 			float randomf = Math_randf();
 
-			randomf = Math_Clamp(randomf, 0.0, 0.25);
+			randomf = Math_Clamp(randomf, 0.0, 0.05);
 
 			if (rand() % 100 > 50)
 			{
 				randomf = -randomf;
 			}
 
-			Player_TraceBullet(player.obj->x, player.obj->y, player.obj->dir_x + randomf, player.obj->dir_y + randomf);
+			Player_TraceBullet(player.obj->x, player.obj->y, dir_x + randomf, dir_y + randomf);
 		}
 
 		player.buck_ammo--;
@@ -392,6 +416,7 @@ static void Player_UpdateTimers(float delta)
 	if (player.quad_timer > 0) player.quad_timer -= delta;
 	if (player.hp_tick_timer > 0) player.hp_tick_timer -= delta;
 	if (player.hit_timer > 0) player.hit_timer -= delta;
+	if (player.use_timer > 0) player.use_timer -= delta;
 
 	if (player.godmode_timer > 0)
 	{
@@ -409,26 +434,6 @@ static void Player_UpdateListener()
 
 	ma_engine_listener_set_position(sound_engine, 0, player.obj->x, 0, player.obj->y);
 	ma_engine_listener_set_direction(sound_engine, 0, -player.obj->dir_x, 0, -player.obj->dir_y);
-}
-
-static void Player_PressSwitch()
-{
-	for (int i = 1; i < 3; i++)
-	{
-		Object* obj = Map_GetObjectAtTile(player.obj->x + (player.obj->dir_x * i), player.obj->y + (player.obj->dir_y * i));
-
-		if (!obj)
-		{
-			continue;
-		}
-
-		if (obj->type == OT__TRIGGER && obj->sub_type == SUB__TRIGGER_SWITCH)
-		{
-			Object_HandleTriggers(player.obj, obj);
-
-			return;
-		}
-	}
 }
 
 static void Player_ProcessInput(GLFWwindow* window)
@@ -491,6 +496,11 @@ static void Player_ProcessInput(GLFWwindow* window)
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 	{
 		Game_SetState(GS__MENU);
+	}
+	//use
+	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+	{
+		Player_Use();
 	}
 
 	player.move_x = move_x;
@@ -595,8 +605,6 @@ void Player_Init(int keep)
 
 	player.obj->dir_x = -1;
 	player.obj->dir_y = 0;
-	player.plane_x = 0.0000001; //hack to prevent black floors and ceillings
-	player.plane_y = 0.66;
 
 	player.obj->hp = hp;
 	player.obj->size = PLAYER_SIZE;
@@ -604,6 +612,9 @@ void Player_Init(int keep)
 	player.sensitivity = sens;
 
 	Player_SetupGunSprites();
+
+	player.angle = 1;
+	Player_GiveAll();
 
 
 	if(!keep)
@@ -621,12 +632,7 @@ void Player_Rotate(float rot)
 {
 	rot = rot * PI / 180.0;
 
-	double oldDirX = player.obj->dir_x;
-	player.obj->dir_x = player.obj->dir_x * cos(-rot) - player.obj->dir_y * sin(-rot);
-	player.obj->dir_y = oldDirX * sin(-rot) + player.obj->dir_y * cos(-rot);
-	double oldPlaneX = player.plane_x;
-	player.plane_x = player.plane_x * cos(-rot) - player.plane_y * sin(-rot);
-	player.plane_y = oldPlaneX * sin(-rot) + player.plane_y * cos(-rot);
+	player.angle = rot;
 }
 
 void Player_Hurt(float dir_x, float dir_y)
@@ -800,15 +806,19 @@ void Player_Update(GLFWwindow* window, float delta)
 		}
 	}
 	
-	//move player
-	float speed = PLAYER_SPEED;
-	if (player.slow_move == 1) speed *= 0.5;
-
-	float dir_x = (player.move_x * cosf(player.angle) + (player.move_y * cosf(player.angle + Math_DegToRad(90.0))));
-	float dir_y = (player.move_x * sinf(player.angle) + (player.move_y * sinf(player.angle + Math_DegToRad(90.0))));
+	//update direction
+	player.obj->dir_x = cosf(player.angle);
+	player.obj->dir_y = sinf(player.angle);
 
 	if (player.obj->hp > 0)
 	{
+		//move player
+		float speed = PLAYER_SPEED;
+		if (player.slow_move == 1) speed *= 0.5;
+
+		float dir_x = (player.move_x * cosf(player.angle) + (player.move_y * cosf(player.angle + Math_DegToRad(90.0))));
+		float dir_y = (player.move_x * sinf(player.angle) + (player.move_y * sinf(player.angle + Math_DegToRad(90.0))));
+
 		Player_Move(dir_x * speed, dir_y * speed, delta);
 	}
 
@@ -876,14 +886,6 @@ void Player_MouseCallback(float x, float y)
 
 	float rotSpeed = xOffset * (player.sensitivity / MOUSE_SENS_DIVISOR);
 
-	double oldDirX = player.obj->dir_x;
-	player.obj->dir_x = player.obj->dir_x * cos(-rotSpeed) - player.obj->dir_y * sin(-rotSpeed);
-	player.obj->dir_y = oldDirX * sin(-rotSpeed) + player.obj->dir_y * cos(-rotSpeed);
-	double oldPlaneX = player.plane_x;
-	player.plane_x = player.plane_x * cos(-rotSpeed) - player.plane_y * sin(-rotSpeed);
-	player.plane_y = oldPlaneX * sin(-rotSpeed) + player.plane_y * cos(-rotSpeed);
-
-
 	static float yaw = 0;
 
 	player.angle += rotSpeed;
@@ -896,37 +898,10 @@ void Player_MouseCallback(float x, float y)
 	{
 		player.angle = 0;
 	}
-
-	//yaw = clamp(yaw - y * 0.05f, -5, 5);
-	player.yaw = 0;
-
 }
 
 void Player_Draw(Image* image, FontData* font)
 {
-	//draw gun
-	if (player.obj->hp > 0)
-	{
-		int l = 255;
-
-		if (l > 255) l = 255;
-
-		Sprite* sprite = &player.gun_sprites[player.gun];
-
-		float old_x = sprite->x;
-		float old_y = sprite->y;
-
-		sprite->light = (float)l / 255.0f;
-
-		sprite->x += player.gun_offset_x;
-		sprite->y += player.gun_offset_y;
-
-		Video_DrawScreenSprite(image, sprite);
-
-		sprite->x = old_x;
-		sprite->y = old_y;
-	}
-		
 	//emit hurt shader
 	if (player.hurt_timer > 0)
 	{
@@ -936,17 +911,52 @@ void Player_Draw(Image* image, FontData* font)
 	{
 		Render_QueueFullscreenShader(Shader_Godmode);
 	}
-	//draw hud
+	if (player.obj->hp <= 0)
+	{
+		//draw crazy death stuff
+		Video_Shade(image, Shader_Hurt, 0, 0, image->width, image->height);
+		Video_Shade(image, Shader_Dead, 0, 0, image->width, image->height);
+	}
+}
+
+void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
+{
+	int visual_map_mode = VisualMap_GetMode();
+
+	//draw gun
+	if (player.obj->hp > 0)
+	{
+		int l = 255;
+
+		if (l > 255) l = 255;
+
+		Sprite sprite = player.gun_sprites[player.gun];
+
+		float old_x = sprite.x;
+		float old_y = sprite.y;
+
+		sprite.light = (float)l / 255.0f;
+
+		sprite.x += player.gun_offset_x;
+		sprite.y += player.gun_offset_y;
+
+		Video_DrawScreenSprite(image, &sprite, start_x, end_x);
+	}
+	if (visual_map_mode > 0)
+	{
+		return;
+	}
+	//draw hud text
 	if (player.obj->hp > 0)
 	{
 		//pseudo crosshair
 		if (player.hit_timer > 0)
 		{
-			Text_DrawColor(image, font, 0.5, 0.49, 0.3, 0.3, 255, 0, 0, 255, "+");
+			Text_DrawColor(image, font, 0.5, 0.49, 0.3, 0.3, start_x, end_x, 255, 0, 0, 255, "+");
 		}
 		else
 		{
-			Text_Draw(image, font, 0.5, 0.49, 0.3, 0.3, "+");
+			Text_Draw(image, font, 0.5, 0.49, 0.3, 0.3, start_x, end_x, "+");
 		}
 
 		//hp
@@ -958,43 +968,49 @@ void Player_Draw(Image* image, FontData* font)
 			hp_color[1] = 128;
 		}
 
-		Text_DrawColor(image, font, 0.02, 0.95, 1, 1, hp_color[0], hp_color[1], hp_color[2], 255, "HP %i", player.obj->hp);
+		Text_DrawColor(image, font, 0.02, 0.95, 1, 1, start_x, end_x, hp_color[0], hp_color[1], hp_color[2], 255, "HP %i", player.obj->hp);
 
-		//ammo
-		switch (player.gun)
-		{
-		case GUN__PISTOL:
-		{
-			Text_Draw(image, font, 0.75, 0.95, 1, 1, "AMMO INF");
-			break;
-		}
-		case GUN__MACHINEGUN:
-		{
-			Text_Draw(image, font, 0.75, 0.95, 1, 1, "AMMO %i", player.bullet_ammo);
-			break;
-		}
-		case GUN__SHOTGUN:
-		{
-			Text_Draw(image, font, 0.75, 0.95, 1, 1, "AMMO %i", player.buck_ammo);
-			break;
-		}
-		case GUN__DEVASTATOR:
-		{
-			Text_Draw(image, font, 0.75, 0.95, 1, 1, "AMMO %i", player.rocket_ammo);
-			break;
-		}
-		default:
-			break;
-		}
 
+		if (player.gun == GUN__PISTOL)
+		{
+			Text_Draw(image, font, 0.75, 0.95, 1, 1, start_x, end_x, "AMMO INF");
+		}
+		else
+		{
+			int ammo = 0;
+			//ammo
+			switch (player.gun)
+			{
+			case GUN__PISTOL:
+			{
+				break;
+			}
+			case GUN__MACHINEGUN:
+			{
+				ammo = player.bullet_ammo;
+				break;
+			}
+			case GUN__SHOTGUN:
+			{
+				ammo = player.buck_ammo;
+				break;
+			}
+			case GUN__DEVASTATOR:
+			{
+				ammo = player.rocket_ammo;
+				break;
+			}
+			default:
+				break;
+			}
+
+			Text_Draw(image, font, 0.75, 0.95, 1, 1, start_x, end_x, "AMMO %i", ammo);
+		}
 	}
 	else
 	{
-		//draw crazy death stuff
-		Video_Shade(image, Shader_Hurt, 0, 0, image->width, image->height);
-		Video_Shade(image, Shader_Dead, 0, 0, image->width, image->height);
-		Text_Draw(image, font, 0.45, 0.2, 1, 1, "DEAD");
-		Text_Draw(image, font, 0.2, 0.5, 1, 1, "PRESS FIRE TO CONTINUE...");
+		Text_Draw(image, font, 0.45, 0.2, 1, 1, start_x, end_x, "DEAD");
+		Text_Draw(image, font, 0.2, 0.5, 1, 1, start_x, end_x, "PRESS FIRE TO CONTINUE...");
 	}
 }
 

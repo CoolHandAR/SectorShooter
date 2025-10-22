@@ -822,4 +822,20 @@ static const char* LEVELS[] =
 	"assets/map/map2.json"
 };
 
+//SPECIAL ENUMS
+typedef enum
+{
+	SPECIAL__NONE,
+	SPECIAL__USE_DOOR = 1,
+	SPECIAL__USE_LIFT = 62,
+	
+} SpecialType;
+typedef enum
+{
+	SECTOR_SPECIAL__NONE,
+	SECTOR_SPECIAL__LIGHT_FLICKER = 1,
+	SECTOR_SPECIAL__LIGHT_GLOW = 8,
+
+} SectorSpecialType;
+
 #endif

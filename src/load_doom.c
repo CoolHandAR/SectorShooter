@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
+#include "game_info.h"
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -338,7 +339,12 @@ static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
         os->ceil = (int)ms->ceilingheight << DOOM_Z_SHIFT;
         os->floor = (int)ms->floorheight << DOOM_Z_SHIFT;
 
-        os->height = max(os->ceil, os->floor) - min(os->ceil, os->floor);
+        os->base_ceil = os->ceil;
+        os->base_floor = os->floor;
+
+        os->sector_tag = ms->tag;
+        os->special = ms->special;
+        os->sector_object = -1;
 
         os->light_level = ms->lightlevel;
 
@@ -434,6 +440,8 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         }
        
         os->special = mldef->special;
+        os->sector_tag = mldef->tag;
+        os->flags = mldef->flags;
 
         os->dx = os->x1 - os->x0;
         os->dy = os->y1 - os->y0;
@@ -459,13 +467,15 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
             backsector = &map->sectors[os->back_sector];
         }
 
+
         //check if we need to skip drawing this line
         if (backsector)
         {
             if (backsector->ceil_texture == frontsector->ceil_texture && backsector->floor_texture == frontsector->floor_texture
+                && backsector->base_ceil == frontsector->base_ceil && backsector->base_floor == frontsector->base_floor 
                 && backsector->light_level == frontsector->light_level && os->sidedef->middle_texture == NULL)
             {
-              //  os->skip_draw = true;
+                os->skip_draw = true;
             }
         }
         else
@@ -480,12 +490,43 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
                 }
             }
         }
-
-        if (os->special)
-        {
-           // os->skip_draw = true;
-        }
     }
+
+    
+    //remove duplicate special lines
+    for (int i = 0; i < num; i++)
+    {
+        Line* line0 = &map->line_segs[i];
+
+        if (line0->special <= 0)
+        {
+            continue;
+        }
+
+        for (int k = 0; k < num; k++)
+        {
+            if (k == i)
+            {
+                continue;
+            }
+            Line* line1 = &map->line_segs[k];
+
+            if (line1->special <= 0)
+            {
+                continue;
+            }
+
+            if (line1->special == line0->special && line1->sector_tag == line0->sector_tag &&
+                (line1->front_sector == line0->back_sector || line1->back_sector == line0->front_sector))
+            {
+                line1->special = 0;
+            }
+            
+        }
+        
+    }
+
+
 }
 
 static void Load_Nodes(mapnode_t* mnodes, int num, Map* map)
@@ -613,21 +654,6 @@ static void Load_PostProcessMap(Map* map)
         }
     }
 
-    for (int i = 0; i < map->num_objects; i++)
-    {
-        Object* object = &map->objects[i];
-
-        if (object->type == OT__NONE)
-        {
-            continue;
-        }
-
-        Sector* sector = Map_FindSector(object->x, object->y);
-
-        
-        object->z = sector->floor + 50;
-        object->sprite.z = object->z;
-    }
 
     //create and setup spatial tree
     map->spatial_tree = BVH_Tree_Create(0.5);
@@ -641,6 +667,86 @@ static void Load_PostProcessMap(Map* map)
         index--;
     }
 
+    for (int i = 0; i < map->num_line_segs; i++)
+    {
+        Line* line = &map->line_segs[i];
+
+        int iter_index = 0;
+
+        Sector* sector = NULL;
+
+        if (line->special > 0)
+        {
+            if (line->sector_tag > 0)
+            {
+                // while (sector = Map_GetNextSectorByTag(&iter_index, tag))
+            }
+            else if(line->back_sector >= 0)
+            {
+                Sector* frontsector = &map->sectors[line->front_sector];
+                Sector* backsector = &map->sectors[line->back_sector];
+
+                //if door
+                float highest_value = Sector_FindHighestNeighbourCeilling(backsector);
+
+                backsector->neighbour_sector_value = highest_value;
+            }
+        }
+    }
+
+    for (int k = 0; k < 2; k++)
+    {
+        map->world_bounds[0][k] = FLT_MAX;
+        map->world_bounds[1][k] = -FLT_MAX;
+    }
+
+    for (int i = 0; i < map->num_line_segs; i++)
+    {
+        Line* line = &map->line_segs[i];
+
+        for (int j = 0; j < 2; j++)
+        {
+            map->world_bounds[0][j] = min(map->world_bounds[0][j], line->bbox[0][j]);
+            map->world_bounds[1][j] = max(map->world_bounds[1][j], line->bbox[1][j]);
+        }
+    }
+
+    for (int k = 0; k < 2; k++)
+    {
+        map->world_size[k] = map->world_bounds[1][k] - map->world_bounds[0][k];
+    }
+}
+
+static void Load_SetupSectorSpecials(Map* map)
+{
+    for (int i = 0; i < map->num_sectors; i++)
+    {
+        Sector* sector = &map->sectors[i];
+
+        if (sector->special <= 0)
+        {
+            continue;
+        }
+
+        switch (sector->special)
+        {
+        case SECTOR_SPECIAL__LIGHT_FLICKER:
+        {
+            Sector_CreateLightStrober(sector, SUB__LIGHT_STROBER_FLICKER_RANDOM);
+            break;
+        }
+        case SECTOR_SPECIAL__LIGHT_GLOW:
+        {
+            Sector_CreateLightStrober(sector, SUB__LIGHT_STROBER_GLOW);
+            break;
+        }
+        default:
+        {
+            break;
+        }
+        }
+
+    }
 }
 
 static void Load_Things(mapthing_t* mthings, int num, Map* map)
@@ -660,7 +766,12 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         float object_x = (int)mt->x >> DOOM_VERTEX_SHIFT;
         float object_y = (int)mt->y >> DOOM_VERTEX_SHIFT;
 
-        Object_Spawn(OT__MONSTER, SUB__MOB_IMP, object_x, object_y, 128);
+        if (((int)mt->options & 1))
+        {
+            continue;
+        }
+
+       // Object_Spawn(OT__MONSTER, SUB__MOB_IMP, object_x, object_y, 128);
 
         //Object_Spawn(OT__THING, SUB__THING_RED_COLLUMN, object_x, object_y, 128);
     }
@@ -759,6 +870,9 @@ bool Load_Doommap(const char* filename, Map* map)
 
     //post processing step
     Load_PostProcessMap(map);
+
+    //setup sector specials
+    Load_SetupSectorSpecials(map);
     
     //load objects last
     Load_Things(thing_lump, num_things, map);
@@ -931,8 +1045,14 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
 
     int* directory = map_texture1 + 1;
 
-    int* map_texture2 = MallocLump(file, file_infos, 0, texture2_index, 4, NULL);
-    int num_textures2 = (long)*map_texture2;
+    int* map_texture2 = NULL;
+    int num_textures2 = 0;
+
+    if (texture2_index >= 0)
+    {
+        map_texture2 = MallocLump(file, file_infos, 0, texture2_index, 4, NULL);
+        num_textures2 = (long)*map_texture2;
+    }
 
     int num_textures = num_textures1 + num_textures2;
 
@@ -1060,8 +1180,34 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
         {
             j <<= 1;
         }
+        if (j > texwidth)
+        {
+            j = texwidth;
+        }
+
         ourtexture->width_mask = j - 1;
-        ourtexture->height_mask = texheight - 1;
+
+        j = 1;
+        
+        while (j * 2 <= texheight)
+        {
+            j <<= 1;
+        }
+
+
+     
+
+        ourtexture->height_mask = j - 1;
+
+        if (!strcmp(ourtexture->name, "NUKE24"))
+        {
+            //ourtexture->height_mask = texheight - 1;
+        }
+        //ourtexture->height_mask = texheight - 1;
+
+        //ourtexture->height_mask = texheight - 1;
+
+        //ourtexture->height_mask = 127;
     }
 
 

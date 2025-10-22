@@ -202,6 +202,8 @@ void Game_Update(float delta)
 		Player_Update(window, delta);
 		Map_UpdateObjects(delta);
 
+		VisualMap_Update(window, delta);
+
 		if (game.secret_timer > 0) game.secret_timer -= delta;
 		break;
 	}
@@ -233,6 +235,12 @@ void Game_Draw(Image* image, FontData* fd)
 	case GS__LEVEL:
 	{
 		//handled by the renderer
+
+		//just shader dispatches
+		Player_Draw(image, fd);
+
+		VisualMap_Draw(image);
+
 		break;
 	}
 	case GS__LEVEL_END:
@@ -250,7 +258,7 @@ void Game_Draw(Image* image, FontData* fd)
 	}
 }
 
-void Game_DrawHud(Image* image, FontData* fd)
+void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x)
 {
 	//only used for level state rn
 
@@ -259,11 +267,11 @@ void Game_DrawHud(Image* image, FontData* fd)
 	case GS__LEVEL:
 	{
 		//draw player stuff (gun and hud)
-		Player_Draw(image, fd);
+		Player_DrawHud(image, fd, start_x, end_x);
 
 		if (game.secret_timer > 0)
 		{
-			Text_DrawColor(image, fd, 0.25, 0.2, 1, 1, 255, 255, 255, 255, "SECRET FOUND!");
+			//Text_DrawColor(image, fd, 0.25, 0.2, 1, 1, 255, 255, 255, 255, "SECRET FOUND!");
 		}
 
 		break;

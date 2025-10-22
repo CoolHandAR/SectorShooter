@@ -248,7 +248,7 @@ bool Map_Load(const char* filename)
 
 	//Load_BuildMap("newboard.map", &s_map);
 	Load_DoomIWAD("DOOM.WAD", &s_map);
-	Load_Doommap("E1M1.WAD", &s_map);	
+	Load_Doommap("E1M2.wad", &s_map);	
 	//LoadData();
 
 	return true;
@@ -259,25 +259,6 @@ Object* Map_GetObject(ObjectID id)
 	assert((id >= 0 && id < MAX_OBJECTS) && "Invalid Object ID");
 
 	return &s_map.objects[id];
-}
-
-void Map_SetTempLight(int x, int y, int size, int light)
-{
-
-}
-
-
-
-void Map_GetSize(int* r_width, int* r_height)
-{
-	if (r_width)
-	{
-		//*r_width = s_map.width;
-	}
-	if (r_height)
-	{
-		//*r_height = s_map.height;
-	}
 }
 
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot)
@@ -305,7 +286,6 @@ void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot
 
 }
 
-
 void Map_UpdateObjects(float delta)
 {
 	for (int i = 0; i < s_map.num_sorted_objects; i++)
@@ -317,8 +297,6 @@ void Map_UpdateObjects(float delta)
 		}
 
 		Object* obj = &s_map.objects[id];
-
-		obj->sprite.skip_draw = false;
 
 		if (obj->type == OT__NONE)
 		{
@@ -339,12 +317,23 @@ void Map_UpdateObjects(float delta)
 		}
 		case OT__DOOR:
 		{
-			Move_Door(obj, delta);
+			//Move_Door(obj, delta);
+			Door_Update(obj, delta);
 			break;
 		}
 		case OT__PARTICLE:
 		{
 			Particle_Update(obj, delta);
+			break;
+		}
+		case OT__CRUSHER:
+		{
+			Crusher_Update(obj, delta);
+			break;
+		}
+		case OT__LIGHT_STROBER:
+		{
+			LightStrober_Update(obj, delta);
 			break;
 		}
 		//fallthrough
@@ -362,11 +351,6 @@ void Map_UpdateObjects(float delta)
 		default:
 			break;
 		}
-
-		if (!obj->sprite.img)
-		{
-			continue;
-		}
 		
 	}
 }
@@ -378,11 +362,14 @@ void Map_DeleteObject(Object* obj)
 		BVH_Tree_Remove(&s_map.spatial_tree, obj->spatial_id);
 	}
 
-	Render_LockObjectMutex(true);
+	if (Object_IsSectorLinked(obj))
+	{
+		Render_LockObjectMutex(true);
 
-	Object_UnlinkSector(obj);
+		Object_UnlinkSector(obj);
 
-	Render_UnlockObjectMutex(true);
+		Render_UnlockObjectMutex(true);
+	}
 
 	ObjectID id = obj->id;
 
@@ -427,6 +414,33 @@ Sector* Map_GetSector(int index)
 	return &s_map.sectors[index];
 }
 
+Sector* Map_GetNextSectorByTag(int* r_iterIndex, int tag)
+{
+	while (*r_iterIndex < s_map.num_sectors)
+	{
+		Sector* sector = &s_map.sectors[(*r_iterIndex)++];
+
+		if (sector->sector_tag == tag)
+		{
+			return sector;
+		}
+	}
+
+	return NULL;
+}
+
+Line* Map_GetLine(int index)
+{
+	assert(index >= 0);
+
+	if (index >= s_map.num_line_segs)
+	{
+		return NULL;
+	}
+
+	return &s_map.line_segs[index];
+}
+
 bool Map_CheckSectorReject(int s1, int s2)
 {
 	if (s_map.reject_size > 0 && s1 >= 0 && s2 >= 0)
@@ -436,6 +450,11 @@ bool Map_CheckSectorReject(int s1, int s2)
 	}
 
 	return true;
+}
+
+BVH_Tree* Map_GetSpatialTree()
+{
+	return &s_map.spatial_tree;
 }
 
 void Map_Destruct()

@@ -20,6 +20,13 @@ int clamped_y_ceil_arr[W];
 short depth_buf[W][H];
 static bool overdraw_check[W][H];
 
+const int INSIDE = 0b0000;
+const int LEFT = 0b0001;
+const int RIGHT = 0b0010;
+const int BOTTOM = 0b0100;
+const int TOP = 0b1000;
+
+
 static void SWAP_INT(int* a, int* b)
 {
 	int temp = *a;
@@ -47,8 +54,98 @@ void Video_Setup()
 	}
 }
 
+static int ComputeOutCode(int xmin, int xmax, int ymin, int ymax, float x, float y)
+{
+	int code = INSIDE;
+
+	if (x < xmin)           // to the left of clip window
+		code |= LEFT;
+	else if (x > xmax)      // to the right of clip window
+		code |= RIGHT;
+	if (y < ymin)           // below the clip window
+		code |= BOTTOM;
+	else if (y > ymax)      // above the clip window
+		code |= TOP;
+
+	return code;
+}
+
+bool Video_ClipLine(int xmin, int xmax, int ymin, int ymax, int* r_x0, int* r_y0, int* r_x1, int* r_y1)
+{
+	//src https://en.wikipedia.org/wiki/Cohen%E2%80%93Sutherland_algorithm
+
+	float x0 = *r_x0;
+	float y0 = *r_y0;
+	float x1 = *r_x1;
+	float y1 = *r_y1;
+
+	int outcode0 = ComputeOutCode(xmin, xmax, ymin, ymax, x0, y0);
+	int outcode1 = ComputeOutCode(xmin, xmax, ymin, ymax, x1, y1);
+
+	while (true)
+	{
+		if (!(outcode0 | outcode1))
+		{
+			*r_x0 = x0;
+			*r_y0 = y0;
+			*r_x1 = x1;
+			*r_y1 = y1;
+
+			return true;
+		}
+		if (outcode0 & outcode1)
+		{
+			return false;
+		}
+		float x = 0, y = 0;
+
+		int outcodeout = outcode1 > outcode0 ? outcode1 : outcode0;
+
+		if (outcodeout & TOP)
+		{
+			x = x0 + (x1 - x0) * (ymax - y0) / (y1 - y0);
+			y = ymax;
+		}
+		else if (outcodeout & BOTTOM)
+		{
+			x = x0 + (x1 - x0) * (ymin - y0) / (y1 - y0);
+			y = ymin;
+		}
+		else if (outcodeout & RIGHT)
+		{
+			y = y0 + (y1 - y0) * (xmax - x0) / (x1 - x0);
+			x = xmax;
+		}
+		else if (outcodeout & LEFT)
+		{
+			y = y0 + (y1 - y0) * (xmin - x0) / (x1 - x0);
+			x = xmin;
+		}
+
+		if(outcodeout == outcode0)
+		{
+			x0 = x;
+			y0 = y;
+			outcode0 = ComputeOutCode(xmin, xmax, ymin, ymax, x0, y0);
+		}
+		else
+		{
+			x1 = x;
+			y1 = y;
+			outcode1 = ComputeOutCode(xmin, xmax, ymin, ymax, x1, y1);
+		}
+	}
+
+	return false;
+}
+
 void Video_DrawLine(Image* image, int x0, int y0, int x1, int y1, unsigned char* color)
 {
+	if (!Video_ClipLine(0, image->width, 0, image->height, &x0, &y0, &x1, &y1))
+	{
+		return;
+	}
+	
 	int steep = 0;
 
 	if (abs(x0 - x1) < abs(y0 - y1))
@@ -119,6 +216,157 @@ void Video_DrawRectangle(Image* image, int p_x, int p_y, int p_w, int p_h, unsig
 			Image_Set2(image, x + p_x, y + p_y, p_color);
 		}
 	}
+}
+
+void Video_DrawCircle(Image* image, int p_x, int p_y, float radius, unsigned char* p_color)
+{
+	if (p_x < 0)
+	{
+		p_x = 0;
+	}
+	if (p_x >= image->width)
+	{
+		p_x = image->width - 1;
+	}
+	if (p_y < 0)
+	{
+		p_y = 0;
+	}
+	if (p_y >= image->height)
+	{
+		p_y = image->height - 1;
+	}
+
+	int min_x = p_x - radius;
+	int min_y = p_y - radius;
+
+	int max_x = p_x + radius;
+	int max_y = p_y + radius;
+
+	for (int x = min_x; x <= max_x; x++)
+	{
+		for (int y = min_y; y <= max_y; y++)
+		{
+			if (Math_PointInsideCircle(x, y, p_x, p_y, radius))
+			{
+				Image_Set2(image, x, y, p_color);
+			}
+		}
+	}
+}
+
+void Video_DrawBoxLines(Image* image, float box[2][2], unsigned char* color)
+{	
+	//top line
+	Video_DrawLine(image, box[0][0], box[0][1], box[1][0], box[0][1], color);
+
+	//bottom line
+	Video_DrawLine(image, box[0][0], box[1][1], box[1][0], box[1][1], color);
+
+	//left line
+	Video_DrawLine(image, box[0][0], box[0][1], box[0][0], box[1][1], color);
+
+	//right line
+	Video_DrawLine(image, box[1][0], box[0][1], box[1][0], box[1][1], color);
+}
+
+void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float h_fov, float v_fov)
+{
+	float vx1 = box[0][0] - view_x;
+	float vy1 = box[0][1] - view_y;
+
+	float vx2 = box[1][0] - view_x;
+	float vy2 = box[1][1] - view_y;
+
+	if (vy1 * (vx1 - vx2) + vx1 * (vy2 - vy1) <= -MATH_EQUAL_EPSILON)
+	{
+		return;
+	}
+
+	float tx1 = vx1 * view_sin - vy1 * view_cos;
+	float tz1 = vx1 * view_cos + vy1 * view_sin;
+
+	float tx2 = vx2 * view_sin - vy2 * view_cos;
+	float tz2 = vx2 * view_cos + vy2 * view_sin;
+
+	//completely behind the view plane
+	if (tz1 <= 0 && tz2 <= 0)
+	{
+		return;
+	}
+
+	if (tz1 <= 0 || tz2 <= 0)
+	{
+		Vertex org1 = { tx1,tz1 }, org2 = { tx2,tz2 };
+
+		const float nearz = 1e-4f, farz = 0.1, nearside = 1e-5f, farside = 20.f;
+		Vertex i1 = Math_IntersectLines(tx1, tz1, tx2, tz2, -nearside, nearz, -farside, farz);
+		Vertex i2 = Math_IntersectLines(tx1, tz1, tx2, tz2, nearside, nearz, farside, farz);
+
+		if (tz1 <= 0)
+		{
+			if (tz1 < nearz) { if (i1.y > 0) { tx1 = i1.x; tz1 = i1.y; } else { tx1 = i2.x; tz1 = i2.y; } }
+
+		}
+		if (tz2 <= 0)
+		{
+			if (tz2 < nearz) { if (i1.y > 0) { tx2 = i1.x; tz2 = i1.y; } else { tx2 = i2.x; tz2 = i2.y; } }
+		}
+	}
+
+	float inv_tz1 = 1.0 / tz1;
+	float inv_tz2 = 1.0 / tz2;
+
+	float xscale1 = h_fov * inv_tz1;
+	float xscale2 = h_fov * inv_tz2;
+
+	int x1 = (image->half_width) - (int)(tx1 * xscale1);
+	int x2 = (image->half_width) - (int)(tx2 * xscale2);
+
+	//not visible
+	if (x1 >= x2 || x2 <= 0 || x1 >= image->width)
+	{
+		return;
+	}
+	float yscale1 = v_fov * inv_tz1;
+	float yscale2 = v_fov * inv_tz2;
+
+	float yceil = box[1][2] - view_z;
+	float yfloor = box[0][2] - view_z;
+
+	int ceil_y1 = (image->half_height) - (int)((yceil)*yscale1);
+	int ceil_y2 = (image->half_height) - (int)((yceil)*yscale2);
+
+	int floor_y1 = (image->half_height) - (int)((yfloor)*yscale1);
+	int floor_y2 = (image->half_height) - (int)((yfloor)*yscale2);
+
+	int begin_x = max(x1, 0);
+	int end_x = min(x2, image->width - 1);
+
+	float xl = 1.0 / fabs(x2 - x1);
+	float ceil_step = (ceil_y2 - ceil_y1) * xl;
+	float floor_step = (floor_y2 - floor_y1) * xl;
+
+	float x_pos = fabs(begin_x - x1);
+
+	for (int x = begin_x; x <= end_x; x++)
+	{
+		float yceil = (int)(x_pos * ceil_step) + ceil_y1;
+		float yfloor = (int)(x_pos * floor_step) + floor_y1;
+
+		//clamped
+		int c_yceil = Math_Clamp(yceil, 0, image->height - 1);
+		int c_yfloor = Math_Clamp(yfloor, 0, image->height - 1);
+
+		for (int y = yceil; y <= yfloor; y++)
+		{
+			unsigned char color[4] = { 255, 255, 255, 255 };
+			Image_Set2(image, x, y, color);
+		}
+
+		x_pos++;
+	}
+
 }
 
 void Video_DrawSprite(Image* image, Sprite* sprite, float* depth_buffer, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY)
@@ -404,127 +652,6 @@ void Video_DrawSprite(Image* image, Sprite* sprite, float* depth_buffer, float p
 	}
 }
 
-bool Video_SpriteSetup(Image* image, Sprite* sprite, float* depth_buffer, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY)
-{
-	if (!depth_buffer)
-	{
-		return false;
-	}
-
-	//invalid scale
-	if (sprite->scale_x <= 0 || sprite->scale_y <= 0)
-	{
-		return false;
-	}
-	//completely transparent
-	if (sprite->transparency >= 1)
-	{
-		return false;
-	}
-
-	//translate sprite position to relative to camera
-	float local_sprite_x = sprite->x - p_x;
-	float local_sprite_y = sprite->y - p_y;
-
-	float inv_det = 1.0 / (p_planeX * p_dirY - p_dirX * p_planeY);
-
-	float transform_x = inv_det * (p_dirY * local_sprite_x - p_dirX * local_sprite_y);
-	float transform_y = inv_det * (-p_planeY * local_sprite_x + p_planeX * local_sprite_y);
-
-	if (transform_y <= 0)
-	{
-		return false;
-	}
-
-	int sprite_screen_x = (int)((image->half_width) * (1 + transform_x / transform_y));
-
-	int height_transform_y = fabs((int)(image->height / (transform_y)));
-
-	int sprite_width = height_transform_y * (sprite->scale_x);
-	int sprite_height = height_transform_y * (sprite->scale_y);
-
-	if (sprite_height <= 0 || sprite_width <= 0)
-	{
-		return false;
-	}
-
-	int v_move_screen = (int)((sprite->v_offset * image->half_height) / transform_y);
-
-	int sprite_half_width = sprite_width / 2;
-	int sprite_half_height = sprite_height / 2;
-
-	//calculate lowest and highest pixel to fill in current stripe
-	int draw_start_y = -sprite_height / 2 + image->height / 2 + v_move_screen;
-	if (draw_start_y < 0) draw_start_y = 0;
-	int draw_end_y = sprite_height / 2 + image->height / 2 + v_move_screen;
-	if (draw_end_y >= image->height) draw_end_y = image->height - 1;
-
-	if (draw_start_y >= image->height || draw_end_y <= 0)
-	{
-		return false;
-	}
-
-	int draw_start_x = -sprite_width / 2 + sprite_screen_x;
-	if (draw_start_x < 0) draw_start_x = 0;
-	int draw_end_x = sprite_width / 2 + sprite_screen_x;
-	if (draw_end_x > image->width) draw_end_x = image->width;
-
-	if (draw_start_x >= image->width || draw_end_x <= 0)
-	{
-		return false;
-	}
-
-	int safe_end_x = (draw_end_x >= image->width) ? draw_end_x - 1 : draw_end_x;
-	int safe_end_y = (draw_end_y >= image->height) ? draw_end_y - 1 : draw_end_y;
-
-	//all depth edges of a sprite rectangle
-	float d0 = depth_buffer[draw_start_x + draw_start_y * image->width]; //top left edge
-	float d1 = depth_buffer[safe_end_x + draw_start_y * image->width]; //top right edge
-	float d2 = depth_buffer[draw_start_x + safe_end_y * image->width]; //bottom left edge
-	float d3 = depth_buffer[safe_end_x + safe_end_y * image->width]; //bottom right edge
-
-	//big bias for occlusion testing
-	//since otherwise we get incorrect culling
-	float check_size_x = 8 * sprite->scale_x;
-	float check_size_y = 8 * sprite->scale_y;
-
-	float t0 = inv_det * (-p_planeY * (local_sprite_x - check_size_x) + p_planeX * (local_sprite_y - check_size_y));
-	float t1 = inv_det * (-p_planeY * (local_sprite_x + check_size_x) + p_planeX * (local_sprite_y - check_size_y));
-	float t2 = inv_det * (-p_planeY * (local_sprite_x - check_size_x) + p_planeX * (local_sprite_y + check_size_y));
-	float t3 = inv_det * (-p_planeY * (local_sprite_x + check_size_x) + p_planeX * (local_sprite_y + check_size_y));
-
-	//check if all edges are fully occluded
-	if (t0 >= d0 && t1 >= d1 && t2 >= d2 && t3 >= d3)
-	{
-		return false;
-	}
-
-	int sprite_light = sprite->light * 255;
-
-	int light = 255;
-
-	light += sprite_light;
-	light += 255;
-
-	if (light > 255)
-	{
-		light = 255;
-	}
-	else if (light < 0)
-	{
-		light = 0;
-	}
-
-	
-
-	return true;
-}
-
-void Video_SpriteClipAndDraw(Image* image, Sprite* sprite, float* depth_buffer, int x_start, int x_end)
-{
-	
-}
-
 void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y, float p_scaleX, float p_scaleY)
 {
 	if (p_scaleX <= 0 || p_scaleY <= 0)
@@ -569,7 +696,7 @@ void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y,
 	}	
 }
 
-void Video_DrawScreenSprite(Image* image, Sprite* sprite)
+void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x)
 {
 	if (sprite->scale_x <= 0 || sprite->scale_y <= 0)
 	{
@@ -588,7 +715,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite)
 	int pix_y = sprite->y * image->height;
 
 	//out of bounds
-	if (pix_x < 0 || pix_x >= image->width || pix_y < 0 || pix_y >= image->height)
+	if (pix_x < 0 || pix_x >= end_x || pix_y < 0 || pix_y >= image->height)
 	{
 		return;
 	}
@@ -634,6 +761,11 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite)
 	int min_x = (sprite->flip_h) ? (rect_width - (frame_info->max_real_x * scale_x)) : frame_info->min_real_x * scale_x;
 	int max_x = (sprite->flip_h) ? (rect_width - (frame_info->min_real_x * scale_x)) : frame_info->max_real_x * scale_x;
 
+	if (min_x + pix_x >= end_x)
+	{
+		return;
+	}
+
 	if (sprite->flip_h)
 	{
 		if (min_x > 0) min_x -= 1;
@@ -645,6 +777,15 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite)
 	
 	for (int x = min_x; x <= max_x; x++)
 	{
+		if (x + pix_x < start_x)
+		{
+			continue;
+		}
+		else if (x + pix_x >= end_x)
+		{
+			break;
+		}
+
 		if (sprite->flip_h)
 		{
 			x_tex_pos = (offset_x * rect_width - x - 1) * d_scale_x;
@@ -672,6 +813,11 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite)
 		//calculate how many steps we can take
 		while ((int)test_pos_x == tx && (x + x_steps) <= max_x)
 		{
+			if (x + x_steps + pix_x >= end_x)
+			{
+				break;
+			}
+
 			test_pos_x += x_tex_step;
 			x_steps++;
 		}
@@ -2392,7 +2538,7 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	float pixel_size = (1.0 / (float)(sprite_rect_width)) * sprite->scale_x;
 	float pixel_height_size = (1.0 / (float)sprite_rect_height) * sprite->scale_y;
 
-	int sprite_screen_start_x = (int)((image->half_width) - ((transform_x - (float)(min_x * pixel_size) - 1) * xscale));
+	int sprite_screen_start_x = (int)((image->half_width) - ((transform_x) * xscale));
 
 	int draw_start_x = -sprite_half_width + sprite_screen_start_x;
 	if (draw_start_x < args->start_x) draw_start_x = args->start_x;
@@ -2402,7 +2548,7 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 
-	int sprite_screen_end_x = (int)((image->half_width) - ((transform_x + (float)((sprite_rect_width - max_x) * pixel_size) + 1) * xscale));
+	int sprite_screen_end_x = (int)((image->half_width) - ((transform_x) * xscale));
 
 	int draw_end_x = sprite_half_width + sprite_screen_end_x;
 	if (draw_end_x > args->end_x) draw_end_x = args->end_x;

@@ -37,7 +37,10 @@ static inline float Math_randfb()
 {
 	return (Math_rand() & 0x7fff) / (float)0x7fff;
 }
-
+inline bool Math_IsZeroApprox(float s)
+{
+	return fabs(s) < (float)CMP_EPSILON;
+}
 inline bool Math_IsEqualApprox(float left, float right)
 {
 	if (left == right)
@@ -76,11 +79,6 @@ inline float Math_RadToDeg(float rad)
 {
 	return rad * 180.0f / Math_PI;
 }
-
-inline bool Math_IsZeroApprox(float s)
-{
-	return fabs(s) < (float)CMP_EPSILON;
-}
 inline int Math_signf(float x)
 {
 	return (x < 0) ? -1 : 1;
@@ -114,6 +112,12 @@ inline float Math_XY_Distance(float x1, float y1, float x2, float y2)
 	float dist = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);;;
 
 	return sqrtf(dist);
+}
+inline float Math_XY_DistanceSquared(float x1, float y1, float x2, float y2)
+{
+	float dist = (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2);;;
+
+	return dist;
 }
 
 inline float Math_XY_Dot(float x1, float y1, float x2, float y2)
@@ -171,6 +175,21 @@ inline void Math_XY_Bounce(float x, float y, float nx, float ny, float* r_x, flo
 inline float Math_XY_Angle(float x, float y)
 {
 	return atan2(y, x);
+}
+inline void Math_XY_Rotate(float* x, float* y, float p_cos, float p_sin)
+{
+	float t_x = *x;
+	float l_y = *y;
+
+	*x = t_x * p_cos - l_y * p_sin;
+	*y = t_x * p_sin + l_y * p_cos;
+}
+inline void Math_XY_RotateAngle(float* x, float* y, float angle)
+{
+	float cos = cosf(angle);
+	float sin = sinf(angle);
+
+	Math_XY_Rotate(x, y, cos, sin);
 }
 
 inline bool Math_TraceLineVsBox(float p_x, float p_y, float p_endX, float p_endY, float box_x, float box_y, float size, float* r_interX, float* r_interY, float* r_dist)
@@ -337,6 +356,16 @@ inline bool Math_BoxInRangeBox(float aabb[2][2], float other[2][2])
 	return (aabb[0][0] < other[1][0] || aabb[1][0] > other[0][0])
 		|| (aabb[0][1] < other[1][1] || aabb[1][1] > other[0][1]);
 }
+inline bool Math_BoxIntersectsCircle(float aabb[2][2], float circle_x, float circle_y, float circle_radius)
+{
+	float a = (circle_x < aabb[0][0]) + (circle_x > aabb[1][0]);
+	float b = (circle_y < aabb[0][1]) + (circle_y > aabb[1][1]);
+
+	float dmin = pow((circle_x - aabb[!(a - 1)][0]) * (a != 0), 2)
+		+ pow((circle_y - aabb[!(b - 1)][1]) * (b != 0), 2);
+
+	return dmin <= pow(circle_radius, 2);
+}
 inline void Math_BoxMerge(float box1[2][2], float box2[2][2], float dest[2][2])
 {
 	dest[0][0] = min(box1[0][0], box2[0][0]);
@@ -353,6 +382,40 @@ inline void Math_SizeToBbox(float x, float y, float size, float dest[2][2])
 
 	dest[1][0] = x + size;
 	dest[1][1] = y + size;
+}
+inline void Math_GetBoxCenter(float box[2][2], float* r_centerX, float* r_centerY)
+{
+	*r_centerX = box[0][0] + ((box[1][0] - box[0][0]) * 0.5);
+	*r_centerY = box[0][1] + ((box[1][1] - box[0][1]) * 0.5);
+}
+inline void Math_GetBoxSize(float box[2][2], float* r_sizeX, float* r_sizeY)
+{
+	*r_sizeX = box[1][0] - box[0][0];
+	*r_sizeY = box[1][1] - box[0][1];
+}
+inline void Math_BoxRotatedBounds(float box[2][2], float cos, float sin)
+{
+	float box_width = 0, box_height = 0;
+	Math_GetBoxSize(box, &box_width, &box_height);
+
+	float as = fabs(sin);
+	float cs = fabs(cos);
+
+	float W = box_width * cs + box_height * as;
+	float H = box_width * as + box_height * cs;
+
+	//box[0][0] += (W * 0.5);
+	//box[0][1] += (H * 0.5);
+
+	box[1][0] = box[0][0] + W;
+	box[1][1] = box[0][1] + H;
+}
+
+inline bool Math_PointInsideCircle(float x, float y, float circle_x, float circle_y, float circle_radius)
+{
+	float sq_dist = Math_XY_DistanceSquared(x, y, circle_x, circle_y);
+
+	return sq_dist <= circle_radius * circle_radius;
 }
 
 inline bool Math_RayIntersectsPlane(float x, float y, float ray_x, float ray_y, float normal_x, float normal_y, float d)

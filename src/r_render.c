@@ -7,8 +7,9 @@
 #include "g_common.h"
 #include <main.h>
 #include "utility.h"
+#include "u_math.h"
 
-#define NUM_RENDER_THREADS 8
+#define NUM_RENDER_THREADS 12
 #define MAX_SCREENSPRITES 10
 #define MAX_SCREENTEXTS 10
 
@@ -269,6 +270,8 @@ static void Render_ThreadLoop(RenderThread* thread)
 		case TWT__DRAW_LEVEL:
 		{
 			Render_Level(map, &thread->render_data, thread->x_start, thread->x_end);
+
+			Game_DrawHud(&s_renderCore.framebuffer, &s_renderCore.font_data, thread->x_start, thread->x_end);
 			break;
 		}
 		default:
@@ -532,6 +535,8 @@ void Render_ShutDown()
 		CloseHandle(thr->active_event);
 		CloseHandle(thr->finished_work_event);
 		CloseHandle(thr->start_work_event);
+
+		RenderUtl_DestroyRenderData(&thr->render_data);
 	}
 
 	ReaderWriterLockMutex_Destruct(&s_renderCore.reader_writer_object_mutex);
@@ -716,7 +721,7 @@ void Render_View(float x, float y, float z, float angleCos, float angleSin)
 		//wait for all threads to finish
 		Render_WaitForAllThreads();
 
-		Game_DrawHud(&s_renderCore.framebuffer, &s_renderCore.font_data);
+		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
 	}
 	else
 	{

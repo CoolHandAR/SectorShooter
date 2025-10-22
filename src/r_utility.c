@@ -50,6 +50,13 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	}
 }
 
+void RenderUtl_DestroyRenderData(RenderData* data)
+{
+	if (data->visited_sectors_bitset) free(data->visited_sectors_bitset);
+
+	data->visited_sectors_bitset = NULL;
+}
+
 bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector)
 {
 	if (!data->visited_sectors_bitset)

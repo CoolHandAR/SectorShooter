@@ -100,7 +100,7 @@ bool Game_LoadAssets();
 void Game_DestructAssets();
 void Game_Update(float delta);
 void Game_Draw(Image* image, FontData* fd);
-void Game_DrawHud(Image* image, FontData* fd);
+void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x);
 void Game_SetState(GameState state);
 GameState Game_GetState();
 GameAssets* Game_GetAssets();
@@ -155,6 +155,9 @@ typedef enum
 	OT__TRIGGER,
 	OT__TARGET,
 	OT__DOOR,
+	OT__CRUSHER,
+	OT__LIFT,
+	OT__LIGHT_STROBER,
 	OT__PARTICLE,
 	OT__MAX
 } ObjectType;
@@ -213,6 +216,10 @@ typedef enum
 	SUB__THING_BLUE_FLAG,
 	SUB__THING_MAX,
 
+	//LIGHT STROBER
+	SUB__LIGHT_STROBER_GLOW,
+	SUB__LIGHT_STROBER_FLICKER_RANDOM,
+
 	//PARTICLES
 	SUB__PARTICLE_BLOOD,
 	SUB__PARTICLE_WALL_HIT,
@@ -236,6 +243,10 @@ typedef enum
 
 	OBJ_FLAG__DONT_COLLIDE_WITH_OBJECTS = 1 << 6,
 	OBJ_FLAG__DONT_COLLIDE_WITH_LINES = 1 << 7,
+
+	OBJ_FLAG__IGNORE_POSITION_CHECK = 1 << 8,
+	
+	OBJ_FLAG__DISCOVERED = 1 << 9,
 } ObjectFlag;
 
 typedef struct
@@ -251,7 +262,6 @@ typedef struct
 
 	float x, y, z;
 	float vel_x, vel_y, vel_z;
-	float angle;
 	float height;
 	float step_height;
 	float dropoff_height;
@@ -261,7 +271,7 @@ typedef struct
 
 	int hp;
 
-	int flags;
+	unsigned int flags;
 
 	//for missiles and certain attacks
 	struct Object* owner;
@@ -276,7 +286,7 @@ typedef struct
 	struct Object* sector_next;
 	struct Object* sector_prev;
 
-	//for monsters and doors
+	//for monsters, special sectors and doors
 	float move_timer;
 	float attack_timer;
 	float stop_timer;
@@ -284,11 +294,13 @@ typedef struct
 	DirEnum dir_enum;
 	int state;
 } Object;
-
 typedef enum
 {
-	MS__NODE_NONE = 0,
+	MF__NODE_NONE = 0,
 	MF__NODE_SUBSECTOR = 0x8000,
+	MF__LINE_DONT_PEG_TOP = 8,
+	MF__LINE_DONT_PEG_BOTTOM = 16,
+	MF__LINE_MAPPED = 256,
 	MF__MAX
 } MapFlags;
 
@@ -323,6 +335,8 @@ typedef struct
 	int back_sector;
 	
 	int special;
+	int sector_tag;
+	int flags;
 
 	float width_scale;
 	float bbox[2][2];
@@ -345,10 +359,15 @@ typedef struct
 	Texture* floor_texture;
 	Texture* ceil_texture;
 
-	int sprite_add_index;
+	int sector_tag;
+	int special;
+	int sector_object;
 
-	float height;
 	float floor, ceil;
+	float base_floor, base_ceil;
+
+	//needed for raising and lowering sectors
+	float neighbour_sector_value;
 
 	int light_level;
 
@@ -408,6 +427,9 @@ typedef struct
 	int level_index;
 
 	bool dirty_temp_light;
+
+	float world_bounds[2][2];
+	float world_size[2];
 } Map;
 
 void Map_SetDirtyTempLight();
@@ -417,17 +439,17 @@ Object* Map_NewObject(ObjectType type);
 bool Map_LoadFromIndex(int index);
 bool Map_Load(const char* filename);
 Object* Map_GetObject(ObjectID id);
-void Map_SetTempLight(int x, int y, int size, int light);
-void Map_GetSize(int* r_width, int* r_height);
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot);
 void Map_UpdateObjects(float delta);
 void Map_DeleteObject(Object* obj);
 Subsector* Map_FindSubsector(float p_x, float p_y);
 Sector* Map_FindSector(float p_x, float p_y);
 Sector* Map_GetSector(int index);
+Sector* Map_GetNextSectorByTag(int* r_iterIndex, int tag);
+Line* Map_GetLine(int index);
 bool Map_CheckSectorReject(int s1, int s2);
+BVH_Tree* Map_GetSpatialTree();
 void Map_Destruct();
-
 
 //Load stuff
 bool Load_Doommap(const char* filename, Map* map);
@@ -443,6 +465,7 @@ void Player_Update(GLFWwindow* window, float delta);
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle);
 void Player_MouseCallback(float x, float y);
 void Player_Draw(Image* image, FontData* font);
+void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x);
 float Player_GetSensitivity();
 void Player_SetSensitivity(float sens);
 
@@ -457,7 +480,7 @@ bool Move_ZMove(Object* obj, float p_moveZ);
 bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide);
 bool Move_Unstuck(Object* obj);
 bool Move_Teleport(Object* obj, float x, float y);
-bool Move_Door(Object* obj, float delta);
+bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_minFloorClamp, float p_maxFloorFlamp, float p_minCeilClamp, float p_maxCeilClamp, bool p_crush);
 
 //Checking
 bool Check_CanObjectFitInSector(Object* obj, Sector* sector, Sector* backsector);
@@ -468,18 +491,24 @@ void Missile_DirectHit(Object* obj, Object* target);
 void Missile_Explode(Object* obj);
 
 //Trace stuff
+int* Trace_GetSpecialLines(int* r_length);
+int* Trace_GetHitObjects();
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ);
 int Trace_FindSlideHit(Object* obj, Line* vel_line, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac);
 int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
 bool Trace_CheckLineToTarget(Object* obj, Object* target);
+int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y, float z);
 int Trace_AreaObjects(Object* obj, float x, float y, float size);
-
+int Trace_SectorObjects(Sector* sector);
+int Trace_SectorLines(Sector* sector);
 
 //Object stuff
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
 void Object_UnlinkSector(Object* obj);
 void Object_LinkSector(Object* obj);
+bool Object_IsSectorLinked(Object* obj);
 void Object_Hurt(Object* obj, Object* src_obj, int damage);
+bool Object_Crush(Object* obj);
 bool Object_CheckLineToTarget(Object* obj, Object* target);
 bool Object_CheckSight(Object* obj, Object* target);
 Object* Object_Missile(Object* obj, Object* target, int type);
@@ -488,6 +517,23 @@ bool Object_HandleSwitch(Object* obj);
 void Object_HandleTriggers(Object* obj, Object* trigger);
 Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float z);
 int Object_AreaEffect(Object* obj, float radius);
+
+//Event Stuff
+typedef enum
+{
+	EVENT_TRIGGER__LINE_WALK_OVER,
+	EVENT_TRIGGER__LINE_USE,
+	EVENT_TRIGGER__LINE_SHOOT
+} EventLineTriggerType;
+
+void Event_TriggerSpecialLine(Object* obj, int side, Line* line, EventLineTriggerType trigger_type);
+
+void Sector_CreateLightStrober(Sector* sector, SubType light_type);
+float Sector_FindHighestNeighbourCeilling(Sector* sector);
+void Sector_RemoveSectorObject(Sector* sector);
+void Crusher_Update(Object* obj, float delta);
+void Door_Update(Object* obj, float delta);
+void LightStrober_Update(Object* obj, float delta);
 
 //Dir stuff
 DirEnum DirVectorToDirEnum(int x, int y);
@@ -504,6 +550,11 @@ void Monster_Update(Object* obj, float delta);
 void Monster_Imp_FireBall(Object* obj);
 void Monster_Bruiser_FireBall(Object* obj);
 void Monster_Melee(Object* obj);
+
+//Visual map stuff
+void VisualMap_Update(GLFWwindow* window, float delta);
+void VisualMap_Draw(Image* image);
+int VisualMap_GetMode();
 
 //BSP STUFF
 int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y);

@@ -102,3 +102,60 @@ void ReaderWriterLockMutex_ExitWrite(ReaderWriterLockMutex* lock)
 {
 	LeaveCriticalSection(&lock->write_mutex);
 }
+
+int QueryNumLogicalProcessors()
+{
+	//src https://stackoverflow.com/a/52716113
+
+	int concurrency = 0;
+	DWORD length = 0;
+	//query buffer size
+	if (GetLogicalProcessorInformationEx(RelationAll, NULL, &length) != FALSE)
+	{
+		return 0;
+	}
+	if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+	{
+		return 0;
+	}
+
+	unsigned char* buffer = calloc(length, sizeof(void*));
+
+	if (!buffer)
+	{
+		return 0;
+	}
+
+	if (GetLogicalProcessorInformationEx(RelationAll, buffer, &length) == FALSE)
+	{
+		return 0;
+	}
+
+	for (DWORD i = 0; i < length;)
+	{
+		PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX proc = &buffer[i];
+
+		if (proc->Size <= 0)
+		{
+			break;
+		}
+
+		if (proc->Relationship == RelationProcessorCore)
+		{
+			for (WORD group = 0; group < proc->Processor.GroupCount; group++)
+			{
+				for (KAFFINITY mask = proc->Processor.GroupMask[group].Mask; mask != 0; mask >>= 1)
+				{
+					concurrency += mask & 1;
+				}
+			}
+		}
+
+		i += proc->Size;
+	}
+
+
+	free(buffer);
+
+	return concurrency;
+}

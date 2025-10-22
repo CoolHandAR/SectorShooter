@@ -101,11 +101,11 @@ static void Menu_Text(Image* image, FontData* fd, int id, const char* fmt, ...)
 
 	if (is_selected)
 	{
-		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * Y_TEXT_STEP), 1, 1, 255, 0, 0, 255, str);
+		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * Y_TEXT_STEP),1, 1, 0, image->width, 255, 0, 0, 255, str);
 	}
 	else
 	{
-		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * Y_TEXT_STEP), 1, 1, 255, 255, 255, 255, str);
+		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * Y_TEXT_STEP), 1, 1,0, image->width, 255, 255, 255, 255, str);
 	}
 	
 	menu_core.id++;
@@ -119,7 +119,7 @@ static void Menu_HelpText(Image* image, FontData* fd, bool new_line, const char*
 		menu_core.help_x = 0;
 	}
 
-	Text_DrawStr(image, fd, X_HELPTEXT_START + menu_core.help_x, Y_HELPTEXT_START + menu_core.help_y, 0.5, 0.5, 255, 255, 255, 255, str);
+	Text_DrawStr(image, fd, X_HELPTEXT_START + menu_core.help_x, Y_HELPTEXT_START + menu_core.help_y, 0.5, 0.5, 0, image->width, 255, 255, 255, 255, str);
 
 	menu_core.help_x += X_HELPTEXT_STEP;
 }
@@ -351,7 +351,7 @@ void Menu_Finale_Draw(Image* image, FontData* fd)
 {
 	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 2, 2);
 
-	Text_DrawColor(image, fd, 0.15, 0.2, 1, 1, 255, 255, 255, 255, "THE END \n");
-	Text_DrawColor(image, fd, 0.15, 0.5, 1, 1, 255, 255, 255, 255, "THANKS FOR PLAYING \n");
-	Text_DrawColor(image, fd, 0.15, 0.7, 1, 1, 255, 255, 255, 255, "PRESS ENTER TO CONTINUE \n");
+	Text_DrawColor(image, fd, 0.15, 0.2, 1, 1, 0, image->width, 255, 255, 255, 255, "THE END \n");
+	Text_DrawColor(image, fd, 0.15, 0.5, 1, 1, 0, image->width, 255, 255, 255, 255, "THANKS FOR PLAYING \n");
+	Text_DrawColor(image, fd, 0.15, 0.7, 1, 1, 0, image->width, 255, 255, 255, 255, "PRESS ENTER TO CONTINUE \n");
 }

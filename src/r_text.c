@@ -208,7 +208,7 @@ FontGlyphData* FontData_GetGlyphData(const FontData* font_data, char ch)
 	return &font_data->glyphs_data[glyph_index];
 }
 
-void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int r, int g, int b, int a, const char* str)
+void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, int r, int g, int b, int a, const char* str)
 {
 	if (!str || scale_x <= 0 || scale_y <= 0)
 	{
@@ -237,6 +237,11 @@ void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, f
 	else if (pix_y >= image->height)
 	{
 		pix_y = image->height - 1;
+	}
+
+	if (pix_x >= end_x)
+	{
+		return;
 	}
 
 	scale_x *= render_scale;
@@ -291,6 +296,18 @@ void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, f
 
 		for (float tx = x1; tx < x2; tx += 1)
 		{
+			x += font_data->metrics_data.em_size;
+			y = pix_y - y_offset;
+
+			if (x < start_x)
+			{
+				continue;
+			}
+			else if (x >= end_x)
+			{
+				break;
+			}
+
 			for (float ty = y1; ty < y2; ty += 1)
 			{
 				unsigned char* color = Image_Get(&font_data->font_image, tx * d_scale_x, ty * d_scale_y);
@@ -302,7 +319,7 @@ void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, f
 
 				float opacity = Math_Clampd(d + 0.5, 0.0, 1.0);
 
-				unsigned char* im = Image_Get(image, x, y);
+				unsigned char* im = Image_Get(image, (int)x, (int)y);
 
 				im[0] = Math_lerp(im[0], r, opacity);
 				im[1] = Math_lerp(im[1], g, opacity);
@@ -310,25 +327,18 @@ void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, f
 				im[3] = a;
 
 				y += font_data->metrics_data.em_size;
-			}
 
-			x += font_data->metrics_data.em_size;
-			y = pix_y - y_offset;
-
-			if (x < 0 || x > image->width)
-			{
-				break;
-			}
-			if (y < 0 || y > image->height)
-			{
-				break;
+				if (y < 0 || y >= image->height)
+				{
+					break;
+				}
 			}
 		}
 
 	}
 }
 
-void Text_Draw(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, const char* fmt, ...)
+void Text_Draw(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, const char* fmt, ...)
 {
 	char str[2048];
 	memset(str, 0, sizeof(str));
@@ -340,10 +350,10 @@ void Text_Draw(Image* image, const FontData* font_data, float _x, float _y, floa
 
 	va_end(args);
 
-	Text_DrawStr(image, font_data, _x, _y, scale_x, scale_y, 255, 255, 255, 255, str);
+	Text_DrawStr(image, font_data, _x, _y, scale_x, scale_y, start_x, end_x, 255, 255, 255, 255, str);
 }
 
-void Text_DrawColor(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int r, int g, int b, int a, const char* fmt, ...)
+void Text_DrawColor(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, int r, int g, int b, int a, const char* fmt, ...)
 {
 	char str[2048];
 	memset(str, 0, sizeof(str));
@@ -355,5 +365,5 @@ void Text_DrawColor(Image* image, const FontData* font_data, float _x, float _y,
 
 	va_end(args);
 
-	Text_DrawStr(image, font_data, _x, _y, scale_x, scale_y, r, g, b, a, str);
+	Text_DrawStr(image, font_data, _x, _y, scale_x, scale_y, start_x, end_x, r, g, b, a, str);
 }

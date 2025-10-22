@@ -68,11 +68,16 @@ static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x,
 	{
 		return true;
 	}
+	
+	float x1 = bspcoord[checkcoord[boxpos][0]] - p_x;
+	float y1 = bspcoord[checkcoord[boxpos][1]] - p_y;
+	float x2 = bspcoord[checkcoord[boxpos][2]] - p_x;
+	float y2 = bspcoord[checkcoord[boxpos][3]] - p_y;
 
-	float x2 = bspcoord[checkcoord[boxpos][0]] - p_x;
-	float y2 = bspcoord[checkcoord[boxpos][1]] - p_y;
-	float x1 = bspcoord[checkcoord[boxpos][2]] - p_x;
-	float y1 = bspcoord[checkcoord[boxpos][3]] - p_y;
+	if (y1 * (x1 - x2) + x1 * (y2 - y1) >= -MATH_EQUAL_EPSILON)
+	{
+		//return true;
+	}
 
 	float rx1 = x1 * p_sin - y1 * p_cos;
 	float rx2 = x2 * p_sin - y2 * p_cos;
@@ -84,26 +89,34 @@ static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x,
 		return false;
 	}
 
-	ry1 = args->h_fov / ry1;
-	ry2 = args->h_fov / ry2;
+	return true;
+	//ry1 = args->h_fov / ry1;
+	//ry2 = args->h_fov / ry2;
 
-	int sx1 = 0;
-	int sx2 = 0;
 	int half_width = width / 2;
 	int half_height = height / 2;
+	int sx1 = half_width - (int)(rx1 * ry1);
+	int sx2 = half_width - (int)(rx2 * ry2);
 
-	sx1 = half_width - (int)(rx1 * ry1);
-	sx2 = half_width - (int)(rx2 * ry2);
-
-	if (sx2 == sx1) 
+	if (rx1 >= -ry1)
 	{
-		return false;
+		if (rx1 > ry1)
+		{
+			return false;
+		}
 	}
 
+	
+	if (sx2 == sx1) 
+	{
+		//return false;
+	}
+
+	return true;
 	if (sx2 > sx1)
 	{
-		sx1 = max(sx1, args->start_x);
-		sx2 = min(sx2, args->end_x);
+		sx1 = max(sx1, 0);
+		sx2 = min(sx2, width);
 
 		if (sx2 <= sx1)
 		{
@@ -214,7 +227,7 @@ static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* te
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
 	float x_slope = ((float)image->width / 2.0 - (float)x) / (float)(h_fov);
-	float inv = 1.0 / 32.0;
+	float inv = 1.0 / 64.0;
 
 	for (int y = y1; y <= y2; y++)
 	{
@@ -226,21 +239,20 @@ static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* te
 		float rtx = mapz * p_cos + mapx * p_sin;
 		float rtz = mapz * p_sin - mapx * p_cos;
 
+		int current_light = Math_Clampl(light - (mapz * 0.25), 0, 255);
+
 		mapz = rtz + p_y;
 		mapx = rtx + p_x;
 
-		mapz *= inv;
-		mapx *= inv;
+		mapz *= 2;
+		mapx *= 2;
 
-		int tx = (int)(TILE_SIZE * (mapx - (int)mapx)) & (TILE_SIZE - 1);
-		int ty = (int)(TILE_SIZE * (mapz - (int)mapz)) & (TILE_SIZE - 1);
+		unsigned char* texdata = Image_Get(&texture->img, (int)mapz & 63, (int)mapx & 63);
 
-		unsigned char* texdata = Image_Get(&texture->img, ty, tx);
-		
 		size_t i = index * 4;
-		dest[i + 0] = LIGHT_LUT2[texdata[0]][light];
-		dest[i + 1] = LIGHT_LUT2[texdata[1]][light];
-		dest[i + 2] = LIGHT_LUT2[texdata[2]][light];
+		dest[i + 0] = LIGHT_LUT2[texdata[0]][current_light];
+		dest[i + 1] = LIGHT_LUT2[texdata[1]][current_light];
+		dest[i + 2] = LIGHT_LUT2[texdata[2]][current_light];
 
 		depth_buffer[index] = depth;
 
@@ -278,8 +290,10 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 	Line* line = args->line;
 	Sector* sector = args->sector;
 	Sidedef* sidedef = line->sidedef;
-	
+		
 	bool is_backsector = (line->back_sector >= 0);
+	bool dont_peg_top = (line->flags & MF__LINE_DONT_PEG_TOP);
+	bool dont_peg_bottom = (line->flags & MF__LINE_DONT_PEG_BOTTOM);
 
 	//texture ptrs
 	Texture* top_texture = sidedef->top_texture;
@@ -312,7 +326,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 	//precompute some stuff
 	float x_pos = fabs(first - args->x1);
-	float texheight = sector->height * 0.5;
+	float texheight = (args->sector_height) * 0.5;
 
 	for (int x = first; x < last; x++)
 	{
@@ -331,8 +345,11 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 		int c_yfloor = Math_Clamp(yfloor, ctop, cbot);
 		
 		float yl = 1.0 / max(fabs(yfloor - yceil), 0.001);
+		float ty_step = texheight * yl;
 		float depth = (int)(x_pos * depth_step) + args->tz1;
 
+		int wall_light = Math_Clampl(light - (depth * 0.25), 0, 255);
+	
 		if (ceil_texture)
 		{
 			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, ceil_texture, args->draw_args->h_fov, x, ctop, c_yceil - 1, depth, args->ceilz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
@@ -344,34 +361,38 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 		if (is_backsector)
 		{
-			float back_yceil = (x_pos * backceil_step) + back_sy_ceil;
-			float back_yfloor = (x_pos * backfloor_step) + back_sy_floor;
+			float back_yceil = (int)(x_pos * backceil_step) + back_sy_ceil;
+			float back_yfloor = (int)(x_pos * backfloor_step) + back_sy_floor;
 
 			int c_back_yceil = Math_Clampl(back_yceil, ctop, cbot);
 			int c_back_yfloor = Math_Clampl(back_yfloor, ctop, cbot);
 
 			if(top_texture)
 			{
-				float ty_step = texheight * yl;
 				float ty_pos = fabs(c_yceil - yceil) * ty_step;
 
 				ty_pos += sidedef->y_offset;
 
-				Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, top_texture, x, c_yceil, c_back_yceil, depth, tx, ty_pos, ty_step, light, 127);
+				if (!dont_peg_top)
+				{
+					ty_pos += args->backsector_ceil_height;
+				}
+
+				Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, top_texture, x, c_yceil, c_back_yceil, depth, tx, ty_pos, ty_step, wall_light, top_texture->height_mask);
 			}
 
 			if (bot_texture)
 			{
-				float ty_step = (texheight) * yl;
-				float ty_pos = fabs((c_back_yfloor + 1) - yceil) * ty_step;
+				float ty_pos = (fabs((c_back_yfloor) - yceil)) * ty_step;
 
 				ty_pos += sidedef->y_offset;
+				
+				ty_pos -= args->backsector_floor_height;
 
-				Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor + 1, c_yfloor, depth, tx, ty_pos, ty_step, light, bot_texture->height_mask);
+				Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, bot_texture->height_mask);
 			}
 			if (mid_texture)
 			{
-				float ty_step = (texheight)*yl;
 				float ty_pos = (fabs(c_yceil - yceil)) * ty_step;
 
 				ty_pos += sidedef->y_offset;
@@ -385,16 +406,22 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 		}
 		else
 		{
-			float ty_step = (texheight) * yl;
 			float ty_pos = (fabs(c_yceil - yceil)) * ty_step;
 
 			ty_pos += sidedef->y_offset;
 
-			Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, mid_texture, x, c_yceil, c_yfloor, depth, tx, ty_pos, ty_step, light, mid_height_mask);
+			if (dont_peg_bottom)
+			{
+				ty_pos -= texheight;
+			}		
+
+			Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, mid_texture, x, c_yceil, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, mid_height_mask);
 		}
 
 		x_pos++;
 	}
+
+	line->flags |= MF__LINE_MAPPED;
 }
 
 void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, LineDrawArgs* args, Image* image)
@@ -513,7 +540,6 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	float u0 = 0;
 	float u1 = texwidth;
 
-
 	if (tz1 <= 0 || tz2 <= 0)
 	{
 		Vertex org1 = { tx1,tz1 }, org2 = { tx2,tz2 };
@@ -596,6 +622,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	line_draw_args.line = line;
 	line_draw_args.sector = sector;
 	line_draw_args.draw_args = args;
+	line_draw_args.sector_height = sector->ceil - sector->floor;
 
 	if (backsector)
 	{
@@ -613,6 +640,12 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		line_draw_args.backceil_step = (backceil_y2 - backceil_y1) * xl;
 		line_draw_args.backfloor_step = (backfloor_y2 - backfloor_y1) * xl;
 
+		line_draw_args.backsector_floor_height = (backsector->base_ceil - backsector->floor) * 0.5;
+		//line_draw_args.backsector_floor_height -= (sector->base_ceil - sector->base_floor) * 0.5;
+
+		line_draw_args.backsector_ceil_height = (backsector->ceil - backsector->base_floor) * 0.5;
+		line_draw_args.backsector_ceil_height -= (sector->base_ceil - sector->base_floor) * 0.5;
+
 		bool is_solid = false;
 
 		if (backsector->floor >= sector->ceil || backsector->ceil <= sector->floor)
@@ -627,6 +660,8 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		Scene_ClipAndDraw(&line_draw_args.draw_args->render_data->clip_segs, begin_x, end_x, true, &line_draw_args, image);
 	}
 
+	//this line was visible
+	//line->flags |= MF__LINE_MAPPED;
 
 	return true;
 }
@@ -653,7 +688,6 @@ void Scene_ProcessSubsector(Image* image, Map* map, Subsector* sub_sector, Drawi
 
 		Render_UnlockObjectMutex(false);
 
-		sub_sector->sector->sprite_add_index = Render_GetTicks();
 		RenderUtl_SetVisitedSectorBitset(args->render_data, sub_sector->sector->index);
 	}
 

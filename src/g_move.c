@@ -407,40 +407,53 @@ bool Move_SetPosition(Object* obj, float x, float y)
 {
 	int new_sector_index = -1;
 
-	//just spawned? try to corrent to proper position
-	if (obj->sector_index < 0)
+	if (!(obj->flags & OBJ_FLAG__IGNORE_POSITION_CHECK))
+	{
+		//just spawned? try to corrent to proper position
+		if (obj->sector_index < 0)
+		{
+			Sector* new_sector = Map_FindSector(x, y);
+
+			obj->z = new_sector->floor;
+
+			float move_z = -100;
+			float next_z = obj->z + move_z;
+			float z = obj->z;
+
+			if (move_z < 0 && next_z < new_sector->floor + obj->height * 0.5)
+			{
+				z = new_sector->floor + obj->height * 0.5;
+			}
+			else if (move_z > 0 && next_z > new_sector->ceil)
+			{
+				z = obj->z;
+			}
+			else
+			{
+				z = next_z;
+			}
+
+			obj->z = z;
+			obj->sprite.z = obj->z + 64;
+		}
+
+		if (!Move_CheckPosition(obj, x, y, &new_sector_index))
+		{
+			return false;
+		}
+	}
+	else
 	{
 		Sector* new_sector = Map_FindSector(x, y);
 
-		obj->z = new_sector->floor;
-
-		float move_z = -100;
-		float next_z = obj->z + move_z;
-		float z = obj->z;
-
-		if (move_z < 0 && next_z < new_sector->floor + obj->height * 0.5)
-		{
-			z = new_sector->floor + obj->height * 0.5;
-		}
-		else if (move_z > 0 && next_z > new_sector->ceil)
-		{
-			z = obj->z;
-		}
-		else
-		{
-			z = next_z;
-		}
-
-		obj->z = z;
-		obj->sprite.z = obj->z + 64;
+		new_sector_index = new_sector->index;
 	}
 
-	if (!Move_CheckPosition(obj, x, y, &new_sector_index))
-	{
-		return false;
-	}
 
 	Render_LockObjectMutex(true);
+
+	float old_pos_x = obj->x;
+	float old_pos_y = obj->y;
 
 	//we can move
 	obj->x = x;
@@ -460,7 +473,6 @@ bool Move_SetPosition(Object* obj, float x, float y)
 		Object_LinkSector(obj);
 	}
 	
-
 	Render_UnlockObjectMutex(true);
 
 	//update bvh
@@ -473,6 +485,36 @@ bool Move_SetPosition(Object* obj, float x, float y)
 
 		BVH_Tree_UpdateBounds(&map->spatial_tree, obj->spatial_id, box);
 	}
+
+	//trigger any special lines
+	if (obj->type == OT__PLAYER)
+	{
+		Map* map = Map_GetMap();
+
+		int num_special_lines = 0;
+		int* line_indices = Trace_GetSpecialLines(&num_special_lines);
+
+		for (int i = 0; i < num_special_lines; i++)
+		{
+			int index = line_indices[i];
+			Line* line = &map->line_segs[index];
+
+			//line might have hit twice and it's special could be changed
+			if (line->special == 0)
+			{
+				continue;
+			}
+			
+			int old_side = Line_PointSide(line, old_pos_x, old_pos_y);
+			int new_side = Line_PointSide(line, obj->x, obj->y);
+
+			if (old_side != new_side)
+			{
+				Event_TriggerSpecialLine(obj, old_side, line, EVENT_TRIGGER__LINE_WALK_OVER);
+			}
+		}
+	}
+
 
 	return true;
 }
@@ -562,4 +604,79 @@ bool Move_Unstuck(Object* obj)
 	}
 
 	return false;
+}
+
+bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_minFloorClamp, float p_maxFloorFlamp, float p_minCeilClamp, float p_maxCeilClamp, bool p_crush)
+{
+	//try to clip the move, so that we get back to proper height
+	if (sector->floor + p_moveFloor > sector->ceil)
+	{
+		float remainder = sector->ceil - sector->floor;
+		
+		p_moveFloor = remainder;
+	}
+	if (sector->ceil + p_moveCeil < sector->floor)
+	{
+		float remainder = sector->floor - sector->ceil;
+
+		p_moveCeil = remainder;
+	}
+
+	//no movement
+	if (p_moveFloor == 0 && p_moveCeil == 0)
+	{
+		return false;
+	}
+
+	//get all objects
+	int num_objs = Trace_SectorObjects(sector);
+	int* indices = Trace_GetHitObjects();
+
+	float next_floor = sector->floor + p_moveFloor;
+	float next_ceil = sector->ceil + p_moveCeil;
+
+	next_floor = Math_Clamp(next_floor, p_minFloorClamp, p_maxFloorFlamp);
+	next_ceil = Math_Clamp(next_ceil, p_minCeilClamp, p_maxCeilClamp);
+
+	if (next_floor == sector->floor && next_ceil == sector->ceil)
+	{
+		return true;
+	}
+
+	for (int i = 0; i < num_objs; i++)
+	{
+		int index = indices[i];
+		if (index < 0)
+		{
+			continue;
+		}
+
+		Object* obj = Map_GetObject(index);
+
+		//obj will be not be crushed
+		if (next_ceil - next_floor >= obj->height * 2)
+		{
+			continue;
+		}
+
+		if (p_crush)
+		{
+			//can't crash this so don't move any further
+			if (!Object_Crush(obj))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			//dont move' any further
+			return false;
+		}
+	}
+
+	sector->floor = next_floor;
+	sector->ceil = next_ceil;
+
+
+	return true;
 }

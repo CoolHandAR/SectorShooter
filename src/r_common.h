@@ -152,23 +152,19 @@ inline void Image_SetScaled(Image* img, int x, int y, float scale, unsigned char
 
 inline unsigned char* Image_Get(Image* img, int x, int y)
 {
-	if (x < 0)
+	if (x < 0 || x >= img->width)
 	{
-		x = 0;
+		x &= img->width - 1;
 	}
-	else if (x >= img->width)
+	if (y < 0 || y >= img->height)
 	{
-		x = img->width - 1;
-	}
-	if (y < 0)
-	{
-		y = 0;
-	}
-	else if (y >= img->height)
-	{
-		y = img->height - 1;
+		y &= img->height - 1;
 	}
 
+	return img->data + (x + y * img->width) * img->numChannels;
+}
+inline unsigned char* Image_Get2(Image* img, int x, int y)
+{
 	return img->data + (x + y * img->width) * img->numChannels;
 }
 
@@ -253,8 +249,6 @@ typedef struct
 	float dist;
 	float v_offset;
 	bool flip_h, flip_v;
-
-	bool skip_draw;
 
 	//modifiers
 	float transparency;
@@ -389,6 +383,13 @@ typedef struct
 	float backceil_step;
 	float backfloor_step;
 
+	float sector_height;
+
+	float backsector_floor_height;
+	float backsector_ceil_height;
+
+	float highest_floor;
+
 	int x1;
 	int x2;
 
@@ -399,13 +400,16 @@ typedef struct
 } LineDrawArgs;
 
 void Video_Setup();
+bool Video_ClipLine(int xmin, int xmax, int ymin, int ymax, int* r_x0, int* r_y0, int* r_x1, int* r_y1);
 void Video_DrawLine(Image* image, int x0, int y0, int x1, int y1, unsigned char* color);
 void Video_DrawRectangle(Image* image, int p_x, int p_y, int p_w, int p_h, unsigned char* p_color);
+void Video_DrawCircle(Image* image, int p_x, int p_y, float radius, unsigned char* p_color);
+void Video_DrawBoxLines(Image* image, float box[2][2], unsigned char* color);
+
+void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float h_fov, float v_fov);
 void Video_DrawSprite(Image* image, Sprite* sprite, float* depth_buffer, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY);
-bool Video_SpriteSetup(Image* image, Sprite* sprite, float* depth_buffer, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY);
-void Video_SpriteClipAndDraw(Image* image, Sprite* sprite, float* depth_buffer, int x_start, int x_end);
 void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y, float p_scaleX, float p_scaleY);
-void Video_DrawScreenSprite(Image* image, Sprite* sprite);
+void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
 
 void Video_DrawSprite2(Image* image, float* depth_buffer, Sprite* sprite, float p_x, float p_y, float p_z, float angle);
 
@@ -474,6 +478,7 @@ int Render_GetTicks();
 
 void RenderUtl_ResetClip(ClipSegments* clip, short left, short right);
 void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_end);
+void RenderUtl_DestroyRenderData(RenderData* data);
 bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector);
 void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector);
 void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light);
@@ -485,7 +490,6 @@ bool Scene_RenderLine(Image* image, struct Map* map, struct Sector* sector, stru
 void Scene_ProcessSubsector(Image* image, struct Map* map, struct Subsector* sub_sector, DrawingArgs* args);
 int Scene_ProcessBSPNode(Image* image, struct Map* map, int node_index, DrawingArgs* args);
 void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer);
-void Scene_Reset();
 void Scene_Setup(int width, int height, float h_fov, float v_fov);
 
 #define MAX_FONT_GLYPHS 100
@@ -533,8 +537,8 @@ typedef struct
 
 bool Text_LoadFont(const char* filename, const char* image_path, FontData* font_data);
 FontGlyphData* FontData_GetGlyphData(const FontData* font_data, char ch);
-void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int r, int g, int b, int a, const char* str);
-void Text_Draw(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, const char* fmt, ...);
-void Text_DrawColor(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int r, int g, int b, int a, const char* fmt, ...);
+void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, int r, int g, int b, int a, const char* str);
+void Text_Draw(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, const char* fmt, ...);
+void Text_DrawColor(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, int r, int g, int b, int a, const char* fmt, ...);
 
 #endif

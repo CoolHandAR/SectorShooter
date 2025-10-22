@@ -3,11 +3,14 @@
 #include "u_math.h"
 
 #define MAX_TRACE_ITEMS 100000
+#define MAX_SPECIAL_LINES 1000
 #define TRACE_EPSILON 0.125
 
 typedef struct
 {
 	int result_items[MAX_TRACE_ITEMS];
+	int special_line_indices[MAX_SPECIAL_LINES];
+	int num_hit_special_lines;
 } TraceCore;
 
 static TraceCore s_traceCore;
@@ -15,6 +18,17 @@ static TraceCore s_traceCore;
 static void Register_TraceItem(int _data_index, BVH_ID _index, int _hit_count)
 {
 	s_traceCore.result_items[_hit_count] = _data_index;
+}
+
+static void Trace_SetupTraceLine(Line* trace_line, float start_x, float start_y, float end_x, float end_y)
+{
+	trace_line->x0 = start_x;
+	trace_line->y0 = start_y;
+	trace_line->x1 = end_x;
+	trace_line->y1 = end_y;
+	trace_line->dx = trace_line->x1 - trace_line->x0;
+	trace_line->dy = trace_line->y1 - trace_line->y0;
+	trace_line->dot = trace_line->dx * trace_line->dx + trace_line->dy * trace_line->dy;
 }
 
 static bool Trace_LineIntersectLine(Map* map, Line* trace_line, Line* line, float* r_hitX, float* r_hitY, float* r_frac)
@@ -73,8 +87,22 @@ static bool Trace_LinePassThruSectorCheck(Sector* frontsector, Sector* backsecto
 }
 
 
+int* Trace_GetSpecialLines(int* r_length)
+{
+	*r_length = s_traceCore.num_hit_special_lines;
+
+	return s_traceCore.special_line_indices;
+}
+
+int* Trace_GetHitObjects()
+{
+	return s_traceCore.result_items;
+}
+
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ)
 {
+	s_traceCore.num_hit_special_lines = 0;
+
 	Map* map = Map_GetMap();
 
 	float bbox[2][2];
@@ -135,6 +163,11 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 			if (low_floor < *r_lowFloorZ)
 			{
 				*r_lowFloorZ = low_floor;
+			}
+
+			if (line->special > 0 && s_traceCore.num_hit_special_lines < MAX_SPECIAL_LINES)
+			{
+				s_traceCore.special_line_indices[s_traceCore.num_hit_special_lines++] = index;
 			}
 
 		}
@@ -286,13 +319,7 @@ int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end
 	float min_obj_hit_z = z;
 
 	Line trace_line;
-	trace_line.x0 = start_x;
-	trace_line.y0 = start_y;
-	trace_line.x1 = end_x;
-	trace_line.y1 = end_y;
-	trace_line.dx = trace_line.x1 - trace_line.x0;
-	trace_line.dy = trace_line.y1 - trace_line.y0;
-	trace_line.dot = trace_line.dx * trace_line.dx + trace_line.dy * trace_line.dy;
+	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
 
 	float attack_range = 10000;
 	float top_pitch = Math_DegToRad(35.0);
@@ -635,6 +662,85 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 	return false;
 }
 
+int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y, float z)
+{
+	float min_frac = 1.001;
+	int min_hit = TRACE_NO_HIT;
+	float min_hit_x = end_x;
+	float min_hit_y = end_y;
+	float min_hit_z = z;
+
+	Line trace_line;
+	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
+
+	Map* map = Map_GetMap();
+	int num_traces = BVH_Tree_Cull_Trace(Map_GetSpatialTree(), start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, Register_TraceItem);
+
+	for (int i = 0; i < num_traces; i++)
+	{
+		int index = s_traceCore.result_items[i];
+		//ignore objects
+		if (index >= 0)
+		{
+			continue;
+		}
+
+		int line_index = -(index + 1);
+		Line* line = Map_GetLine(line_index);
+
+		float frac = 0;
+		if (!Trace_LineIntersectLine(map, &trace_line, line, NULL, NULL, &frac))
+		{
+			continue;
+		}
+
+		//check if non special line intercepts the trace
+		if (line->special <= 0)
+		{
+			Sector* frontsector = &map->sectors[line->front_sector];
+			Sector* backsector = NULL;
+
+			if (line->back_sector >= 0)
+			{
+				backsector = &map->sectors[line->back_sector];
+			}
+
+			if (backsector)
+			{
+				float open_low = max(frontsector->floor, backsector->floor);
+				float open_high = min(frontsector->ceil, backsector->ceil);
+				float open_range = open_high - open_low;
+
+				//the trace will not hit floor and ceil
+				if (open_range > 0 && open_low < z && open_high > z)
+				{
+					continue;
+				}
+			}
+		}
+
+		if (frac < min_frac)
+		{
+			min_frac = frac;
+			min_hit = index;
+		}
+	}
+
+	if (min_hit != TRACE_NO_HIT)
+	{
+		int line_index = -(min_hit + 1);
+		Line* line = Map_GetLine(line_index);
+
+		//closest line was not special
+		if (line->special <= 0)
+		{
+			return TRACE_NO_HIT;
+		}
+	}
+
+	return min_hit;
+}
+
 int Trace_AreaObjects(Object* obj, float x, float y, float size)
 {
 	float bbox[2][2];
@@ -669,6 +775,62 @@ int Trace_AreaObjects(Object* obj, float x, float y, float size)
 			num_collisions++;
 		}
 
+	}
+
+	return num_collisions;
+}
+
+int Trace_SectorObjects(Sector* sector)
+{
+	Map* map = Map_GetMap();
+	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, sector->bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+
+	int num_collisions = 0;
+
+	for (int i = 0; i < num_traces; i++)
+	{
+		int index = s_traceCore.result_items[i];
+
+		//ignore lines
+		if (index < 0)
+		{
+			continue;
+		}
+
+		Object* trace_obj = Map_GetObject(index);
+
+		if (trace_obj->hp <= 0)
+		{
+			continue;
+		}
+		
+		s_traceCore.result_items[num_collisions++] = index;
+	}
+
+	return num_collisions;
+}
+
+int Trace_SectorLines(Sector* sector)
+{
+	Map* map = Map_GetMap();
+	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, sector->bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+
+	int num_collisions = 0;
+
+	for (int i = 0; i < num_traces; i++)
+	{
+		int index = s_traceCore.result_items[i];
+
+		//ignore objects
+		if (index >= 0)
+		{
+			continue;
+		}
+
+		int line_index = -(index + 1);
+		Line* line = &map->line_segs[line_index];
+
+		s_traceCore.result_items[num_collisions++] = line_index;
 	}
 
 	return num_collisions;
