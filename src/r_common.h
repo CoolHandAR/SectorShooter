@@ -315,8 +315,10 @@ typedef struct
 	Cliprange* newend;
 } ClipSegments;
 
+#define MAX_DRAW_COLLUMNS 2000
 typedef struct
 {
+	unsigned char light;
 	short x;
 	short y1;
 	short y2;
@@ -329,7 +331,7 @@ typedef struct
 
 typedef struct
 {
-	DrawCollumn* collumns;
+	DrawCollumn collumns[MAX_DRAW_COLLUMNS];
 	int index;
 } DrawCollumns;
 
@@ -341,6 +343,7 @@ typedef struct
 	int num_draw_sprites;
 
 	ClipSegments clip_segs;
+	DrawCollumns draw_collums;
 
 	uint64_t* visited_sectors_bitset;
 	size_t bitset_size;
@@ -358,7 +361,6 @@ typedef struct
 
 	RenderData* render_data;
 
-	DrawCollumns* drawcollumns;
 	float* depth_buffer;
 } DrawingArgs;
 
@@ -389,6 +391,11 @@ typedef struct
 	float backsector_ceil_height;
 
 	float highest_floor;
+
+	float world_low;
+	float world_high;
+	float world_top;
+	float world_bottom;
 
 	int x1;
 	int x2;

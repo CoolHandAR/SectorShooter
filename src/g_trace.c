@@ -135,6 +135,11 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 				return false;
 			}
 
+			if (line->flags & MF__LINE_BLOCKING)
+			{
+				return false;
+			}
+
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = &map->sectors[line->back_sector];
 
@@ -830,7 +835,10 @@ int Trace_SectorLines(Sector* sector)
 		int line_index = -(index + 1);
 		Line* line = &map->line_segs[line_index];
 
-		s_traceCore.result_items[num_collisions++] = line_index;
+		if (line->back_sector == sector->index || line->front_sector == sector->index)
+		{
+			s_traceCore.result_items[num_collisions++] = line_index;
+		}
 	}
 
 	return num_collisions;

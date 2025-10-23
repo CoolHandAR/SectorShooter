@@ -490,6 +490,7 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
                 }
             }
         }
+
     }
 
     
@@ -679,17 +680,31 @@ static void Load_PostProcessMap(Map* map)
         {
             if (line->sector_tag > 0)
             {
-                // while (sector = Map_GetNextSectorByTag(&iter_index, tag))
+                while (sector = Map_GetNextSectorByTag(&iter_index, line->sector_tag))
+                {
+                    if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE)
+                    {
+                        sector->neighbour_sector_value = Sector_FindHighestNeighbourCeilling(sector);
+                    }
+                    else if (line->special == SPECIAL__USE_LIFT)
+                    {
+                       sector->neighbour_sector_value = Sector_FindLowestNeighbourFloor(sector);
+                    }
+                }
             }
             else if(line->back_sector >= 0)
             {
                 Sector* frontsector = &map->sectors[line->front_sector];
                 Sector* backsector = &map->sectors[line->back_sector];
 
-                //if door
-                float highest_value = Sector_FindHighestNeighbourCeilling(backsector);
-
-                backsector->neighbour_sector_value = highest_value;
+                if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE)
+                {
+                    backsector->neighbour_sector_value = Sector_FindHighestNeighbourCeilling(backsector);
+                }
+                else if (line->special == SPECIAL__USE_LIFT)
+                {
+                    backsector->neighbour_sector_value = Sector_FindLowestNeighbourFloor(backsector);
+                }
             }
         }
     }

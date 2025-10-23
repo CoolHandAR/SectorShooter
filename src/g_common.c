@@ -115,7 +115,7 @@ void Missile_Explode(Object* obj)
 	}
 
 	//play sound
-	Sound_EmitWorldTemp(SOUND__FIREBALL_EXPLODE, obj->x, obj->y, 0, 0);
+	Sound_EmitWorldTemp(SOUND__FIREBALL_EXPLODE, obj->x, obj->y, obj->z, 0, 0, 0);
 
 	obj->flags |= OBJ_FLAG__EXPLODING;
 }

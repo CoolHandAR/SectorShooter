@@ -196,7 +196,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 
 	if (index >= 0)
 	{
-		Sound_EmitWorldTemp(index, obj->x, obj->y, 0, 0);
+		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, 0, 0, 0);
 	}
 }
 
@@ -694,7 +694,7 @@ void Monster_Update(Object* obj, float delta)
 		return;
 	}
 	//always update z
-	Move_ZMove(obj, -128 * delta);
+	Move_ZMove(obj, GRAVITY_SCALE * delta);
 
 	Object* target = obj->target;
 	//no target
@@ -768,7 +768,7 @@ void Monster_Imp_FireBall(Object* obj)
 
 	missile->owner = obj;
 
-	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->dir_x, missile->dir_y);
+	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
 }
 
 void Monster_Bruiser_FireBall(Object* obj)
@@ -791,7 +791,7 @@ void Monster_Bruiser_FireBall(Object* obj)
 
 		missile->owner = obj;
 
-		Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->dir_x, missile->dir_y);
+		Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
 	}
 }
 

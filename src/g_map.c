@@ -248,7 +248,7 @@ bool Map_Load(const char* filename)
 
 	//Load_BuildMap("newboard.map", &s_map);
 	Load_DoomIWAD("DOOM.WAD", &s_map);
-	Load_Doommap("E1M2.wad", &s_map);	
+	Load_Doommap("E1M1.wad", &s_map);	
 	//LoadData();
 
 	return true;
@@ -317,7 +317,6 @@ void Map_UpdateObjects(float delta)
 		}
 		case OT__DOOR:
 		{
-			//Move_Door(obj, delta);
 			Door_Update(obj, delta);
 			break;
 		}
@@ -334,6 +333,11 @@ void Map_UpdateObjects(float delta)
 		case OT__LIGHT_STROBER:
 		{
 			LightStrober_Update(obj, delta);
+			break;
+		}
+		case OT__LIFT:
+		{
+			Lift_Update(obj, delta);
 			break;
 		}
 		//fallthrough

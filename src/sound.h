@@ -26,7 +26,7 @@ void Sound_setMasterVolume(float volume);
 float Sound_GetMasterVolume();
 int Sound_Preload(int type);
 void Sound_Emit(int type, float volume);
-void Sound_EmitWorldTemp(int type, float x, float y, float dir_x, float dir_y);
+void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z);
 int Sound_EmitWorld(int type, float x, float y, float dir_x, float dir_y);
 void Sound_Set(int id, float x, float y, float dir_x, float dir_y);
 void Sound_Play(int id);

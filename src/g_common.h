@@ -17,10 +17,11 @@
 #define MAX_OBJECTS 1024
 #define TILE_SIZE 64
 
-#define DOOR_SLEEP 0
-#define DOOR_OPEN 1
-#define DOOR_CLOSE 2
-#define DOOR_AUTOCLOSE_TIME 5
+#define SECTOR_SLEEP 0
+#define SECTOR_OPEN 1
+#define SECTOR_CLOSE 2
+#define SECTOR_AUTOCLOSE_TIME 5
+#define GRAVITY_SCALE -500
 
 #define MIN_LIGHT 20
 
@@ -298,6 +299,7 @@ typedef enum
 {
 	MF__NODE_NONE = 0,
 	MF__NODE_SUBSECTOR = 0x8000,
+	MF__LINE_BLOCKING = 1,
 	MF__LINE_DONT_PEG_TOP = 8,
 	MF__LINE_DONT_PEG_BOTTOM = 16,
 	MF__LINE_MAPPED = 256,
@@ -530,9 +532,11 @@ void Event_TriggerSpecialLine(Object* obj, int side, Line* line, EventLineTrigge
 
 void Sector_CreateLightStrober(Sector* sector, SubType light_type);
 float Sector_FindHighestNeighbourCeilling(Sector* sector);
+float Sector_FindLowestNeighbourFloor(Sector* sector);
 void Sector_RemoveSectorObject(Sector* sector);
 void Crusher_Update(Object* obj, float delta);
 void Door_Update(Object* obj, float delta);
+void Lift_Update(Object* obj, float delta);
 void LightStrober_Update(Object* obj, float delta);
 
 //Dir stuff

@@ -57,10 +57,6 @@ float Sector_FindHighestNeighbourCeilling(Sector* sector)
 	{
 		Line* line = Map_GetLine(hits[i]);
 
-		if (!line)
-		{
-			return highest_ceil;
-		}
 		Sector* other_sector = Sector_GetLineOtherSector(line, sector);
 
 		if (!other_sector)
@@ -75,6 +71,33 @@ float Sector_FindHighestNeighbourCeilling(Sector* sector)
 	}
 
 	return highest_ceil;
+}
+
+float Sector_FindLowestNeighbourFloor(Sector* sector)
+{
+	int num_lines = Trace_SectorLines(sector);
+	int* hits = Trace_GetHitObjects();
+
+	float lowest_floor = sector->floor;
+
+	for (int i = 0; i < num_lines; i++)
+	{
+		Line* line = Map_GetLine(hits[i]);
+
+		Sector* other_sector = Sector_GetLineOtherSector(line, sector);
+
+		if (!other_sector)
+		{
+			continue;
+		}
+
+		if (other_sector->floor < lowest_floor)
+		{
+			lowest_floor = other_sector->floor;
+		}
+	}
+
+	return lowest_floor;
 }
 
 void Sector_RemoveSectorObject(Sector* sector)
@@ -147,16 +170,14 @@ void Door_Update(Object* obj, float delta)
 	Sector* sector = Map_GetSector(obj->sector_index);
 
 	float speed = delta * obj->speed;
-	float ceil_clamp = obj->dir_y;
+	float ceil_clamp = sector->neighbour_sector_value;
 
-	// 0 == door open
-	// 1 == door closed
-	if (obj->state == DOOR_CLOSE && obj->flags & OBJ_FLAG__DOOR_NEVER_CLOSE)
+	if (obj->state == SECTOR_CLOSE && obj->flags & OBJ_FLAG__DOOR_NEVER_CLOSE)
 	{
-		obj->state == DOOR_SLEEP;
+		Sector_RemoveSectorObject(sector);
 		return;
 	}
-	else if (obj->state == DOOR_SLEEP)
+	else if (obj->state == SECTOR_SLEEP)
 	{
 		//door is open
 		if ((int)sector->ceil == (int)ceil_clamp && !(obj->flags & OBJ_FLAG__DOOR_NEVER_CLOSE))
@@ -164,9 +185,100 @@ void Door_Update(Object* obj, float delta)
 			obj->stop_timer += delta;
 
 			//close the door
-			if (obj->stop_timer >= DOOR_AUTOCLOSE_TIME)
+			if (obj->stop_timer >= SECTOR_AUTOCLOSE_TIME)
 			{
-				obj->state = DOOR_CLOSE;
+				obj->state = SECTOR_CLOSE;
+			}
+			else
+			{
+				return;
+			}
+		}
+		else if ((obj->flags & OBJ_FLAG__DOOR_NEVER_CLOSE))
+		{
+			Sector_RemoveSectorObject(sector);
+			return;
+		}
+	}
+
+	bool just_moved = false;
+
+	//open the door
+	if (obj->state == SECTOR_OPEN)
+	{
+		if (sector->ceil == sector->base_ceil)
+		{
+			just_moved = true;
+		}
+
+		Move_Sector(sector, 0, speed, -FLT_MAX, FLT_MAX, sector->base_ceil, ceil_clamp, false);
+
+		//reached the top
+		if (sector->ceil == ceil_clamp)
+		{
+			obj->stop_timer = 0;
+			obj->state = SECTOR_SLEEP;
+		}
+	}
+	//close the door
+	else if (obj->state == SECTOR_CLOSE)
+	{
+		if (sector->ceil == ceil_clamp)
+		{
+			just_moved = true;
+		}
+
+		//blocked by something?
+		if (!Move_Sector(sector, 0, -speed, -FLT_MAX, FLT_MAX, sector->base_ceil, ceil_clamp, false))
+		{
+			obj->state = SECTOR_OPEN;
+			obj->stop_timer = 0;
+		}
+
+		if (sector->ceil == sector->base_ceil)
+		{
+			obj->state = SECTOR_SLEEP;
+		}
+	}
+
+	//door was open and closed so it completed its cycle
+	if (obj->state == SECTOR_SLEEP && (int)sector->ceil == (int)sector->base_ceil)
+	{
+		Sector_RemoveSectorObject(sector);
+		return;
+	}
+
+	if (just_moved)
+	{
+		//play the sound
+		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, obj->z, 0, 0, 0);
+	}
+}
+
+void Lift_Update(Object* obj, float delta)
+{
+	if (obj->sector_index < 0)
+	{
+		return;
+	}
+
+	//kinda same as the door code above
+	Sector* sector = Map_GetSector(obj->sector_index);
+
+	float speed = delta * obj->speed;
+	float floor_clamp = sector->neighbour_sector_value;
+
+	if (obj->state == SECTOR_SLEEP)
+	{
+		//lift is raised to target
+		if ((int)sector->floor == (int)floor_clamp)
+		{
+			obj->stop_timer += delta;
+
+			//close the door
+			if (obj->stop_timer >= SECTOR_AUTOCLOSE_TIME)
+			{
+				obj->state = SECTOR_CLOSE;
 			}
 			else
 			{
@@ -181,46 +293,45 @@ void Door_Update(Object* obj, float delta)
 
 	bool just_moved = false;
 
-	//open the door
-	if (obj->state == DOOR_OPEN)
+	//raise the lift
+	if (obj->state == SECTOR_OPEN)
 	{
-		if (sector->ceil == sector->base_ceil)
+		if (sector->floor == sector->base_floor)
 		{
 			just_moved = true;
 		}
 
-		Move_Sector(sector, 0, speed, -FLT_MAX, FLT_MAX, sector->base_ceil, ceil_clamp, false);
+		Move_Sector(sector, -speed, 0, floor_clamp, sector->base_floor, -FLT_MAX, FLT_MAX, false);
 
-		//reached the top
-		if (sector->ceil == ceil_clamp)
+		//reached the target
+		if (sector->floor == floor_clamp)
 		{
 			obj->stop_timer = 0;
-			obj->state = DOOR_SLEEP;
+			obj->state = SECTOR_SLEEP;
 		}
 	}
-	//close the door
-	else if (obj->state == DOOR_CLOSE)
+	//return the lift to starting position
+	else if (obj->state == SECTOR_CLOSE)
 	{
-		if (sector->ceil == ceil_clamp)
+		if (sector->floor == floor_clamp)
 		{
 			just_moved = true;
 		}
 
-		//blocked by something?
-		if (!Move_Sector(sector, 0, -speed, -FLT_MAX, FLT_MAX, sector->base_ceil, ceil_clamp, false))
+		if (!Move_Sector(sector, speed, 0, floor_clamp, sector->base_floor, -FLT_MAX, FLT_MAX, false))
 		{
-			obj->state = DOOR_OPEN;
+			obj->state = SECTOR_OPEN;
 			obj->stop_timer = 0;
 		}
 
-		if (sector->ceil == sector->base_ceil)
+		if (sector->floor == sector->base_floor)
 		{
-			obj->state = DOOR_SLEEP;
+			obj->state = SECTOR_SLEEP;
 		}
 	}
 
-	//door was open and closed so it completed its cycle
-	if (obj->state == DOOR_SLEEP && (int)sector->ceil == (int)sector->base_ceil)
+	//lift was moved and and returned so it completed its cycle
+	if (obj->state == SECTOR_SLEEP && (int)sector->floor == (int)sector->base_floor)
 	{
 		Sector_RemoveSectorObject(sector);
 		return;
@@ -229,7 +340,7 @@ void Door_Update(Object* obj, float delta)
 	if (just_moved)
 	{
 		//play the sound
-		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, 0, 0);
+		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, obj->z, 0, 0, 0);
 	}
 }
 

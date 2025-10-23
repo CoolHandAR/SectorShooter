@@ -393,9 +393,9 @@ bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
 		return false;
 	}
 	//too big of a fall
-	if ((floor - low_floor) - obj->z > obj->dropoff_height)
+	if ((floor - low_floor) > obj->dropoff_height)
 	{
-		return false;
+		//return false;
 	}
 
 	if (r_sectorIndex) *r_sectorIndex = new_sector->index;
@@ -416,24 +416,6 @@ bool Move_SetPosition(Object* obj, float x, float y)
 
 			obj->z = new_sector->floor;
 
-			float move_z = -100;
-			float next_z = obj->z + move_z;
-			float z = obj->z;
-
-			if (move_z < 0 && next_z < new_sector->floor + obj->height * 0.5)
-			{
-				z = new_sector->floor + obj->height * 0.5;
-			}
-			else if (move_z > 0 && next_z > new_sector->ceil)
-			{
-				z = obj->z;
-			}
-			else
-			{
-				z = next_z;
-			}
-
-			obj->z = z;
 			obj->sprite.z = obj->z + 64;
 		}
 
@@ -553,7 +535,7 @@ bool Move_ZMove(Object* obj, float p_moveZ)
 	obj->z = z;
 	obj->sprite.z = obj->z + 64;
 
-	return false;
+	return true;
 }
 
 bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide)
@@ -646,12 +628,17 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 	for (int i = 0; i < num_objs; i++)
 	{
 		int index = indices[i];
-		if (index < 0)
+		if (index < 0 || sector->sector_object == index)
 		{
 			continue;
 		}
 
 		Object* obj = Map_GetObject(index);
+
+		if (obj->sector_index != sector->index)
+		{
+			continue;
+		}
 
 		//obj will be not be crushed
 		if (next_ceil - next_floor >= obj->height * 2)

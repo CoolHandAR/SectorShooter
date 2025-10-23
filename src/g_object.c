@@ -60,7 +60,7 @@ void Object_HandleTriggers(Object* obj, Object* trigger)
 			{
 			case SUB__TARGET_TELEPORT:
 			{
-				Sound_EmitWorldTemp(SOUND__TELEPORT, trigger->x, trigger->y, 0, 0);
+				Sound_EmitWorldTemp(SOUND__TELEPORT, trigger->x, trigger->y, trigger->z, 0, 0, 0);
 
 				Move_Teleport(obj, target->x, target->y);
 				break;
@@ -79,13 +79,13 @@ void Object_HandleTriggers(Object* obj, Object* trigger)
 			if (target->move_timer == 0)
 			{
 				//close the door
-				target->state = DOOR_CLOSE;
+				target->state = SECTOR_CLOSE;
 			}
 			//door is closed
 			else if (target->move_timer == 1)
 			{
 				//open the door
-				target->state = DOOR_OPEN;
+				target->state = SECTOR_OPEN;
 			}
 
 			if (trigger->sub_type == SUB__TRIGGER_ONCE)
@@ -146,7 +146,7 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 		obj->col_object = collision_obj;
 
 		//if door is moving in any way, don't move into it
-		if (collision_obj->state != DOOR_SLEEP)
+		if (collision_obj->state != SECTOR_SLEEP)
 		{
 			return false;
 		}
@@ -706,12 +706,12 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	}
 	case OT__DOOR:
 	{
-		obj->move_timer = 1; // the door spawns closed
-		obj->state = DOOR_SLEEP;
+		obj->state = SECTOR_SLEEP;
 		handle_position = false;
 		break;
 	}
 	case OT__LIGHT_STROBER:
+	case OT__LIFT:
 	case OT__CRUSHER:
 	{
 		handle_position = false;

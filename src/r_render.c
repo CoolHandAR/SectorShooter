@@ -51,7 +51,7 @@ static const char* FRAGMENT_SHADER_SOURCE[] =
 typedef struct
 {
 	int render_ticks;
-	DrawCollumns draw_collumns;
+	//DrawCollumns draw_collumns;
 	short* clip_y_top;
 	short* clip_y_bottom;
 
@@ -167,7 +167,12 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 	drawing_args.end_x = end_x;
 	drawing_args.render_data = render_data;
 
+	//draw lines and add sprites to draw list
 	int nodes_drawn = Scene_ProcessBSPNode(&s_renderCore.framebuffer, map, map->num_nodes - 1, &drawing_args);
+
+	//draw draw collumns
+	Scene_DrawDrawCollumns(&s_renderCore.framebuffer, &drawing_args.render_data->draw_collums, s_renderCore.depth_buffer);
+	
 
 	//draw sprites
 	for (int i = 0; i < render_data->num_draw_sprites; i++)
@@ -668,12 +673,12 @@ void Render_ResizeWindow(int width, int height)
 
 	s_renderCore.clip_y_top = calloc(width + 2, sizeof(short));
 
-	if (s_renderCore.draw_collumns.collumns)
+	//if (s_renderCore.draw_collumns.collumns)
 	{
-		free(s_renderCore.draw_collumns.collumns);
+		//free(s_renderCore.draw_collumns.collumns);
 	}
 
-	s_renderCore.draw_collumns.collumns = calloc(width * 2, sizeof(DrawCollumn));
+	//s_renderCore.draw_collumns.collumns = calloc(width * 2, sizeof(DrawCollumn));
 
 	s_renderCore.w = width;
 	s_renderCore.h = height;

@@ -38,6 +38,8 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 
 	data->num_draw_sprites = 0;
 
+	memset(&data->draw_collums, 0, sizeof(data->draw_collums));
+
 	RenderUtl_ResetClip(&data->clip_segs, 0, width);
 
 	if (x_start > 0)

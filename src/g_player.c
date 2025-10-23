@@ -18,6 +18,8 @@
 #define MOUSE_SENS_DIVISOR 1000
 #define MIN_SENS 0.5
 #define MAX_SENS 16
+#define XY_VIEW_LERP 100
+#define Z_VIEW_LERP 20
 
 static const float PI = 3.14159265359;
 
@@ -25,7 +27,10 @@ typedef struct
 {
 	Sprite gun_sprite;
 	Object* obj;
-	float yaw, angle;
+
+	float view_x, view_y, view_z;
+
+	float angle;
 	int move_x;
 	int move_y;
 	int slow_move;
@@ -610,6 +615,9 @@ void Player_Init(int keep)
 	player.obj->size = PLAYER_SIZE;
 
 	player.sensitivity = sens;
+	player.view_x = player.obj->x;
+	player.view_y = player.obj->y;
+	player.view_z = 0;
 
 	Player_SetupGunSprites();
 
@@ -786,7 +794,7 @@ static void Player_Move(float dirx, float diry, float delta)
 	player.obj->size = 6;
 
 	Move_Object(player.obj, dirx * delta, diry * delta, true);
-	Move_ZMove(player.obj, -200.0 * delta);
+	Move_ZMove(player.obj, GRAVITY_SCALE * delta);
 }
 
 void Player_Update(GLFWwindow* window, float delta)
@@ -822,6 +830,7 @@ void Player_Update(GLFWwindow* window, float delta)
 		Player_Move(dir_x * speed, dir_y * speed, delta);
 	}
 
+	//bob gun
 	if (player.move_x != 0 || player.move_y != 0)
 	{
 		float bob_amp = 0.001;
@@ -833,6 +842,16 @@ void Player_Update(GLFWwindow* window, float delta)
 
 		player.gun_offset_x = cosf(player.bob * bob_freq / bob_freq) * bob_amp;
 		player.gun_offset_y = sinf(player.bob * bob_freq) * bob_amp;
+	}
+	//smooth view lerp
+	if (XY_VIEW_LERP > 0)
+	{
+		player.view_x = Math_lerp(player.view_x, player.obj->x, XY_VIEW_LERP * delta);
+		player.view_y = Math_lerp(player.view_y, player.obj->y, XY_VIEW_LERP * delta);
+	}
+	if (Z_VIEW_LERP > 0)
+	{
+		player.view_z = Math_lerp(player.view_z, player.obj->z + player.obj->height, Z_VIEW_LERP * delta);
 	}
 
 	//make sure to reset the frame
@@ -852,10 +871,10 @@ void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_a
 		return;
 	}
 
-	if (r_x) *r_x = player.obj->x;
-	if (r_y) *r_y = player.obj->y;
-	if (r_z) *r_z = player.obj->z + (player.obj->height);
-	if (r_yaw) *r_yaw = player.yaw;
+	if (r_x) *r_x = player.view_x;
+	if (r_y) *r_y = player.view_y;
+	if (r_z) *r_z = player.view_z;
+	if (r_yaw) *r_yaw = 0;
 	if (r_angle) *r_angle = player.angle;
 
 }

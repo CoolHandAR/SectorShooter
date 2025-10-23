@@ -827,6 +827,7 @@ typedef enum
 {
 	SPECIAL__NONE,
 	SPECIAL__USE_DOOR = 1,
+	SPECIAL__USE_DOOR_NEVER_CLOSE = 31,
 	SPECIAL__USE_LIFT = 62,
 	
 } SpecialType;

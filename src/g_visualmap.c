@@ -160,9 +160,6 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 		s_visualMap.angle = s_visualMap.player_angle;
 	}
 		
-	s_visualMap.center_x = Math_Clamp(s_visualMap.center_x, (map->world_bounds[0][0] - WORLD_CLAMP_BIAS) + width, (map->world_bounds[1][0] + WORLD_CLAMP_BIAS) - width);
-	s_visualMap.center_y = Math_Clamp(s_visualMap.center_y, (map->world_bounds[0][1] - WORLD_CLAMP_BIAS) + height, (map->world_bounds[1][1] + WORLD_CLAMP_BIAS) - height);
-	
 	if (s_visualMap.rotate)
 	{
 		//not corrent but, good enough for now
@@ -174,6 +171,9 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 	}
 	else
 	{
+		s_visualMap.center_x = Math_Clamp(s_visualMap.center_x, (map->world_bounds[0][0] - WORLD_CLAMP_BIAS) + width, (map->world_bounds[1][0] + WORLD_CLAMP_BIAS) - width);
+		s_visualMap.center_y = Math_Clamp(s_visualMap.center_y, (map->world_bounds[0][1] - WORLD_CLAMP_BIAS) + height, (map->world_bounds[1][1] + WORLD_CLAMP_BIAS) - height);
+
 		s_visualMap.bbox[0][0] = (s_visualMap.center_x - width);
 		s_visualMap.bbox[0][1] = (s_visualMap.center_y - height);
 
@@ -205,6 +205,8 @@ void VisualMap_Draw(Image* image)
 
 	Render_LockObjectMutex(false);
 
+	//keep everything on the stack, so that the mutex would not last so long
+	bool rotate = s_visualMap.rotate;
 	int mode = s_visualMap.mode;
 
 	float bbox[2][2];
@@ -247,7 +249,7 @@ void VisualMap_Draw(Image* image)
 
 			if (!(line->flags & MF__LINE_MAPPED))
 			{
-				//continue;
+				continue;
 			}
 
 			Sector* frontsector = Map_GetSector(line->front_sector);
@@ -261,10 +263,8 @@ void VisualMap_Draw(Image* image)
 
 			if (backsector)
 			{
-				if (line->special == 1)
+				if (line->special == 1 || line->special == 62)
 				{
-					color[0] = (SPECIAL_WALL_COLOR[0]); color[1] = SPECIAL_WALL_COLOR[1]; color[2] = SPECIAL_WALL_COLOR[2];
-
 					for (int k = 0; k < 3; k++)
 					{
 						color[k] = SPECIAL_WALL_COLOR[k] * pulse;
@@ -286,7 +286,7 @@ void VisualMap_Draw(Image* image)
 			float line_x1 = line->x1;
 			float line_y1 = line->y1;
 
-			if (s_visualMap.rotate)
+			if (rotate)
 			{
 				Math_XY_Rotate(&line_x0, &line_y0, cos_angle, sin_angle);
 				Math_XY_Rotate(&line_x1, &line_y1, cos_angle, sin_angle);
@@ -320,7 +320,7 @@ void VisualMap_Draw(Image* image)
 	float px1 = (player_x + (pcos * arrow_length));
 	float py1 = (player_y + (psin * arrow_length));
 
-	if (s_visualMap.rotate)
+	if (rotate)
 	{
 		Math_XY_Rotate(&px0, &py0, cos_angle, sin_angle);
 		Math_XY_Rotate(&px1, &py1, cos_angle, sin_angle);
@@ -339,7 +339,7 @@ void VisualMap_Draw(Image* image)
 	float head_end_x = (player_x + (pcos * arrow_length)) - (head_length * cos(player_angle + Math_PI / 7));
 	float head_end_y = (player_y + (psin * arrow_length)) - (head_length * sin(player_angle + Math_PI / 7));
 
-	if (s_visualMap.rotate)
+	if (rotate)
 	{
 		Math_XY_Rotate(&head_end_x, &head_end_y, cos_angle, sin_angle);
 	}
@@ -352,7 +352,7 @@ void VisualMap_Draw(Image* image)
 	head_end_x = (player_x + (pcos * arrow_length)) - (head_length * cos(player_angle - Math_PI / 7));
 	head_end_y = (player_y + (psin * arrow_length)) - (head_length * sin(player_angle - Math_PI / 7));
 
-	if (s_visualMap.rotate)
+	if (rotate)
 	{
 		Math_XY_Rotate(&head_end_x, &head_end_y, cos_angle, sin_angle);
 	}

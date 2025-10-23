@@ -192,27 +192,29 @@ static void Scene_DrawWallCollumnDepth(Image* image, Texture* texture, float* de
 {
 	tx &= texture->width_mask;
 
-	unsigned* dest = image->data;
+	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
-	size_t depth_index = (size_t)x + (size_t)(y1 + 1);
-
-	//int height_mask = texture->height_mask;
 
 	for (int y = y1 + 1; y < y2; y++)
 	{
 		int ty = (int)ty_pos & height_mask;
 
-		unsigned* data = Image_Get(&texture->img, tx, ty);
+		unsigned char* data = Image_Get(&texture->img, tx, ty);
 
-		if (z >= depth_buffer[x + y * image->width])
+		if (data[3] > 128 && z <= depth_buffer[index])
 		{
-			continue;
-		}
-		depth_buffer[x + y * image->width] = z;
+			size_t i = index * 4;
 
-		dest[index += image->width] = *data;
+			//avoid loops
+			dest[i + 0] = LIGHT_LUT2[data[0]][light];
+			dest[i + 1] = LIGHT_LUT2[data[1]][light];
+			dest[i + 2] = LIGHT_LUT2[data[2]][light];
+
+			depth_buffer[index] = z;
+		}
 
 		ty_pos += ty_step;
+		index += image->width;
 	}
 }
 
@@ -260,8 +262,13 @@ static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* te
 	}
 }
 
-static void Scene_StoreDrawCollumn(DrawCollumns* collumns, Texture* texture, short x, short y1, short y2, int tx, int depth, float ty_pos, float ty_step)
+static void Scene_StoreDrawCollumn(DrawCollumns* collumns, Texture* texture, short x, short y1, short y2, int tx, int depth, float ty_pos, float ty_step, unsigned char light)
 {
+	if (collumns->index >= MAX_DRAW_COLLUMNS)
+	{
+		return;
+	}
+
 	DrawCollumn* c = &collumns->collumns[collumns->index++];
 
 	c->x = x;
@@ -272,6 +279,7 @@ static void Scene_StoreDrawCollumn(DrawCollumns* collumns, Texture* texture, sho
 	c->ty_pos = ty_pos;
 	c->ty_step = ty_step;
 	c->texture = texture;
+	c->light = light;
 }
 
 void Scene_ResetClip(ClipSegments* clip, short left, short right)
@@ -383,26 +391,39 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 			if (bot_texture)
 			{
-				float ty_pos = (fabs((c_back_yfloor) - yceil)) * ty_step;
+				float ty_pos = 0;
+
+				if (texheight > args->backsector_floor_height)
+				{
+					ty_pos = (fabs(c_back_yfloor - yceil)) * ty_step;
+					ty_pos -= args->backsector_floor_height;
+				}
+				else
+				{
+					ty_pos = (fabs(c_back_yfloor - back_yfloor)) * ty_step;
+					ty_pos += texheight - (sector->base_ceil - sector->base_floor) * 0.5;
+				}
 
 				ty_pos += sidedef->y_offset;
 				
-				ty_pos -= args->backsector_floor_height;
-
 				Scene_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, bot_texture->height_mask);
 			}
-			if (mid_texture)
-			{
-				float ty_pos = (fabs(c_yceil - yceil)) * ty_step;
-
-				ty_pos += sidedef->y_offset;
-
-				//Scene_StoreDrawCollumn(draw_args->drawcollumns, mid_texture, x, c_yceil, c_yfloor, tx, depth, ty_pos, ty_step);
-			}
-
-
+			
 			draw_args->yclip_top[x] = Math_Clampl(max(c_yceil, c_back_yceil), ctop, image->height - 1);
 			draw_args->yclip_bottom[x] = Math_Clampl(min(c_yfloor, c_back_yfloor), 0, cbot);
+
+			if (mid_texture)
+			{
+				//reclamp
+				c_yceil = Math_Clamp(yceil, draw_args->yclip_top[x], draw_args->yclip_bottom[x]);
+				c_yfloor = Math_Clamp(yfloor, draw_args->yclip_top[x], draw_args->yclip_bottom[x]);
+
+				float ty_pos = (fabs(c_yceil - yceil)) * ty_step;
+
+				ty_pos -= texheight;
+
+				Scene_StoreDrawCollumn(&draw_args->render_data->draw_collums, mid_texture, x, c_yceil, c_yfloor, tx, depth, ty_pos, ty_step, wall_light);
+			}
 		}
 		else
 		{
@@ -426,6 +447,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, LineDrawArgs* args, Image* image)
 {
+	//clipping code adapted from https://github.com/ZDoom/gzdoom/blob/master/src/rendering/swrenderer/segments/r_clipsegment.cpp#L97
 	ClipSegments* clip = p_clip;
 	Cliprange* start = clip->solidsegs;
 
@@ -623,6 +645,8 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	line_draw_args.sector = sector;
 	line_draw_args.draw_args = args;
 	line_draw_args.sector_height = sector->ceil - sector->floor;
+	line_draw_args.world_bottom = yfloor;
+	line_draw_args.world_top = yceil;
 
 	if (backsector)
 	{
@@ -645,6 +669,8 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 
 		line_draw_args.backsector_ceil_height = (backsector->ceil - backsector->base_floor) * 0.5;
 		line_draw_args.backsector_ceil_height -= (sector->base_ceil - sector->base_floor) * 0.5;
+		line_draw_args.world_high = ybacksector_ceil;
+		line_draw_args.world_low = ybacksector_floor;
 
 		bool is_solid = false;
 
@@ -746,7 +772,7 @@ int Scene_ProcessBSPNode(Image* image, Map* map, int node_index, DrawingArgs* ar
 
 void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer)
 {
-	if (collumns->index == 0)
+	if (collumns->index <= 0)
 	{
 		return;
 	}
@@ -755,7 +781,9 @@ void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_b
 	{
 		DrawCollumn* c = &collumns->collumns[i];
 
-		Scene_DrawWallCollumnDepth(image, c->texture, depth_buffer, c->x, c->y1, c->y2, c->depth, c->tx, c->ty_pos, c->ty_step, 0, 127);
+		Texture* tex = c->texture;
+
+		Scene_DrawWallCollumnDepth(image, tex, depth_buffer, c->x, c->y1, c->y2, c->depth, c->tx, c->ty_pos, c->ty_step, c->light, tex->height_mask);
 	}
 
 }

@@ -42,7 +42,7 @@ static void Event_ActivateCrushersByTag(int tag)
 		Event_ActivateCrusherObject(sector);
 	}
 }
-static void Event_ActivateDoorObject(Sector* sector)
+static void Event_ActivateDoorObject(Sector* sector, bool never_close)
 {
 	//already has object associated with it
 	if (sector->sector_object >= 0)
@@ -50,13 +50,13 @@ static void Event_ActivateDoorObject(Sector* sector)
 		Object* door = Map_GetObject(sector->sector_object);
 
 		//flip the direction
-		if (door->state == DOOR_OPEN)
+		if (door->state == SECTOR_OPEN)
 		{
-			door->state = DOOR_CLOSE;
+			door->state = SECTOR_CLOSE;
 		}
-		else if (door->state == DOOR_CLOSE)
+		else if (door->state == SECTOR_CLOSE)
 		{
-			door->state = DOOR_OPEN;
+			door->state = SECTOR_OPEN;
 		}
 		return;
 	}
@@ -71,9 +71,11 @@ static void Event_ActivateDoorObject(Sector* sector)
 	door->sector_index = sector->index;
 	door->speed = 100;
 	door->hp = 0; //0 == means one cycle only, 1 == repeats
-	door->dir_y = sector->neighbour_sector_value;//ceil clamp
-	door->dir_z = -1; //ceil move
-	door->state = DOOR_OPEN;
+	door->state = SECTOR_OPEN;
+	if (never_close)
+	{
+		door->flags |= OBJ_FLAG__DOOR_NEVER_CLOSE;
+	}
 
 	sector->sector_object = door->id;
 }
@@ -90,12 +92,29 @@ static void Event_ActivateDoorsByTag(int tag)
 
 	while (sector = Map_GetNextSectorByTag(&iter_index, tag))
 	{
-		Event_ActivateDoorObject(sector);
+		Event_ActivateDoorObject(sector, false);
 	}
 }
 
-static void Event_ActivateLift(Sector* sector)
+static void Event_ActivateLiftObject(Sector* sector)
 {
+	//already has object associated with it
+	if (sector->sector_object >= 0)
+	{
+		Object* lift = Map_GetObject(sector->sector_object);
+
+		//flip the direction
+		if (lift->state == SECTOR_OPEN)
+		{
+			lift->state = SECTOR_CLOSE;
+		}
+		else if (lift->state == SECTOR_CLOSE)
+		{
+			lift->state = SECTOR_OPEN;
+		}
+		return;
+	}
+
 	float sector_center_x = 0;
 	float sector_center_y = 0;
 	float sector_center_z = sector->ceil - sector->floor;
@@ -104,10 +123,9 @@ static void Event_ActivateLift(Sector* sector)
 	Object* lift = Object_Spawn(OT__LIFT, 0, sector_center_x, sector_center_y, sector_center_z);
 
 	lift->sector_index = sector->index;
-	lift->speed = 50;
+	lift->speed = 200;
 	lift->hp = 0; //0 == means one cycle only, 1 == repeats
-	lift->dir_y = 1; //floor move
-	lift->dir_z = -1; //ceil move
+	lift->state = SECTOR_OPEN;
 
 	sector->sector_object = lift->id;
 }
@@ -128,9 +146,25 @@ static void Event_HandleSpecialUseLines(Line* line, int side)
 	{
 		if (backsector)
 		{
-			Event_ActivateDoorObject(backsector);
+			Event_ActivateDoorObject(backsector, false);
+		}	
+		break;
+	}
+	case SPECIAL__USE_DOOR_NEVER_CLOSE:
+	{
+		if (backsector)
+		{
+			Event_ActivateDoorObject(backsector, true);
+			line->special = 0;
 		}
-		
+		break;
+	}
+	case SPECIAL__USE_LIFT:
+	{
+		if (backsector)
+		{
+			Event_ActivateLiftObject(backsector);
+		}
 		break;
 	}
 	default:

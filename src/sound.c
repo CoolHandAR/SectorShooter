@@ -197,7 +197,7 @@ float Sound_GetMasterVolume()
 	return sound_core.master_volume;
 }
 
-void Sound_EmitWorldTemp(int type, float x, float y, float dir_x, float dir_y)
+void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z)
 {
 	if (type < 0 || type >= SOUND__MAX)
 	{
@@ -224,8 +224,8 @@ void Sound_EmitWorldTemp(int type, float x, float y, float dir_x, float dir_y)
 	
 	Sound_load(sound_file, MA_SOUND_FLAG_NO_PITCH, &snd->snd);
 	
-	ma_sound_set_position(&snd->snd, x, 0, y);
-	ma_sound_set_direction(&snd->snd, dir_x, 0, dir_y);
+	ma_sound_set_position(&snd->snd, x, z, y);
+	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
 	ma_sound_start(&snd->snd);
 }
 
