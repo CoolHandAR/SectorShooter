@@ -2504,10 +2504,17 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 
+	float transform_y_tan = local_sprite_x * args->tan_cos + local_sprite_y * args->tan_sin;
+
+	if (transform_x >= -transform_y_tan && transform_x > transform_y_tan) return;
+	if (transform_y_tan == 0) return;
+
+	float fsx1 = image->half_width + transform_x * image->half_width / transform_y_tan;
+
 	float xscale = args->h_fov / transform_y;
 	float yscale = args->v_fov;
 
-	int sprite_screen_x = (int)((image->half_width) - (transform_x * xscale));
+	int sprite_screen_x = (int)floor(fsx1 + 0.5);
 
 	float height_transform_y = fabs((float)(image->height / (transform_y)));
 
@@ -2532,6 +2539,11 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 	FrameInfo* frame_info = Image_GetFrameInfo(sprite->img, frame);
 
+	if (!frame_info)
+	{
+		return;
+	}
+
 	int min_x = (sprite->flip_h) ? ((sprite_rect_width)-(frame_info->max_real_x)) : frame_info->min_real_x;
 	int max_x = (sprite->flip_h) ? ((sprite_rect_width)-(frame_info->min_real_x)) : frame_info->max_real_x;
 	
@@ -2539,6 +2551,7 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	float pixel_height_size = (1.0 / (float)sprite_rect_height) * sprite->scale_y;
 
 	int sprite_screen_start_x = (int)((image->half_width) - ((transform_x) * xscale));
+	sprite_screen_start_x = sprite_screen_x;
 
 	int draw_start_x = -sprite_half_width + sprite_screen_start_x;
 	if (draw_start_x < args->start_x) draw_start_x = args->start_x;
@@ -2549,6 +2562,7 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	}
 
 	int sprite_screen_end_x = (int)((image->half_width) - ((transform_x) * xscale));
+	sprite_screen_end_x = sprite_screen_x;
 
 	int draw_end_x = sprite_half_width + sprite_screen_end_x;
 	if (draw_end_x > args->end_x) draw_end_x = args->end_x;
@@ -2603,6 +2617,8 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	unsigned char* dest = image->data;
 	size_t dest_index_step = (size_t)image->width;
 	
+	float xl = 1.0 / fabs(draw_end_x - draw_start_x);
+
 	//try to make this loop as fast as possible
 	for (int x = draw_start_x; x < draw_end_x; x++)
 	{
@@ -2631,6 +2647,10 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 			continue;
 		}
 
+		float x_pos = fabs(x - draw_start_x);
+		float depth_step = xl;
+		float depth = (x_pos * depth_step) + transform_y;
+
 		int min_y = (sprite->flip_v) ? (sprite_rect_height - (span->max)) : span->min;
 		int max_y = (sprite->flip_v) ? (sprite_rect_height - (span->min)) : span->max;
 
@@ -2652,12 +2672,12 @@ void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite)
 			{
 				break;
 			}
-			
+
 			unsigned char* tex_data = Image_Get(sprite->img, tx, ty);
 
-			if (tex_data[3] > 128 && transform_y <= args->depth_buffer[dest_index])
+			if (tex_data[3] > 128 && depth < args->depth_buffer[dest_index])
 			{
-				args->depth_buffer[dest_index] = transform_y;
+				args->depth_buffer[dest_index] = depth;
 
 				size_t i = dest_index * 4;
 

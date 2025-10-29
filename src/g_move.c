@@ -31,12 +31,12 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 
 	int bump_count = 0;
 
-	float time_left = 1.0;
+	float time_left = 1;
 
 	Line start_vel_line;
 	Move_CreateClipLine(obj->x, obj->y, p_moveX, p_moveY, &start_vel_line);
 
-	clip_hits[num_clips++] = &start_vel_line;
+	//clip_hits[num_clips++] = &start_vel_line;
 
 	for (bump_count = 0; bump_count < MAX_BUMPS; bump_count++)
 	{
@@ -45,15 +45,10 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 			break;
 		}
 
-		if (time_left <= 0 || time_left > 1.0)
-		{
-			break;
-		}
-
 		float best_frac = 1.001;
 		
-		float c_dx = p_moveX * time_left;
-		float c_dy = p_moveY * time_left;
+		float c_dx = p_moveX;
+		float c_dy = p_moveY;
 
 		float start_x = obj->x;
 		float start_y = obj->y;
@@ -63,30 +58,27 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 
 		Line vel_line;
 		Move_CreateClipLine(start_x, start_y, c_dx, c_dy, &vel_line);
-		int hit = Trace_FindSlideHit(obj, &vel_line, start_x, start_y, end_x, end_y, obj->size, &best_frac);
+		int hit = Trace_FindSlideHit(obj, start_x, start_y, end_x, end_y, obj->size, &best_frac);
+
 
 		float trace_end_x = start_x + best_frac * (end_x - start_x);
 		float trace_end_y = start_y + best_frac * (end_y - start_y);
 
-		if (hit == TRACE_NO_HIT || hit >= 0 || best_frac >= 1.0)
-		{
-			Move_SetPosition(obj, trace_end_x, trace_end_y);
-
-			obj->vel_x = p_moveX;
-			obj->vel_y = p_moveY;
-
-			moved = true;
-			break;
-		}
-
-		//best_frac -= 1.0 / 32.0;
-		//best_frac = 1.0 - (best_frac + 1.0 / 32.0);
 		if (best_frac > 0)
 		{
-			if (!Move_SetPosition(obj, trace_end_x, trace_end_y))
+			if(Move_SetPosition(obj, trace_end_x, trace_end_y, obj->size))
 			{
-				//break;
+				moved = true;
 			}
+			else
+			{
+				break;
+			}
+		}
+
+		if (hit == TRACE_NO_HIT || best_frac >= 1.0)
+		{
+			break;
 		}
 
 		time_left -= time_left * best_frac;
@@ -147,7 +139,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 						continue;
 					}
 
-					return true;
+					return false;
 				}
 			}
 
@@ -163,13 +155,19 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 }
 static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 {
+	//return Move_ClipMove2(obj, p_moveX, p_moveY);
+
 	Map* map = Map_GetMap();
+
+	if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size * 1.5))
+	{
+		return true;
+	}
 
 	if (p_moveX == 0 && p_moveY == 0)
 	{
 		return false;
 	}
-
 	int bump_count = 0;
 
 	for (bump_count = 0; bump_count < 1; bump_count++)
@@ -211,30 +209,27 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 		int hit = TRACE_NO_HIT;
 
 		float frac0 = best_frac;
-		Move_CreateClipLine(lead_x, lead_y, p_moveX, p_moveY, &vel_line);
-		int hit0 = Trace_FindSlideHit(obj, &vel_line, lead_x, lead_y, lead_x + p_moveX, lead_y + p_moveY, obj->size, &frac0);
+		int hit0 = Trace_FindSlideHit(obj, lead_x, lead_y, lead_x + p_moveX, lead_y + p_moveY, obj->size, &frac0);
 
 		if (frac0 < best_frac && hit0 != TRACE_NO_HIT)
 		{
 			best_frac = frac0;
 			hit = hit0;
 		}
+
 		if (hit0 != TRACE_NO_HIT)
 		{
 			float frac1 = best_frac;
-			Move_CreateClipLine(trail_x, lead_y, p_moveX, p_moveY, &vel_line);
-			int hit1 = Trace_FindSlideHit(obj, &vel_line, trail_x, lead_y, trail_x + p_moveX, lead_y + p_moveY, obj->size, &frac1);
+			int hit1 = Trace_FindSlideHit(obj, trail_x, lead_y, trail_x + p_moveX, lead_y + p_moveY, obj->size, &frac1);
 			if (frac1 < best_frac && hit1 != TRACE_NO_HIT)
 			{
 				best_frac = frac1;
 				hit = hit1;
 			}
-
 			if (hit1 != TRACE_NO_HIT)
 			{
 				float frac2 = best_frac;
-				Move_CreateClipLine(lead_x, trail_y, p_moveX, p_moveY, &vel_line);
-				int hit2 = Trace_FindSlideHit(obj, &vel_line, lead_x, trail_y, lead_x + p_moveX, trail_y + p_moveY, obj->size, &frac2);
+				int hit2 = Trace_FindSlideHit(obj, lead_x, trail_y, lead_x + p_moveX, trail_y + p_moveY, obj->size, &frac2);
 				if (frac2 < best_frac && hit2 != TRACE_NO_HIT)
 				{
 					best_frac = frac2;
@@ -243,9 +238,10 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 			}
 		}
 		
-		if (hit == TRACE_NO_HIT || hit >= 0)
+
+		if (hit == TRACE_NO_HIT || best_frac >= 1)
 		{
-			Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY);
+			Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size);
 			
 			obj->vel_x = p_moveX;
 			obj->vel_y = p_moveY;
@@ -253,21 +249,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 			return true;
 		}
 
-		best_frac -= 1.0 / 7.0;
-		best_frac = 1.0 - (best_frac + 1.0 / 32.0);
 
-		if (best_frac > 1.0)
-		{
-			best_frac = 0;
-		}
-		else if (best_frac <= 0)
-		{
-			obj->vel_x = 0;
-			obj->vel_y = 0;
-			return false;
-		}
-
-		
 		int line_index = -(hit + 1);
 		Line* line0 = &map->line_segs[line_index];
 
@@ -276,12 +258,12 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 
 		Move_ClipVelocity(obj->x, obj->y, &clip_dx, &clip_dy, line0);
 
-		p_moveX = clip_dx * best_frac;
-		p_moveY = clip_dy * best_frac;
+		p_moveX = clip_dx;
+		p_moveY = clip_dy;
 
-		if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY))
+		if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
 		{
-			return false;
+			return true;
 		}
 		
 		obj->vel_x = p_moveX;
@@ -351,31 +333,26 @@ void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_li
 
 	den = den / clip_line->dot;
 
-	if (den < 0)
-	{
-		//den *= 1.01;
-	}
-	else
-	{
-		//den /= 1.001;
-	}
-
 	*r_dx = clip_line->dx * den;
 	*r_dy = clip_line->dy * den;
 }
-bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
+
+bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex)
 {
 	Sector* new_sector = Map_FindSector(x, y);
 
 	float floor = new_sector->floor;
 	float ceil = new_sector->ceil;
 	float low_floor = new_sector->floor;
-	float range = max(ceil, floor) - min(ceil, floor);
+	
+	bool on_ground = (obj->z <= floor);
 
-	if (!Trace_CheckBoxPosition(obj, x, y, obj->size - 0.5, &floor, &ceil, &low_floor))
+	if (!Trace_CheckBoxPosition(obj, x, y, size, &floor, &ceil, &low_floor))
 	{
 		return false;
 	}
+
+	float range = max(ceil, floor) - min(ceil, floor);
 
 	//can't fit in gap
 	if (range < obj->height)
@@ -383,17 +360,17 @@ bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
 		return false;
 	}
 	//you will bonk your head
-	if (ceil < obj->z + obj->height)
+	if (ceil - obj->z < obj->height)
 	{
 		return false;
 	}
 	//you are too short for stepping over
-	if (floor - obj->z > obj->step_height)
+	if (floor - obj->z > obj->step_height && on_ground)
 	{
 		return false;
 	}
 	//too big of a fall
-	if ((floor - low_floor) > obj->dropoff_height)
+	if ((floor - low_floor) > obj->step_height)
 	{
 		//return false;
 	}
@@ -403,7 +380,7 @@ bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex)
 
 	return true;
 }
-bool Move_SetPosition(Object* obj, float x, float y)
+bool Move_SetPosition(Object* obj, float x, float y, float size)
 {
 	int new_sector_index = -1;
 
@@ -415,13 +392,14 @@ bool Move_SetPosition(Object* obj, float x, float y)
 			Sector* new_sector = Map_FindSector(x, y);
 
 			obj->z = new_sector->floor;
-
-			obj->sprite.z = obj->z + 64;
+			new_sector_index = new_sector->index;
 		}
-
-		if (!Move_CheckPosition(obj, x, y, &new_sector_index))
+		else
 		{
-			return false;
+			if (!Move_CheckPosition(obj, x, y, size, &new_sector_index))
+			{
+				return false;
+			}
 		}
 	}
 	else
@@ -444,7 +422,7 @@ bool Move_SetPosition(Object* obj, float x, float y)
 	//also update sprite
 	obj->sprite.x = obj->x + obj->sprite.offset_x;
 	obj->sprite.y = obj->y + obj->sprite.offset_y;
-	obj->sprite.z = obj->z + 64;
+	obj->sprite.z = obj->z + obj->sprite.offset_z;
 
 	//setup sector links
 	if (new_sector_index != obj->sector_index)
@@ -503,7 +481,7 @@ bool Move_SetPosition(Object* obj, float x, float y)
 
 bool Move_CheckStep(Object* obj, float p_stepX, float p_stepY, float p_size)
 {
-	return Move_CheckPosition(obj, obj->x + p_stepX, obj->y + p_stepY, NULL);
+	return Move_CheckPosition(obj, obj->x + p_stepX, obj->y + p_stepY, p_size, NULL);
 }
 
 bool Move_ZMove(Object* obj, float p_moveZ)
@@ -519,9 +497,9 @@ bool Move_ZMove(Object* obj, float p_moveZ)
 	float next_z = obj->z + p_moveZ;
 	float z = obj->z;
 
-	if (p_moveZ < 0 && next_z < sector->floor + obj->height * 0.5)
+	if (p_moveZ < 0 && next_z < sector->floor + obj->height)
 	{
-		z = sector->floor + obj->height * 0.5;
+		z = sector->floor + obj->height;
 	}
 	else if (p_moveZ > 0 && next_z > sector->ceil)
 	{
@@ -533,7 +511,7 @@ bool Move_ZMove(Object* obj, float p_moveZ)
 	}
 
 	obj->z = z;
-	obj->sprite.z = obj->z + 64;
+	obj->sprite.z = obj->z + obj->sprite.offset_z;
 
 	return true;
 }
@@ -556,7 +534,7 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide)
 	else
 	{
 		//return true if we moved
-		moved = Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY);
+		moved = Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size);
 	}
 	
 
@@ -641,7 +619,7 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 		}
 
 		//obj will be not be crushed
-		if (next_ceil - next_floor >= obj->height * 2)
+		if (next_ceil - next_floor >= obj->height * 2.0)
 		{
 			continue;
 		}

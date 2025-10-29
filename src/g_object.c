@@ -101,7 +101,7 @@ void Object_HandleTriggers(Object* obj, Object* trigger)
 		{
 			if (trigger->sub_type == SUB__TRIGGER_CHANGELEVEL)
 			{
-				Game_ChangeLevel();
+				//Game_ChangeLevel();
 			}
 			else if (trigger->sub_type == SUB__TRIGGER_SECRET)
 			{
@@ -563,7 +563,7 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	missile->dir_y = dir_y;
 	missile->dir_z = dir_z;
 
-	Move_SetPosition(missile, missile->x, missile->y);
+	Move_SetPosition(missile, missile->x, missile->y, missile->size);
 	Move_ZMove(missile, -100);
 
 	return missile;
@@ -604,10 +604,14 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	bool assign_to_spatial_tree = false;
 	bool handle_position = true;
 
+	float zmove = -1000;
+
 	switch (type)
 	{
 	case OT__PLAYER:
 	{
+		obj->size = PLAYER_SIZE;
+		assign_to_spatial_tree = true;
 		break;
 	}
 	case OT__MONSTER:
@@ -617,6 +621,8 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		Game_GetGame()->total_monsters++;
 
 		Monster_Spawn(obj);
+
+		obj->sprite.offset_z = 40;
 		break;
 	}
 	//fallthrough
@@ -624,8 +630,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	case OT__PICKUP:
 	case OT__THING:
 	{
-		assign_to_spatial_tree = true;
-
 		ObjectInfo* object_info = Info_GetObjectInfo(obj->type, obj->sub_type);
 		AnimInfo* anim_info = &object_info->anim_info;
 
@@ -638,6 +642,20 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.frame_offset_y = anim_info->y_offset;
 		obj->sprite.offset_x = object_info->sprite_offset_x;
 		obj->sprite.offset_y = object_info->sprite_offset_y;
+		obj->sprite.offset_z = 20;
+
+		if (obj->sprite.img->v_frames > 0)
+		{
+			//obj->height = (obj->sprite.img->height / obj->sprite.img->v_frames) / 2;
+		}
+		else
+		{
+			//obj->height = obj->sprite.img->height;
+		}
+
+		obj->height = 64;
+
+		//obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
 
 		if (obj->sprite.frame_count > 0)
 		{
@@ -689,6 +707,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		}
 
 		obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
+		zmove = 0;
 
 		break;
 	}
@@ -733,8 +752,8 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 	if (handle_position)
 	{
-		Move_SetPosition(obj, x, y);
-		Move_ZMove(obj, -100);
+		Move_SetPosition(obj, x, y, obj->size);
+		Move_ZMove(obj, zmove);
 	}
 
 	return obj;

@@ -6,9 +6,11 @@
 #include <stdio.h>
 
 #define SUB_MENU_MAIN 0
-#define SUB_MENU_OPTIONS 1
-#define SUB_MENU_HELP 2
-#define SUB_MENU_EXIT 3
+#define SUB_MENU_LOAD 1
+#define SUB_MENU_SAVE 2
+#define SUB_MENU_OPTIONS 3
+#define SUB_MENU_HELP 4
+#define SUB_MENU_EXIT 5
 
 #define INPUT_COOLDOWN 0.25
 
@@ -30,6 +32,7 @@
 #define SOUND_OPTION_STEP 0.1
 #define LEVEL_END_COUNTER_SPEED 10
 
+
 typedef struct
 {
 	//menu data
@@ -46,6 +49,8 @@ typedef struct
 
 	int secret_max;
 	int monster_max;
+
+	SaveSlot save_slots[MAX_SAVE_SLOTS];
 } MenuCore;
 
 static MenuCore menu_core;
@@ -85,7 +90,7 @@ static bool Menu_CheckMouseInput(int key, int state)
 	return false;
 }
 
-static void Menu_Text(Image* image, FontData* fd, int id, const char* fmt, ...)
+static void Menu_Text(Image* image, FontData* fd, int id, float y_step, const char* fmt, ...)
 {
 	char str[2048];
 	memset(str, 0, sizeof(str));
@@ -98,14 +103,26 @@ static void Menu_Text(Image* image, FontData* fd, int id, const char* fmt, ...)
 	va_end(args);
 
 	bool is_selected = (id == menu_core.index);
+	bool is_blocked = (id < 0);
 
 	if (is_selected)
 	{
-		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * Y_TEXT_STEP),1, 1, 0, image->width, 255, 0, 0, 255, str);
+		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * y_step),1, 1, 0, image->width, 255, 0, 0, 255, str);
+	}
+	else if (is_blocked)
+	{
+		if (-id == menu_core.index)
+		{
+			Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (-id * y_step), 1, 1, 0, image->width, 56, 56, 56, 255, str);
+		}
+		else
+		{
+			Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (-id * y_step), 1, 1, 0, image->width, 128, 128, 128, 255, str);
+		}
 	}
 	else
 	{
-		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * Y_TEXT_STEP), 1, 1,0, image->width, 255, 255, 255, 255, str);
+		Text_DrawStr(image, fd, X_TEXT_START, Y_TEXT_START + (id * y_step), 1, 1,0, image->width, 255, 255, 255, 255, str);
 	}
 	
 	menu_core.id++;
@@ -161,6 +178,33 @@ static void Menu_HandleOption(int step)
 	}
 }
 
+static void Menu_HandleLoadSave()
+{
+	if (Menu_CheckInput(GLFW_KEY_ENTER, GLFW_PRESS))
+	{
+		if (menu_core.sub_menu == SUB_MENU_LOAD)
+		{
+			Game_Load(menu_core.index);
+			menu_core.sub_menu = SUB_MENU_MAIN;
+		}
+		else if (menu_core.sub_menu == SUB_MENU_SAVE)
+		{
+			SYSTEMTIME time;
+			memset(&time, 0, sizeof(time));
+			GetSystemTime(&time);
+
+			char time_buf[32];
+			memset(time_buf, 0, sizeof(time_buf));
+
+			sprintf(time_buf, "%i-%i-%i-%i", time.wYear, time.wMonth, time.wDay, time.wHour);
+
+			Game_Save(menu_core.index, time_buf);
+
+			menu_core.sub_menu = SUB_MENU_MAIN;
+		}
+	}
+}
+
 void Menu_Update(float delta)
 {
 	if (menu_core.sub_menu == SUB_MENU_EXIT)
@@ -173,6 +217,7 @@ void Menu_Update(float delta)
 
 	if (menu_core.input_timer > 0) menu_core.input_timer -= delta;
 	
+	//handle sub menu
 	if (menu_core.sub_menu == SUB_MENU_OPTIONS)
 	{
 		int step = 0;
@@ -182,17 +227,32 @@ void Menu_Update(float delta)
 
 		Menu_HandleOption(step);
 	}
+	else if (menu_core.sub_menu == SUB_MENU_LOAD || menu_core.sub_menu == SUB_MENU_SAVE)
+	{
+		Menu_HandleLoadSave();
+	}
 
+	//handle enter input when in submenu
 	if (Menu_CheckInput(GLFW_KEY_ENTER, GLFW_PRESS))
 	{
 		switch (menu_core.sub_menu)
 		{
 		case SUB_MENU_MAIN:
 		{
-			if (menu_core.index == 0)
+			if (menu_core.index == SUB_MENU_MAIN)
 			{
 				Game_SetState(GS__LEVEL);
-				break;
+				return;
+			}
+			else if (menu_core.index == SUB_MENU_LOAD || menu_core.index == SUB_MENU_SAVE)
+			{
+				//can't save when map isn't loaded
+				if (menu_core.index == SUB_MENU_SAVE && Game_GetLevelIndex() < 0)
+				{
+					break;
+				}
+
+				Scan_SaveGames(menu_core.save_slots);
 			}
 
 			menu_core.sub_menu = menu_core.index;
@@ -211,6 +271,11 @@ void Menu_Update(float delta)
 			break;
 		}
 		default:
+		{
+			//go back to main screen
+			menu_core.sub_menu = SUB_MENU_MAIN;
+			break;
+		}
 			break;
 		}
 
@@ -238,6 +303,8 @@ void Menu_Update(float delta)
 
 void Menu_Draw(Image* image, FontData* fd)
 {
+	int game_level = Game_GetLevelIndex();
+
 	menu_core.id = 0;
 	menu_core.help_x = 0;
 	menu_core.help_y = 0;
@@ -248,19 +315,61 @@ void Menu_Draw(Image* image, FontData* fd)
 	{
 	case SUB_MENU_MAIN:
 	{
-		Menu_Text(image, fd, 0, "PLAY");
-		Menu_Text(image, fd, 1, "OPTIONS");
-		Menu_Text(image, fd, 2, "HELP");
-		Menu_Text(image, fd, 3, "EXIT");
+		const float y_step = 0.1;
+
+		if (game_level < 0) Menu_Text(image, fd, SUB_MENU_MAIN, y_step, "PLAY"); else Menu_Text(image, fd, SUB_MENU_MAIN, y_step, "RESUME");
+
+		Menu_Text(image, fd, SUB_MENU_LOAD, y_step, "LOAD");
+
+		if (game_level < 0) Menu_Text(image, fd, -SUB_MENU_SAVE, y_step, "SAVE"); else Menu_Text(image, fd, SUB_MENU_SAVE, y_step, "SAVE");
+		Menu_Text(image, fd, SUB_MENU_OPTIONS, y_step, "OPTIONS");
+		Menu_Text(image, fd, SUB_MENU_HELP, y_step, "HELP");
+		Menu_Text(image, fd, SUB_MENU_EXIT, y_step, "EXIT");
+		break;
+	}
+	case SUB_MENU_LOAD:
+	{
+		const float y_step = 0.1;
+		for (int i = 0; i < MAX_SAVE_SLOTS; i++)
+		{
+			SaveSlot* slot = &menu_core.save_slots[i];
+
+			if (slot->is_valid)
+			{
+				Menu_Text(image, fd, i, y_step, slot->name);
+			}
+			else
+			{
+				Menu_Text(image, fd, i, y_step, "EMPTY");
+			}
+		}
+		break;
+	}
+	case SUB_MENU_SAVE:
+	{
+		const float y_step = 0.1;
+		for (int i = 0; i < MAX_SAVE_SLOTS; i++)
+		{
+			SaveSlot* slot = &menu_core.save_slots[i];
+
+			if (slot->is_valid)
+			{
+				Menu_Text(image, fd, i, y_step, slot->name);
+			}
+			else
+			{
+				Menu_Text(image, fd, i, y_step, "EMPTY");
+			}
+		}
 		break;
 	}
 	case SUB_MENU_OPTIONS:
 	{
-		Menu_Text(image, fd, RENDERSCALE_ID, "RENDER SCALE  < %i > ", Render_GetRenderScale());
-		Menu_Text(image, fd, SOUND_ID, "VOLUME  < %.1f > ", Sound_GetMasterVolume());
-		Menu_Text(image, fd, SENSITIVITY_ID, "SENSITIVITY  < %.1f > ", Player_GetSensitivity());
+		Menu_Text(image, fd, RENDERSCALE_ID, 0.25, "RENDER SCALE  < %i > ", Render_GetRenderScale());
+		Menu_Text(image, fd, SOUND_ID, 0.25, "VOLUME  < %.1f > ", Sound_GetMasterVolume());
+		Menu_Text(image, fd, SENSITIVITY_ID, 0.25, "SENSITIVITY  < %.1f > ", Player_GetSensitivity());
 
-		Menu_Text(image, fd, BACK_ID, "BACK");
+		Menu_Text(image, fd, BACK_ID, 0.25, "BACK");
 		break;
 	}
 	case SUB_MENU_HELP:

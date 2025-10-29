@@ -817,9 +817,10 @@ MissileInfo* Info_GetMissileInfo(int sub_type);
 
 static const char* LEVELS[] =
 {
-	"assets/map/map0.json",
-	"assets/map/map1.json",
-	"assets/map/map2.json"
+	"test.WAD",
+	"E1M1.WAD",
+	"E1M2.WAD",
+	"E1M3.WAD"
 };
 
 //SPECIAL ENUMS

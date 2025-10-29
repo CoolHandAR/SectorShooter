@@ -181,8 +181,8 @@ inline void Math_XY_Rotate(float* x, float* y, float p_cos, float p_sin)
 	float t_x = *x;
 	float l_y = *y;
 
-	*x = t_x * p_cos - l_y * p_sin;
-	*y = t_x * p_sin + l_y * p_cos;
+	*x = t_x * -p_cos - l_y * p_sin;
+	*y = t_x * -p_sin + l_y * p_cos;
 }
 inline void Math_XY_RotateAngle(float* x, float* y, float angle)
 {

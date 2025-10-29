@@ -160,7 +160,7 @@ static bool Engine_SetupSubSystems()
 	printf("Renderer: %s\n", glGetString(GL_RENDERER));
 	printf("Version:  %s\n", glGetString(GL_VERSION));
 
-	glfwSwapInterval(1);
+	glfwSwapInterval(0);
 
 	if (!Render_Init(WINDOW_WIDTH * WINDOW_SCALE, WINDOW_HEIGHT * WINDOW_SCALE))
 	{

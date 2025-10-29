@@ -5,6 +5,7 @@
 #define MAX_ITEMS 2000
 #define MANUAL_MOVE_SPEED 500
 #define MAX_ZOOM_LEVEL 4
+#define ZOOM_STEP 0.25
 #define WORLD_CLAMP_BIAS 32
 #define PLAYER_ARROW_BELL_SIZE 2
 #define PLAYER_ARROW_LENGTH 24
@@ -21,7 +22,7 @@ typedef struct
 	float player_x, player_y, player_angle;
 	float center_x, center_y;
 	float angle;
-	float zoom_level;
+	int zoom_level;
 	
 	int w_offset;
 	int h_offset;
@@ -103,6 +104,15 @@ static void VisualMap_ProcessInput(GLFWwindow* window, float delta)
 	}
 }
 
+void VisualMap_Init()
+{
+	memset(&s_visualMap, 0, sizeof(s_visualMap));
+	s_visualMap.zoom_level = 1;
+	s_visualMap.pulse_dir = 1;
+	s_visualMap.rotate = true;
+	s_visualMap.player_follow_mode = true;
+}
+
 void VisualMap_Update(GLFWwindow* window, float delta)
 {
 	VisualMap_ProcessInput(window, delta);
@@ -123,10 +133,6 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 	{
 		s_visualMap.zoom_level = 1;
 	}
-	if (s_visualMap.pulse_dir == 0)
-	{
-		s_visualMap.pulse_dir = 1;
-	}
 	if (s_visualMap.pulse >= 1)
 	{
 		s_visualMap.pulse_dir = -1;
@@ -142,14 +148,15 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 
 	s_visualMap.pulse = Math_Clamp(s_visualMap.pulse + (delta * 1) * s_visualMap.pulse_dir, 0, 1);
 	
-
 	Map* map = Map_GetMap();
 
 	int width = 0, height = 0;
 	Render_GetRenderSize(&width, &height);
+	
+	float scaled_zoom_level = ((float)s_visualMap.zoom_level * (float)ZOOM_STEP) * (float)Render_GetRenderScale();
 
-	width = (width / 2) / s_visualMap.zoom_level;
-	height = (height / 2) / s_visualMap.zoom_level;
+	width = ((float)width / 2.0) / scaled_zoom_level;
+	height = ((float)height / 2.0) / scaled_zoom_level;
 
 	Player_GetView(&s_visualMap.player_x, &s_visualMap.player_y, NULL, NULL, &s_visualMap.player_angle);
 
@@ -171,8 +178,8 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 	}
 	else
 	{
-		s_visualMap.center_x = Math_Clamp(s_visualMap.center_x, (map->world_bounds[0][0] - WORLD_CLAMP_BIAS) + width, (map->world_bounds[1][0] + WORLD_CLAMP_BIAS) - width);
-		s_visualMap.center_y = Math_Clamp(s_visualMap.center_y, (map->world_bounds[0][1] - WORLD_CLAMP_BIAS) + height, (map->world_bounds[1][1] + WORLD_CLAMP_BIAS) - height);
+		//s_visualMap.center_x = Math_Clamp(s_visualMap.center_x, (map->world_bounds[0][0] - WORLD_CLAMP_BIAS) + width, (map->world_bounds[1][0] + WORLD_CLAMP_BIAS) - width);
+		//s_visualMap.center_y = Math_Clamp(s_visualMap.center_y, (map->world_bounds[0][1] - WORLD_CLAMP_BIAS) + height, (map->world_bounds[1][1] + WORLD_CLAMP_BIAS) - height);
 
 		s_visualMap.bbox[0][0] = (s_visualMap.center_x - width);
 		s_visualMap.bbox[0][1] = (s_visualMap.center_y - height);
@@ -184,7 +191,7 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 	if (s_visualMap.rotate)
 	{
 		s_visualMap.angle += Math_DegToRad(90);
-		s_visualMap.angle = -s_visualMap.angle;
+		//s_visualMap.angle = -s_visualMap.angle;
 
 		Math_XY_Rotate(&s_visualMap.center_x, &s_visualMap.center_y, cosf(s_visualMap.angle), sinf(s_visualMap.angle));
 	}
@@ -195,7 +202,7 @@ void VisualMap_Update(GLFWwindow* window, float delta)
 	Render_UnlockObjectMutex(true);
 }
 
-void VisualMap_Draw(Image* image)
+void VisualMap_Draw(Image* image, FontData* font)
 {
 	//visual map is closed
 	if (s_visualMap.mode == 0)
@@ -226,7 +233,7 @@ void VisualMap_Draw(Image* image)
 	float center_y = s_visualMap.center_y - s_visualMap.h_offset;
 
 	float pulse = s_visualMap.pulse;
-	float zoom_level = s_visualMap.zoom_level;
+	float zoom_level = ((float)s_visualMap.zoom_level * (float)ZOOM_STEP) * (float)Render_GetRenderScale();
 
 	Render_UnlockObjectMutex(false);
 
@@ -361,6 +368,14 @@ void VisualMap_Draw(Image* image)
 	head_end_y = (head_end_y - center_y) * zoom_level;
 
 	Video_DrawLine(image, px1, py1, head_end_x, head_end_y, color);
+
+	//draw input tooltips
+	Text_DrawColor(image, font, 0.1, 0.9, 0.3, 0.3, 0, image->width, 255, 255, 255, 255, "F = FOLLOW PLAYER");
+	Text_DrawColor(image, font, 0.3, 0.9, 0.3, 0.3, 0, image->width, 255, 255, 255, 255, "R = ROTATE");
+	if (!s_visualMap.player_follow_mode)
+	{
+		Text_DrawColor(image, font, 0.45, 0.9, 0.3, 0.3, 0, image->width, 255, 255, 255, 255, "ARROW_KEYS = MOVE POSITION");
+	}
 }
 
 int VisualMap_GetMode()

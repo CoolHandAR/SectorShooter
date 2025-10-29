@@ -22,10 +22,15 @@
 #define SECTOR_CLOSE 2
 #define SECTOR_AUTOCLOSE_TIME 5
 #define GRAVITY_SCALE -500
-
-#define MIN_LIGHT 20
+#define PLAYER_SIZE 8
 
 #define MAX_RENDER_SCALE 3
+
+#define MAX_MAP_NAME 32
+#define MAX_STATUS_MESSAGE 32 
+#define STATUS_TIME 5
+
+static const char SAVEFOLDER[] = { "\\saves" };
 
 typedef int16_t ObjectID;
 
@@ -66,6 +71,11 @@ typedef struct
 
 	int secrets_found;
 	int monsters_killed;
+
+	int level_index;
+
+	char status_msg[MAX_STATUS_MESSAGE];
+	float status_msg_timer;
 } Game;
 
 //A lazy way to store assets, but good enough for now
@@ -105,7 +115,11 @@ void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x);
 void Game_SetState(GameState state);
 GameState Game_GetState();
 GameAssets* Game_GetAssets();
-void Game_ChangeLevel();
+bool Game_ChangeLevel(int level_index);
+void Game_Save(int slot, char desc[32]);
+bool Game_Load(int slot);
+int Game_GetLevelIndex();
+void Game_SetStatusMessage(char msg[MAX_STATUS_MESSAGE]);
 void Game_Reset(bool to_start);
 void Game_SecretFound();
 Texture* Game_FindTextureByName(const char p_name[8]);
@@ -247,7 +261,6 @@ typedef enum
 
 	OBJ_FLAG__IGNORE_POSITION_CHECK = 1 << 8,
 	
-	OBJ_FLAG__DISCOVERED = 1 << 9,
 } ObjectFlag;
 
 typedef struct
@@ -255,6 +268,7 @@ typedef struct
 	int spatial_id;
 	int sector_index;
 
+	int unique_id;
 	ObjectID id;
 	Sprite sprite;
 
@@ -331,6 +345,11 @@ typedef struct
 
 	float dx, dy;
 	float dot;
+
+	float side_x0, side_x1;
+	float side_y0, side_y1;
+
+	float side_dx, side_dy;
 
 	float offset;
 	int front_sector;
@@ -420,27 +439,26 @@ typedef struct
 	ObjectID sorted_list[MAX_OBJECTS];
 	int num_sorted_objects;
 
+	int unique_id_index;
+
 	int player_spawn_point_x;
 	int player_spawn_point_y;
 	int player_spawn_point_z;
 	int player_spawn_sector;
 	float player_spawn_rot;
 
-	int level_index;
-
-	bool dirty_temp_light;
-
 	float world_bounds[2][2];
 	float world_size[2];
+
+	char name[MAX_MAP_NAME];
 } Map;
 
-void Map_SetDirtyTempLight();
-int Map_GetLevelIndex();
 Map* Map_GetMap();
 Object* Map_NewObject(ObjectType type);
 bool Map_LoadFromIndex(int index);
 bool Map_Load(const char* filename);
 Object* Map_GetObject(ObjectID id);
+Object* Map_FindObjectByUniqueID(int unique_id);
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot);
 void Map_UpdateObjects(float delta);
 void Map_DeleteObject(Object* obj);
@@ -455,11 +473,53 @@ void Map_Destruct();
 
 //Load stuff
 bool Load_Doommap(const char* filename, Map* map);
-bool Load_DoomIWAD(const char* filename, Map* map);
+bool Load_DoomIWAD(const char* filename);
 
 //Player stuff
+typedef struct
+{
+	Sprite gun_sprite;
+	Object* obj;
+
+	float view_x, view_y, view_z;
+
+	float angle;
+	int move_x;
+	int move_y;
+	int slow_move;
+
+	int buck_ammo;
+	int bullet_ammo;
+	int rocket_ammo;
+
+	float save_timer;
+	float alive_timer;
+	float gun_timer;
+	float hurt_timer;
+	float godmode_timer;
+	float quad_timer;
+	float hp_tick_timer;
+	float hit_timer;
+	float use_timer;
+
+	float bob;
+	float gun_offset_x;
+	float gun_offset_y;
+
+	int stored_hp;
+
+	GunType gun;
+	struct GunInfo* gun_info;
+
+	bool gun_check[GUN__MAX];
+	Sprite gun_sprites[GUN__MAX];
+
+	float sensitivity;
+} PlayerData;
+
 void Player_Init(int keep);
 Object* Player_GetObj();
+PlayerData* Player_GetPlayerData();
 void Player_Rotate(float rot);
 void Player_Hurt(float dir_x, float dir_y);
 void Player_HandlePickup(Object* obj);
@@ -475,8 +535,8 @@ void Player_SetSensitivity(float sens);
 //Movement stuff
 float Move_GetLineDot(float x, float y, Line* line);
 void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_line);
-bool Move_CheckPosition(Object* obj, float x, float y, int* r_sectorIndex);
-bool Move_SetPosition(Object* obj, float x, float y);
+bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex);
+bool Move_SetPosition(Object* obj, float x, float y, float size);
 bool Move_CheckStep(Object* obj, float p_stepX, float p_stepY, float p_size);
 bool Move_ZMove(Object* obj, float p_moveZ);
 bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide);
@@ -496,7 +556,7 @@ void Missile_Explode(Object* obj);
 int* Trace_GetSpecialLines(int* r_length);
 int* Trace_GetHitObjects();
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ);
-int Trace_FindSlideHit(Object* obj, Line* vel_line, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac);
+int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac);
 int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
 bool Trace_CheckLineToTarget(Object* obj, Object* target);
 int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y, float z);
@@ -556,9 +616,23 @@ void Monster_Bruiser_FireBall(Object* obj);
 void Monster_Melee(Object* obj);
 
 //Visual map stuff
+void VisualMap_Init();
 void VisualMap_Update(GLFWwindow* window, float delta);
-void VisualMap_Draw(Image* image);
+void VisualMap_Draw(Image* image, FontData* font);
 int VisualMap_GetMode();
+
+//Save/load game stuff
+#define SAVE_GAME_NAME_MAX_CHARS 32
+#define MAX_SAVE_SLOTS 3
+typedef struct
+{
+	char name[SAVE_GAME_NAME_MAX_CHARS];
+	bool is_valid;
+} SaveSlot;
+
+bool Save_Game(const char* filename, const char name[SAVE_GAME_NAME_MAX_CHARS]);
+bool Load_Game(const char* filename);
+bool Scan_SaveGames(SaveSlot slots[MAX_SAVE_SLOTS]);
 
 //BSP STUFF
 int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y);

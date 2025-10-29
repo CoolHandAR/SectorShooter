@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <stdint.h>
+
 int File_GetLength(FILE* p_file)
 {
 	int pos;
@@ -44,6 +46,26 @@ unsigned char* File_Parse(const char* p_filePath, int* r_length)
 	}
 
 	return buffer;
+}
+
+bool File_Write(FILE* file, void* src, int count)
+{
+	if (fwrite(src, 1, count, file) != count)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool File_Read(FILE* file, void* dest, int count)
+{
+	if (fread(dest, 1, count, file) != count)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void ReaderWriterLockMutex_Init(ReaderWriterLockMutex* lock)
@@ -158,4 +180,88 @@ int QueryNumLogicalProcessors()
 	free(buffer);
 
 	return concurrency;
+}
+
+bool Num_IsLittleEndian()
+{
+	volatile uint32_t i = 0x01234567;
+	// return 0 for big endian, 1 for little endian.
+	return (*((uint8_t*)(&i))) == 0x67;
+}
+
+bool Num_IsBigEndian()
+{
+	return !Num_IsLittleEndian();
+}
+
+float Num_LittleFloat(float x)
+{
+	if (Num_IsLittleEndian())
+	{
+		return x;
+	}
+
+	float retVal;
+	char* floatToConvert = (char*)&x;
+	char* returnFloat = (char*)&retVal;
+
+	// swap the bytes into a temporary buffer
+	returnFloat[0] = floatToConvert[3];
+	returnFloat[1] = floatToConvert[2];
+	returnFloat[2] = floatToConvert[1];
+	returnFloat[3] = floatToConvert[0];
+
+	return retVal;
+}
+
+double Num_LittleDouble(double x)
+{
+	if (Num_IsLittleEndian())
+	{
+		return x;
+	}
+
+	double retVal;
+	char* floatToConvert = (char*)&x;
+	char* returnFloat = (char*)&retVal;
+
+	// swap the bytes into a temporary buffer
+	returnFloat[0] = floatToConvert[3];
+	returnFloat[1] = floatToConvert[2];
+	returnFloat[2] = floatToConvert[1];
+	returnFloat[3] = floatToConvert[0];
+
+	return retVal;
+}
+
+short Num_LittleShort(short x)
+{
+	if (Num_IsLittleEndian())
+	{
+		return x;
+	}
+
+	unsigned char    b1, b2;
+
+	b1 = x & 255;
+	b2 = (x >> 8) & 255;
+
+	return (b1 << 8) + b2;
+}
+
+long Num_LittleLong(long x)
+{
+	if (Num_IsLittleEndian())
+	{
+		return x;
+	}
+
+	unsigned char   b1, b2, b3, b4;
+
+	b1 = x & 255;
+	b2 = (x >> 8) & 255;
+	b3 = (x >> 16) & 255;
+	b4 = (x >> 24) & 255;
+
+	return ((int)b1 << 24) + ((int)b2 << 16) + ((int)b3 << 8) + b4;
 }

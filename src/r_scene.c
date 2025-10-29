@@ -5,8 +5,10 @@
 
 #define MAX_H 4080
 
+static float xtoviewangle[2000];
 static float yslope[MAX_H];
 static unsigned char LIGHT_LUT2[256][256];
+
 
 enum
 {
@@ -18,6 +20,8 @@ enum
 
 static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x, float p_y, float p_sin, float p_cos, float* bspcoord)
 {
+	//src adapted from https://github.com/ZDoom/gzdoom/blob/master/src/rendering/swrenderer/scene/r_opaque_pass.cpp#L338
+
 	static const int checkcoord[12][4] =
 	{
 		{ 3,0,2,1 },
@@ -76,7 +80,7 @@ static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x,
 
 	if (y1 * (x1 - x2) + x1 * (y2 - y1) >= -MATH_EQUAL_EPSILON)
 	{
-		//return true;
+		return true;
 	}
 
 	float rx1 = x1 * p_sin - y1 * p_cos;
@@ -84,57 +88,58 @@ static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x,
 	float ry1 = x1 * p_cos + y1 * p_sin;
 	float ry2 = x2 * p_cos + y2 * p_sin;
 
+	//behing the view
 	if (ry1 <= 0 && ry2 <= 0)
 	{
 		return false;
 	}
 
-	return true;
-	//ry1 = args->h_fov / ry1;
-	//ry2 = args->h_fov / ry2;
+	ry1 = x1 * args->tan_cos + y1 * args->tan_sin;
+	ry2 = x2 * args->tan_cos + y2 * args->tan_sin;
+
+	int sx1 = 0;
+	int sx2 = 0;
 
 	int half_width = width / 2;
-	int half_height = height / 2;
-	int sx1 = half_width - (int)(rx1 * ry1);
-	int sx2 = half_width - (int)(rx2 * ry2);
 
 	if (rx1 >= -ry1)
 	{
-		if (rx1 > ry1)
-		{
-			return false;
-		}
+		if (rx1 > ry1) return false;
+		if (ry1 == 0) return false;
+		sx1 = (int)floor(half_width + rx1 * half_width / ry1);
+	}
+	else
+	{
+		if (rx2 < -ry2) return false;
+		if (rx1 - rx2 - ry2 + ry1 == 0) return false;
+		sx1 = 0;
+	}
+	if (rx2 <= ry2)
+	{
+		if (rx2 < -ry2) return false;
+		if (ry2 == 0) return false;
+		sx2 = (int)floor(half_width + rx2 * half_width / ry2);
+	}
+	else
+	{
+		if (rx1 > ry1) return false;
+		if (ry2 - ry1 - rx2 + rx1 == 0) return false;
+		sx2 = width;
+	}
+	//not visible
+	if (sx2 <= sx1)
+	{
+		return false;
 	}
 
-	
-	if (sx2 == sx1) 
+	Cliprange* start = args->render_data->clip_segs.solidsegs;
+	while (start->last < sx2)
 	{
-		//return false;
+		start++;
 	}
-
-	return true;
-	if (sx2 > sx1)
+	if (sx1 >= start->first && sx2 <= start->last)
 	{
-		sx1 = max(sx1, 0);
-		sx2 = min(sx2, width);
-
-		if (sx2 <= sx1)
-		{
-			return false;
-		}
-
-		Cliprange* start = args->render_data->clip_segs.solidsegs;
-		int s = 0;
-		while (start->last < sx2)
-		{
-			s++;
-			start++;
-		}
-
-		if (sx1 >= start->first && sx2 <= start->last)
-		{
-			return false;
-		}
+		return false;
 	}
 
 	return true;
@@ -145,24 +150,32 @@ static void Scene_DrawWallCollumn(Image* image, float* depth_buffer, Texture* te
 	tx &= texture->width_mask;
 
 	unsigned char* dest = image->data;
-	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
+	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
-	for (int y = y1 + 1; y < y2; y++)
+	if (light > 0)
 	{
-		int ty = (int)ty_pos & height_mask;
+		for (int y = y1; y < y2; y++)
+		{
+			int ty = (int)ty_pos & height_mask;
 
-		unsigned char* data = Image_Get(&texture->img, tx, ty);
+			unsigned char* data = Image_Get(&texture->img, tx, ty);
 
-		size_t i = index * 4;
+			size_t i = index * 4;
 
-		//avoid loops
-		dest[i + 0] = LIGHT_LUT2[data[0]][light];
-		dest[i + 1] = LIGHT_LUT2[data[1]][light];
-		dest[i + 2] = LIGHT_LUT2[data[2]][light];
+			//avoid loops
+			dest[i + 0] = LIGHT_LUT2[data[0]][light];
+			dest[i + 1] = LIGHT_LUT2[data[1]][light];
+			dest[i + 2] = LIGHT_LUT2[data[2]][light];
 
+			depth_buffer[index] = depth;
+
+			ty_pos += ty_step;
+			index += image->width;
+		}
+	}
+	else
+	{
 		depth_buffer[index] = depth;
-
-		ty_pos += ty_step;
 		index += image->width;
 	}
 }
@@ -218,7 +231,7 @@ static void Scene_DrawWallCollumnDepth(Image* image, Texture* texture, float* de
 	}
 }
 
-static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* texture, float h_fov, int x, int y1, int y2, int depth, float height, float p_cos, float p_sin, float p_x, float p_y, int light)
+static void Scene_DrawSkyPlaneStripe(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, LineDrawArgs* args)
 {
 	if (y2 <= y1)
 	{
@@ -228,43 +241,39 @@ static void Scene_DrawPlaneStripe(Image* image, float* depth_buffer, Texture* te
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
-	float x_slope = ((float)image->width / 2.0 - (float)x) / (float)(h_fov);
-	float inv = 1.0 / 64.0;
+	float tex_cylinder = texture->img.width;
+	float tex_height = texture->img.height * 0.5;
 
-	for (int y = y1; y <= y2; y++)
+	float x_angle = (0.5 - x / (float)image->width) * args->draw_args->tangent * Math_DegToRad(90);
+	float angle = (args->plane_angle + x_angle) * tex_cylinder;
+
+	angle = fabs(angle);
+
+	float tex_y_step = args->sky_plane_y_step * tex_height;
+	float tex_y_pos = (float)y1 * tex_y_step;
+
+	int tex_x = (int)angle & texture->width_mask;
+
+	for (int y = y1; y < y2; y++)
 	{
-		float mapx, mapz;
-
-		mapz = height * yslope[y];
-		mapx = mapz * x_slope;
-
-		float rtx = mapz * p_cos + mapx * p_sin;
-		float rtz = mapz * p_sin - mapx * p_cos;
-
-		int current_light = Math_Clampl(light - (mapz * 0.25), 0, 255);
-
-		mapz = rtz + p_y;
-		mapx = rtx + p_x;
-
-		mapz *= 2;
-		mapx *= 2;
-
-		unsigned char* texdata = Image_Get(&texture->img, (int)mapz & 63, (int)mapx & 63);
+		unsigned char* data = Image_Get(&texture->img, tex_x, (int)tex_y_pos);
 
 		size_t i = index * 4;
-		dest[i + 0] = LIGHT_LUT2[texdata[0]][current_light];
-		dest[i + 1] = LIGHT_LUT2[texdata[1]][current_light];
-		dest[i + 2] = LIGHT_LUT2[texdata[2]][current_light];
 
-		depth_buffer[index] = depth;
+		//avoid loops
+		dest[i + 0] = data[0];
+		dest[i + 1] = data[1];
+		dest[i + 2] = data[2];
 
+		tex_y_pos += tex_y_step;
 		index += image->width;
 	}
+
 }
 
 static void Scene_StoreDrawCollumn(DrawCollumns* collumns, Texture* texture, short x, short y1, short y2, int tx, int depth, float ty_pos, float ty_step, unsigned char light)
 {
-	if (collumns->index >= MAX_DRAW_COLLUMNS)
+	if (collumns->index >= collumns->size)
 	{
 		return;
 	}
@@ -282,15 +291,122 @@ static void Scene_StoreDrawCollumn(DrawCollumns* collumns, Texture* texture, sho
 	c->light = light;
 }
 
-void Scene_ResetClip(ClipSegments* clip, short left, short right)
+static void Scene_PlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2)
 {
-	clip->solidsegs[0].first = -0x7fff;
-	clip->solidsegs[0].last = left;
-	clip->solidsegs[1].first = right;
-	clip->solidsegs[1].last = 0x7fff;
+	Texture* texture = plane->texture;
 
-	clip->newend = clip->solidsegs + 2;
+	unsigned char* dest = image->data;
+	size_t index = (size_t)x1 + (size_t)(y) * (size_t)image->width;
+
+	//setup
+	float distance = fabs(plane->viewheight * yslope[y]);
+
+	float x_step = distance * args->plane_step_scale_x;
+	float y_step = distance * args->plane_step_scale_y;
+
+	float x_pos = args->plane_base_pos_x + args->plane_step_scale_x * (x1 - args->x1);
+	float y_pos = args->plane_base_pos_y + args->plane_step_scale_y * (x1 - args->x1);
+
+	x_pos = distance * x_pos + args->draw_args->view_x;
+	y_pos = distance * y_pos + -args->draw_args->view_y;
+
+	x_pos *= 2;
+	x_step *= 2;
+
+	y_pos *= 2;
+	y_step *= 2;
+
+	int light = Math_Clampl(plane->light - (distance * 0.25), 0, 255);
+
+	for (int x = x1; x <= x2; x++)
+	{
+		unsigned char* data = Image_GetFast(&texture->img, (int)y_pos & 63, (int)x_pos & 63);
+
+		index = ((size_t)x + (size_t)y * (size_t)image->width);
+		size_t i = index * 4;
+
+		//avoid loops
+		dest[i + 0] = LIGHT_LUT2[data[0]][light];
+		dest[i + 1] = LIGHT_LUT2[data[1]][light];
+		dest[i + 2] = LIGHT_LUT2[data[2]][light];
+
+		x_pos += x_step;
+		y_pos += y_step;
+	}
 }
+static void Scene_DrawPlane(Image* image, DrawPlane* plane, LineDrawArgs* args, int x1, int x2)
+{
+	//adapted from https://github.com/ZDoom/gzdoom/blob/master/src/rendering/swrenderer/plane/r_planerenderer.cpp#L45
+
+	if (!plane->visible)
+	{
+		return;
+	}
+
+	DrawingArgs* draw_args = args->draw_args;
+
+	int x = x2 - 1;
+	int t2 = plane->ytop[x];
+	int b2 = plane->ybottom[x];
+
+	if (b2 > t2)
+	{
+		int* se = &draw_args->render_data->span_end[t2];
+		for (int i = 0; i < b2 - t2; i++)
+		{
+			se[i] = x;
+		}
+	}
+	
+	for (--x; x >= x1; --x)
+	{
+		int t1 = plane->ytop[x];
+		int b1 = plane->ybottom[x];
+
+		const int xr = x + 1;
+		int stop = 0;
+
+		stop = min(t1, b2);
+		while (t2 < stop)
+		{
+			int y = t2++;
+			int x2 = draw_args->render_data->span_end[y];
+
+			Scene_PlaneSpan(image, plane, args, y, xr, x2);
+		}
+		stop = max(b1, t2);
+		while (b2 > stop)
+		{
+			int y = --b2;
+			int x2 = draw_args->render_data->span_end[y];
+
+			Scene_PlaneSpan(image, plane, args, y, xr, x2);
+		}
+
+		stop = min(t2, b1);
+		while (t1 < stop)
+		{
+			draw_args->render_data->span_end[t1++] = x;
+		}
+		stop = max(b2, t2);
+		while (b1 > stop)
+		{
+			draw_args->render_data->span_end[--b1] = x;
+		}
+
+		t2 = plane->ytop[x];
+		b2 = plane->ybottom[x];
+	}
+	while (t2 < b2)
+	{
+		int y = --b2;
+		int x2 = draw_args->render_data->span_end[y];
+
+		Scene_PlaneSpan(image, plane, args, y, x1, x2);
+	}
+
+}
+
 void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 {
 	//lay it out on the stack
@@ -332,13 +448,23 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 	int light = sector->light_level;
 
+	float u0 = args->u0;
+	float u1 = args->u1;
+
+	float tz1 = args->tz1;
+	float tz2 = args->tz2;
+
 	//precompute some stuff
 	float x_pos = fabs(first - args->x1);
+	float x_pos2 = fabs(args->x2 - first);
 	float texheight = (args->sector_height) * 0.5;
+
+	DrawPlane* floor_plane = &draw_args->render_data->floor_plane;
+	DrawPlane* ceil_plane = &draw_args->render_data->ceil_plane;
 
 	for (int x = first; x < last; x++)
 	{
-		int tx = (args->u0 * (fabs(args->x2 - x) * args->tz2) + args->u1 * (fabs(x - args->x1) * args->tz1)) / (fabs(args->x2 - x) * args->tz2 + fabs(x - args->x1) * args->tz1);
+		int tx = (u0 * (x_pos2 * tz2) + u1 * (x_pos * tz1)) / (x_pos2 * tz2 + x_pos * tz1);
 
 		tx += sidedef->x_offset;
 
@@ -357,14 +483,34 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 		float depth = (int)(x_pos * depth_step) + args->tz1;
 
 		int wall_light = Math_Clampl(light - (depth * 0.25), 0, 255);
-	
+
 		if (ceil_texture)
 		{
-			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, ceil_texture, args->draw_args->h_fov, x, ctop, c_yceil - 1, depth, args->ceilz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
+			if (sector->is_sky)
+			{
+				Scene_DrawSkyPlaneStripe(image, args->draw_args->depth_buffer, ceil_texture, x, ctop, c_yceil, args);
+			}
+			else
+			{
+				ceil_plane->ytop[x] = ctop;
+				ceil_plane->ybottom[x] = c_yceil;
+
+				if (ceil_plane->ytop[x] < ceil_plane->ybottom[x])
+				{
+					ceil_plane->visible = true;
+				}
+			}
+			
 		}
 		if (floor_texture)
 		{
-			Scene_DrawPlaneStripe(image, args->draw_args->depth_buffer, floor_texture, args->draw_args->h_fov, x, c_yfloor, cbot, depth, args->floorz, args->draw_args->view_cos, args->draw_args->view_sin, args->draw_args->view_x, args->draw_args->view_y, light);
+			floor_plane->ytop[x] = c_yfloor;
+			floor_plane->ybottom[x] = cbot;
+
+			if (floor_plane->ytop[x] < floor_plane->ybottom[x])
+			{
+				floor_plane->visible = true;
+			}
 		}
 
 		if (is_backsector)
@@ -440,6 +586,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 		}
 
 		x_pos++;
+		x_pos2--;
 	}
 
 	line->flags |= MF__LINE_MAPPED;
@@ -531,16 +678,16 @@ crunch:
 		}
 	}
 }
-
 bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, DrawingArgs* args)
 {
-	float vx1 = line->x0 - args->view_x;
-	float vy1 = line->y0 - args->view_y;
+	//src: parts adapted from https://github.com/ZDoom/gzdoom/blob/master/src/rendering/swrenderer/line/r_wallsetup.cpp#L52
+	float vx2 = line->x0 - args->view_x;
+	float vy2 = line->y0 - args->view_y;
 
-	float vx2 = line->x1 - args->view_x;
-	float vy2 = line->y1 - args->view_y;
+	float vx1 = line->x1 - args->view_x;
+	float vy1 = line->y1 - args->view_y;
 
-	if (vy1 * (vx1 - vx2) + vx1 * (vy2 - vy1) <= -MATH_EQUAL_EPSILON)
+	if (vy1 * (vx1 - vx2) + vx1 * (vy2 - vy1) >= 0)
 	{
 		return false;
 	}
@@ -557,44 +704,63 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		return false;
 	}
 
-	float texwidth = line->width_scale * 2.0;
+	float tanZ1 = vx1 * args->tan_cos + vy1 * args->tan_sin;
+	float tanZ2 = vx2 * args->tan_cos + vy2 * args->tan_sin;
+
+	float texwidth = line->width_scale * 2.00;
 
 	float u0 = 0;
-	float u1 = texwidth;
+	float u1 = 1;
 
-	if (tz1 <= 0 || tz2 <= 0)
+	float fsx1, fsz1, fsx2, fsz2;
+
+	if (tx1 >= -tanZ1)
 	{
-		Vertex org1 = { tx1,tz1 }, org2 = { tx2,tz2 };
-
-		const float nearz = 1e-4f, farz = 0.1, nearside = 1e-5f, farside = 20.f;
-		Vertex i1 = Math_IntersectLines(tx1, tz1, tx2, tz2, -nearside, nearz, -farside, farz);
-		Vertex i2 = Math_IntersectLines(tx1, tz1, tx2, tz2, nearside, nearz, farside, farz);
-
-		if (tz1 <= 0)
-		{
-			if (tz1 < nearz) { if (i1.y > 0) { tx1 = i1.x; tz1 = i1.y; } else { tx1 = i2.x; tz1 = i2.y; } }
-
-		}
-		if (tz2 <= 0)
-		{
-			if (tz2 < nearz) { if (i1.y > 0) { tx2 = i1.x; tz2 = i1.y; } else { tx2 = i2.x; tz2 = i2.y; } }
-		}
-
-		if (fabs(tx2 - tx1) > fabs(tz2 - tz1))
-			u0 = fabs(tx1 - org1.x) * (texwidth) / fabs(org2.x - org1.x), u1 = fabs(tx2 - org1.x) * (texwidth) / fabs(org2.x - org1.x);
-		else
-			u0 = fabs(tz1 - org1.y) * (texwidth) / fabs(org2.y - org1.y), u1 = fabs(tz2 - org1.y) * (texwidth) / fabs(org2.y - org1.y);
-
+		if (tx1 > tanZ1) return false;
+		if (tanZ1 == 0) return false;
+		fsx1 = image->half_width + tx1 * image->half_width / tanZ1;
+		fsz1 = tanZ1;
+		u0 = 0.0f;
+	}
+	else
+	{
+		if (tx2 < -tanZ2) return false;
+		float den = tx1 - tx2 - tanZ2 + tanZ1;
+		if (den == 0) return false;
+		fsx1 = 0;
+		u0 = (tx1 + tanZ1) / den;
+		fsz1 = tanZ1 + (tanZ2 - tanZ1) * u0;
+	}
+	
+	if (fsz1 <= 0)
+	{
+		return false;
+	}
+	if (tx2 <= tanZ2)
+	{
+		if (tx2 < -tanZ2) return false;
+		if (tanZ2 == 0) return false;
+		fsx2 = image->half_width + tx2 * image->half_width / tanZ2;
+		fsz2 = tanZ2;
+		u1 = 1.0f;
+	}
+	else
+	{
+		if (tx1 > tanZ1) return false;
+		float den = tanZ2 - tanZ1 - tx2 + tx1;
+		if (den == 0) return false;
+		fsx2 = image->width;
+		u1 = (tx1 - tanZ1) / den;
+		fsz2 = tanZ1 + (tanZ2 - tanZ1) * u1;
+	}
+	
+	if (fsz2 <= 0)
+	{
+		return false;
 	}
 
-	float inv_tz1 = 1.0 / tz1;
-	float inv_tz2 = 1.0 / tz2;
-
-	float xscale1 = args->h_fov * inv_tz1;
-	float xscale2 = args->h_fov * inv_tz2;
-
-	int x1 = (image->half_width) - (int)(tx1 * xscale1);
-	int x2 = (image->half_width) - (int)(tx2 * xscale2);
+	int x1 = (int)floor(fsx1 + 0.5);
+	int x2 = (int)floor(fsx2 + 0.5);
 
 	//not visible
 	if (x1 >= x2 || x2 <= args->start_x || x1 >= args->end_x)
@@ -602,17 +768,57 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		return false;
 	}
 
-	float yscale1 = args->v_fov * inv_tz1;
-	float yscale2 = args->v_fov * inv_tz2;
+	{
+		float t1 = 0, t2 = 0;
+		if (fabs(line->side_dx) > fabs(line->side_dy))
+		{
+			t1 = (line->x1 - line->side_x1) / line->side_dx;
+			t2 = (line->x0 - line->side_x1) / line->side_dx;
+		}
+		else
+		{
+			t1 = (line->y1 - line->side_y1) / line->side_dy;
+			t2 = (line->y0 - line->side_y1) / line->side_dy;
+		}
+		//t1 = 1.0 - t1;
+		//t2 = 1.0 - t2;
+
+		u0 = t1 + u0 * (t2 - t1);
+		u1 = t1 + u1 * (t2 - t1);
+	}
+	{
+		float delta = fsx2 - fsx1;
+		float t1 = (x1 + 0.5 - fsx1) / delta;
+		float t2 = (x2 + 0.5 - fsx1) / delta;
+		float invZ1 = 1.0 / fsz1;
+		float invZ2 = 1.0 / fsz2;
+		
+		float sz1 = 1.0 / (invZ1 * (1.0 - t1) + invZ2 * t1);
+		float sz2 = 1.0 / (invZ1 * (1.0 - t2) + invZ2 * t2);
+
+		float ftx0 = u0 * invZ1;
+		float ftx1 = u1 * invZ2;
+
+		//u0 = (ftx0 * (1.0 - t1) + ftx1 * t1) * sz1;
+		//u1 = (ftx0 * (1.0 - t2) + ftx1 * t1) * sz2;
+	}
+	u0 = fabs(u0);
+	u1 = fabs(u1);
+
+	u0 *= texwidth;
+	u1 *= texwidth;
+
+	float yscale1 = args->v_fov * (1.0 / fsz1);
+	float yscale2 = args->v_fov * (1.0 / fsz2);
 
 	float yceil = sector->ceil - args->view_z;
 	float yfloor = sector->floor - args->view_z;
 
-	int ceil_y1 = (image->half_height) - (int)((yceil) * yscale1);
-	int ceil_y2 = (image->half_height) - (int)((yceil) * yscale2);
+	int ceil_y1 = (image->half_height) - (int)((yceil)*yscale1);
+	int ceil_y2 = (image->half_height) - (int)((yceil)*yscale2);
 
-	int floor_y1 = (image->half_height) - (int)((yfloor) * yscale1);
-	int floor_y2 = (image->half_height) - (int)((yfloor) * yscale2);
+	int floor_y1 = (image->half_height) - (int)((yfloor)*yscale1);
+	int floor_y2 = (image->half_height) - (int)((yfloor)*yscale2);
 
 	int begin_x = max(x1, args->start_x);
 	int end_x = min(x2, args->end_x);
@@ -626,6 +832,38 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		backsector = &map->sectors[line->back_sector];
 	}
 
+	tz1 = fsz1;
+	tz2 = fsz2;
+
+	//setup planes
+	DrawPlane* floor_plane = &args->render_data->floor_plane;
+	DrawPlane* ceil_plane = &args->render_data->ceil_plane;
+
+	floor_plane->light = sector->light_level;
+	floor_plane->visible = false;
+	floor_plane->texture = sector->floor_texture;
+	floor_plane->viewheight = yfloor;
+
+	floor_plane->ytop = args->floor_plane_ytop;
+	floor_plane->ybottom = args->floor_plane_ybottom;
+
+	ceil_plane->light = sector->light_level;
+	ceil_plane->visible = false;
+	ceil_plane->texture = sector->ceil_texture;
+	ceil_plane->viewheight = yceil;
+
+	ceil_plane->ytop = args->ceil_plane_ytop;
+	ceil_plane->ybottom = args->ceil_plane_ybottom;
+	
+	for (int x = args->start_x; x < args->end_x; x++)
+	{
+		floor_plane->ytop[x] = 0;
+		floor_plane->ybottom[x] = 0;
+
+		ceil_plane->ytop[x] = 0;
+		ceil_plane->ybottom[x] = 0;
+	}
+
 	//setup line draw ags
 	LineDrawArgs line_draw_args;
 	line_draw_args.x1 = x1;
@@ -634,8 +872,6 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	line_draw_args.tz2 = tz2;
 	line_draw_args.u0 = u0;
 	line_draw_args.u1 = u1;
-	line_draw_args.floorz = yfloor;
-	line_draw_args.ceilz = yceil;
 	line_draw_args.sy_ceil = ceil_y1;
 	line_draw_args.sy_floor = floor_y1;
 	line_draw_args.ceil_step = (ceil_y2 - ceil_y1) * xl;
@@ -648,16 +884,52 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	line_draw_args.world_bottom = yfloor;
 	line_draw_args.world_top = yceil;
 
+	//for floor and ceil plane rendering
+	{
+		float plane_angle = args->view_angle - Math_DegToRad(90.0);
+
+		float x_step = cos(plane_angle) / args->focal_length_x;
+		float y_step = -sin(plane_angle) / args->focal_length_x;
+
+		plane_angle += Math_PI / 2.0;
+
+		float plane_cos = cos(plane_angle);
+		float plane_sin = -sin(plane_angle);
+
+		float x = 0;
+
+		x = x2 - image->half_width + 0.5;
+
+		float right_x_pos = plane_cos + x * x_step;
+		float right_y_pos = plane_sin + x * y_step;
+
+		x = x1 - image->half_width + 0.5;
+
+		float left_x_pos = plane_cos + x * x_step;
+		float left_y_pos = plane_sin + x * y_step;
+
+		line_draw_args.plane_base_pos_x = left_x_pos;
+		line_draw_args.plane_base_pos_y = left_y_pos;
+
+		line_draw_args.plane_step_scale_x = (right_x_pos - left_x_pos) / (x2 - x1);
+		line_draw_args.plane_step_scale_y = (right_y_pos - left_y_pos) / (x2 - x1);
+
+		line_draw_args.plane_angle = args->view_angle - Math_DegToRad(90);
+
+		line_draw_args.sky_plane_y_step = 1.0 / (float)args->v_fov;
+		line_draw_args.sky_plane_y_step *= 90.0 / 90.0;
+	}
+
 	if (backsector)
 	{
 		float ybacksector_ceil = backsector->ceil - args->view_z;
 		float ybacksector_floor = backsector->floor - args->view_z;
 
-		int backceil_y1 = (image->half_height) - (int)((ybacksector_ceil) * yscale1);
-		int backceil_y2 = (image->half_height) - (int)((ybacksector_ceil) * yscale2);
+		int backceil_y1 = (image->half_height) - (int)((ybacksector_ceil)*yscale1);
+		int backceil_y2 = (image->half_height) - (int)((ybacksector_ceil)*yscale2);
 
-		int backfloor_y1 = (image->half_height) - (int)((ybacksector_floor) * yscale1);
-		int backfloor_y2 = (image->half_height) - (int)((ybacksector_floor) * yscale2);
+		int backfloor_y1 = (image->half_height) - (int)((ybacksector_floor)*yscale1);
+		int backfloor_y2 = (image->half_height) - (int)((ybacksector_floor)*yscale2);
 
 		line_draw_args.back_sy_ceil = backceil_y1;
 		line_draw_args.back_sy_floor = backfloor_y1;
@@ -686,8 +958,11 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		Scene_ClipAndDraw(&line_draw_args.draw_args->render_data->clip_segs, begin_x, end_x, true, &line_draw_args, image);
 	}
 
-	//this line was visible
-	//line->flags |= MF__LINE_MAPPED;
+	//draw floor plane
+	Scene_DrawPlane(image, floor_plane, &line_draw_args, begin_x, end_x);
+
+	//draw ceil plane
+	Scene_DrawPlane(image, ceil_plane, &line_draw_args, begin_x, end_x);
 
 	return true;
 }
@@ -706,7 +981,7 @@ void Scene_ProcessSubsector(Image* image, Map* map, Subsector* sub_sector, Drawi
 		while (obj)
 		{
 			Sprite* sprite = &obj->sprite;
-			//Render_AddSpriteToQueue(sprite, light);
+
 			RenderUtl_AddSpriteToQueue(args->render_data, sprite, light);
 
 			obj = obj->sector_next;
@@ -809,5 +1084,20 @@ void Scene_Setup(int width, int height, float h_fov, float v_fov)
 
 			LIGHT_LUT2[i][k] = (unsigned char)l;
 		}
+	}
+
+	float tangent = tan(Math_DegToRad(90) / 2.0);
+
+	const double slopestep = tangent / (float)(width / 2.0);
+	double slope;
+
+	int i;
+	for (i = width / 2, slope = 0; i <= width; i++, slope += slopestep)
+	{
+		xtoviewangle[i] = 2.0 * Math_PI - atan(slope) * (180.0 / Math_PI);
+	}
+	for (i = 0; i < width / 2; i++)
+	{
+		xtoviewangle[i] = 0 - xtoviewangle[width - i - 1];
 	}
 }

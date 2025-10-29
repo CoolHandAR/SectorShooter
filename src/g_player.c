@@ -10,7 +10,7 @@
 
 #define HIT_TIME 0.1
 #define USE_TIME 0.7
-#define PLAYER_SIZE 5
+#define SAVE_TIME 2
 #define PLAYER_MAX_HP 100
 #define PLAYER_MAX_AMMO 100
 #define PLAYER_OVERHEAL_HP_TICK_TIME 0.25
@@ -22,46 +22,6 @@
 #define Z_VIEW_LERP 20
 
 static const float PI = 3.14159265359;
-
-typedef struct
-{
-	Sprite gun_sprite;
-	Object* obj;
-
-	float view_x, view_y, view_z;
-
-	float angle;
-	int move_x;
-	int move_y;
-	int slow_move;
-
-	int buck_ammo;
-	int bullet_ammo;
-	int rocket_ammo;
-
-	float alive_timer;
-	float gun_timer;
-	float hurt_timer;
-	float godmode_timer;
-	float quad_timer;
-	float hp_tick_timer;
-	float hit_timer;
-	float use_timer;
-
-	float bob;
-	float gun_offset_x;
-	float gun_offset_y;
-
-	int stored_hp;
-
-	GunType gun;
-	GunInfo* gun_info;
-
-	bool gun_check[GUN__MAX];
-	Sprite gun_sprites[GUN__MAX];
-
-	float sensitivity;
-} PlayerData;
 
 static PlayerData player;
 
@@ -153,8 +113,9 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 	if (hit >= 0)
 	{
 		Object* hit_obj = Map_GetObject(hit);
+		GunInfo* gun_info = player.gun_info;
 
-		int dmg = player.gun_info->damage;
+		int dmg = gun_info->damage;
 		float dist = Math_XY_Distance(p_x, p_y, hit_obj->x, hit_obj->y);
 
 		//modify damage based on distance
@@ -366,7 +327,8 @@ static void Player_ShootGun()
 
 	sprite->playing = true;
 	sprite->frame = 1;
-	player.gun_timer = player.gun_info->cooldown;
+	GunInfo* gun_info = player.gun_info;
+	player.gun_timer = gun_info->cooldown;
 
 	//PLAY SOUND
 	int sound_index = -1;
@@ -422,6 +384,7 @@ static void Player_UpdateTimers(float delta)
 	if (player.hp_tick_timer > 0) player.hp_tick_timer -= delta;
 	if (player.hit_timer > 0) player.hit_timer -= delta;
 	if (player.use_timer > 0) player.use_timer -= delta;
+	if (player.save_timer > 0)player.save_timer -= delta;
 
 	if (player.godmode_timer > 0)
 	{
@@ -437,8 +400,8 @@ static void Player_UpdateListener()
 {
 	ma_engine* sound_engine = Sound_GetEngine();
 
-	ma_engine_listener_set_position(sound_engine, 0, player.obj->x, 0, player.obj->y);
-	ma_engine_listener_set_direction(sound_engine, 0, -player.obj->dir_x, 0, -player.obj->dir_y);
+	ma_engine_listener_set_position(sound_engine, 0, player.obj->x, player.obj->z, player.obj->y);
+	ma_engine_listener_set_direction(sound_engine, 0, -player.obj->dir_x, -player.obj->z, -player.obj->dir_y);
 }
 
 static void Player_ProcessInput(GLFWwindow* window)
@@ -502,6 +465,20 @@ static void Player_ProcessInput(GLFWwindow* window)
 	{
 		Game_SetState(GS__MENU);
 	}
+	if (player.save_timer <= 0)
+	{
+		if (glfwGetKey(window, GLFW_KEY_F5) == GLFW_PRESS)
+		{
+			Game_Save(0, "QUICKSAVE");
+			player.save_timer = SAVE_TIME;
+		}
+		else if (glfwGetKey(window, GLFW_KEY_F9) == GLFW_PRESS)
+		{
+			Game_Load(0);
+			player.save_timer = SAVE_TIME;
+		}
+	}
+	
 	//use
 	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
 	{
@@ -596,39 +573,26 @@ void Player_Init(int keep)
 
 	player.gun_check[GUN__PISTOL] = true;
 
-	player.obj = Map_NewObject(OT__PLAYER);
-
-	Map* map = Map_GetMap();
-
-	float bbox[2][2];
-	Math_SizeToBbox(spawn_x, spawn_y, PLAYER_SIZE, bbox);;
-	player.obj->spatial_id = BVH_Tree_Insert(&map->spatial_tree, bbox, player.obj->id);
-	player.obj->x = spawn_x;
-	player.obj->y = spawn_y;
-
-	player.obj->sector_index = -1;
-
-	player.obj->dir_x = -1;
-	player.obj->dir_y = 0;
+	player.obj = Object_Spawn(OT__PLAYER, 0, spawn_x, spawn_y, 0);
 
 	player.obj->hp = hp;
-	player.obj->size = PLAYER_SIZE;
-
 	player.sensitivity = sens;
 	player.view_x = player.obj->x;
 	player.view_y = player.obj->y;
 	player.view_z = 0;
 
+	player.obj->height = 45;
+	player.obj->step_height = 32;
+	player.obj->dropoff_height = 32;
+
 	Player_SetupGunSprites();
 
-	player.angle = 1;
 	Player_GiveAll();
-
 
 	if(!keep)
 		Player_SetGun(GUN__PISTOL);
 
-	//Player_Rotate(spawn_rot);
+	Player_Rotate(spawn_rot);
 }
 
 Object* Player_GetObj()
@@ -636,11 +600,17 @@ Object* Player_GetObj()
 	return player.obj;
 }
 
+PlayerData* Player_GetPlayerData()
+{
+	return &player;
+}
+
 void Player_Rotate(float rot)
 {
-	rot = rot * PI / 180.0;
-
 	player.angle = rot;
+
+	player.obj->dir_x = cosf(rot);
+	player.obj->dir_y = sinf(rot);
 }
 
 void Player_Hurt(float dir_x, float dir_y)
@@ -788,11 +758,6 @@ void Player_HandlePickup(Object* obj)
 
 static void Player_Move(float dirx, float diry, float delta)
 {
-	player.obj->height = 55;
-	player.obj->step_height = 32;
-	player.obj->dropoff_height =32;
-	player.obj->size = 6;
-
 	Move_Object(player.obj, dirx * delta, diry * delta, true);
 	Move_ZMove(player.obj, GRAVITY_SCALE * delta);
 }
@@ -824,8 +789,8 @@ void Player_Update(GLFWwindow* window, float delta)
 		float speed = PLAYER_SPEED;
 		if (player.slow_move == 1) speed *= 0.5;
 
-		float dir_x = (player.move_x * cosf(player.angle) + (player.move_y * cosf(player.angle + Math_DegToRad(90.0))));
-		float dir_y = (player.move_x * sinf(player.angle) + (player.move_y * sinf(player.angle + Math_DegToRad(90.0))));
+		float dir_x = (player.move_x * cosf(player.angle) + (player.move_y * cosf(player.angle - Math_DegToRad(90.0))));
+		float dir_y = (player.move_x * sinf(player.angle) + (player.move_y * sinf(player.angle - Math_DegToRad(90.0))));
 
 		Player_Move(dir_x * speed, dir_y * speed, delta);
 	}
@@ -880,7 +845,7 @@ void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_a
 }
 void Player_MouseCallback(float x, float y)
 {
-	if (player.obj->hp <= 0 || Game_GetState() != GS__LEVEL)
+	if (!player.obj || player.obj->hp <= 0 || Game_GetState() != GS__LEVEL)
 	{
 		return;
 	}
@@ -907,7 +872,7 @@ void Player_MouseCallback(float x, float y)
 
 	static float yaw = 0;
 
-	player.angle += rotSpeed;
+	player.angle += -rotSpeed;
 
 	if (player.angle > 360)
 	{

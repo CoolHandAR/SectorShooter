@@ -98,7 +98,6 @@ int* Trace_GetHitObjects()
 {
 	return s_traceCore.result_items;
 }
-
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ)
 {
 	s_traceCore.num_hit_special_lines = 0;
@@ -143,6 +142,11 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = &map->sectors[line->back_sector];
 
+			if (!Check_CanObjectFitInSector(obj, frontsector, backsector))
+			{
+				return false;
+			}
+
 			float open_low = max(frontsector->floor, backsector->floor);
 			float open_high = min(frontsector->ceil, backsector->ceil);
 			float open_range = open_high - open_low;
@@ -157,11 +161,11 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 				low_floor = frontsector->floor;
 			}
 
-			if (open_high > *r_ceilZ)
+			if (open_high < *r_ceilZ)
 			{
 				*r_ceilZ = open_high;
 			}
-			if (open_low < *r_floorZ)
+			if (open_low > *r_floorZ)
 			{
 				*r_floorZ = open_low;
 			}
@@ -199,31 +203,34 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 	return true;
 }
 
-int Trace_FindSlideHit(Object* obj, Line* vel_line, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac)
+int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac)
 {
 	Map* map = Map_GetMap();
 
 	float bbox[2][2];
 	if (end_x > start_x)
 	{
-		bbox[0][0] = start_x - size;
-		bbox[1][0] = end_x + size;
+		bbox[0][0] = start_x - size - 1;
+		bbox[1][0] = end_x + size + 1;
 	}
 	else
 	{
-		bbox[0][0] = end_x - size;
-		bbox[1][0] = start_x + size;
+		bbox[0][0] = end_x - size - 1;
+		bbox[1][0] = start_x + size + 1;
 	}
 	if (end_y > start_y)
 	{
-		bbox[0][1] = start_y + size;
-		bbox[1][1] = end_y + size;
+		bbox[0][1] = start_y - size - 1;
+		bbox[1][1] = end_y + size + 1;
 	}
 	else
 	{
-		bbox[0][1] = end_y - size;
-		bbox[1][1] = start_y + size;
+		bbox[0][1] = end_y - size - 1;
+		bbox[1][1] = start_y + size + 1;
 	}
+
+	Line vel_line;
+	Trace_SetupTraceLine(&vel_line, start_x, start_y, end_x, end_y);
 
 	int min_hit = TRACE_NO_HIT;
 
@@ -240,11 +247,6 @@ int Trace_FindSlideHit(Object* obj, Line* vel_line, float start_x, float start_y
 
 			Line* line = &map->line_segs[line_index];
 
-			if (Line_BoxOnPointSide(line, bbox) != -1)
-			{
-				continue;
-			}
-
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = NULL;
 			
@@ -253,40 +255,37 @@ int Trace_FindSlideHit(Object* obj, Line* vel_line, float start_x, float start_y
 				backsector = &map->sectors[line->back_sector];
 			}
 			
-			bool collidable = false;
-
-			if (!backsector)
+			if (Check_CanObjectFitInSector(obj, frontsector, backsector))
 			{
-				if(Line_PointSide(line, start_x + (end_x - start_x), start_y + (end_y - start_y)))
-				{
-					//continue;
-				}
-
-				collidable = true;
+				continue;
 			}
-			else if (!Check_CanObjectFitInSector(obj, frontsector, backsector))
-			{
-				collidable = true;
-			}
-
-			if (!collidable)
+			
+			if (Line_BoxOnPointSide(line, bbox) >= 0)
 			{
 				continue;
 			}
 
-			int s1 = Line_PointSide(vel_line, line->x0, line->y0);
-			int s2 = Line_PointSide(vel_line, line->x1, line->y1);
+			int s1 = Line_PointSide(&vel_line, line->x0, line->y0);
+			int s2 = Line_PointSide(&vel_line, line->x1, line->y1);
 
 			if (s1 == s2)
 			{
 				continue;
 			}
 
-			float frac = Line_InterceptLine(vel_line, line);
+			float frac = Line_InterceptLine(&vel_line, line);
 
 			if (frac < 0.0 || frac > 1.0)
 			{
 				continue;
+			}
+
+			if (!backsector)
+			{
+				if (Line_PointSide(line, start_x, start_y) == 0)
+				{
+					//continue;
+				}
 			}
 
 			if (frac < *best_frac)

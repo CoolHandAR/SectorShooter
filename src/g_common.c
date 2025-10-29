@@ -73,7 +73,7 @@ void Missile_Update(Object* obj, float delta)
 
 	Move_ZMove(obj, obj->dir_z * delta);
 
-	if (Move_SetPosition(obj, obj->x + (obj->dir_x * speed), obj->y + (obj->dir_y * speed)))
+	if (Move_SetPosition(obj, obj->x + (obj->dir_x * speed), obj->y + (obj->dir_y * speed), obj->size))
 	{
 		//we have moved fully
 		return;
@@ -223,17 +223,16 @@ void Particle_Update(Object* obj, float delta)
 
 	if (obj->sub_type == SUB__PARTICLE_BLOOD)
 	{
-		obj->sprite.v_offset += delta * 4;
+		Move_ZMove(obj, -200 * delta);
 	}
 	else
 	{
-		obj->sprite.v_offset -= delta * 4;
-
+		Move_ZMove(obj, 200 * delta);
 	}
 
 	obj->move_timer -= delta;
 
-	if (obj->move_timer < 0 || obj->sprite.v_offset > 1)
+	if (obj->move_timer < 0)
 	{
 		Map_DeleteObject(obj);
 	}
@@ -327,9 +326,6 @@ float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line)
 		return 0;
 
 	float num = (p_x - line->x0) * p_dy + (line->y0 - p_y) * p_dx;
-	//float v_x = p_x - line->x0;
-	//float v_y = p_y - line->y0;
-	//float num = line->dx * v_y - line->dy * v_x;
 
 	return num / den;
 }

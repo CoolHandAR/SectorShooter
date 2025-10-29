@@ -25,13 +25,14 @@ bool Game_Init()
 	Game_SetState(GS__MENU);
 
 	//load the first map
-	if (!Map_LoadFromIndex(0))
-	{
-		printf("ERROR:: Failed to load map !\n");
-		return false;
-	}
+	//if(!Game_ChangeLevel(0))
+	//{
+		//printf("ERROR:: Failed to load map !\n");
+		//return false;
+	//}
+	game.level_index = -1;
+	VisualMap_Init();
 
-	Player_Init(false);
 
 	//Sound_SetAsMusic(SOUND__MUSIC1);
 
@@ -48,6 +49,11 @@ void Game_Exit()
 bool Game_LoadAssets()
 {
 	memset(&assets, 0, sizeof(assets));
+
+	if (!Load_DoomIWAD("DOOM.WAD"))
+	{
+		return false;
+	}
 
 	if (!Image_CreateFromPath(&assets.wall_textures, "assets/textures/walls.png"))
 	{
@@ -188,6 +194,11 @@ void Game_DestructAssets()
 
 void Game_Update(float delta)
 {
+	if (game.status_msg_timer > 0)
+	{
+		game.status_msg_timer -= delta;
+	}
+
 	GLFWwindow* window = Engine_GetWindow();
 
 	switch (game.state)
@@ -199,6 +210,13 @@ void Game_Update(float delta)
 	}
 	case GS__LEVEL:
 	{
+		//no map loaded? load the first map
+		if (game.level_index < 0)
+		{
+			Game_ChangeLevel(1);
+			break;
+		}
+
 		Player_Update(window, delta);
 		Map_UpdateObjects(delta);
 
@@ -234,12 +252,16 @@ void Game_Draw(Image* image, FontData* fd)
 	}
 	case GS__LEVEL:
 	{
+		if (game.level_index < 0)
+		{
+			break;
+		}
 		//handled by the renderer
 
 		//just shader dispatches
 		Player_Draw(image, fd);
 
-		VisualMap_Draw(image);
+		VisualMap_Draw(image, fd);
 
 		break;
 	}
@@ -260,12 +282,15 @@ void Game_Draw(Image* image, FontData* fd)
 
 void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x)
 {
-	//only used for level state rn
-
 	switch (game.state)
 	{
 	case GS__LEVEL:
 	{
+		if (game.level_index < 0)
+		{
+			break;
+		}
+
 		//draw player stuff (gun and hud)
 		Player_DrawHud(image, fd, start_x, end_x);
 
@@ -278,6 +303,11 @@ void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x)
 	}
 	default:
 		break;
+	}
+
+	if (game.status_msg_timer > 0)
+	{
+		Text_DrawColor(image, fd, 0.05, 0.1, 0.5, 0.5, start_x, end_x, 232, 0, 0, 255, game.status_msg);
 	}
 }
 
@@ -300,10 +330,13 @@ GameAssets* Game_GetAssets()
 	return &assets;
 }
 
-void Game_ChangeLevel()
+bool Game_ChangeLevel(int level_index)
 {
 	//stall render threads
 	Render_FinishAndStall();
+
+	//clear screen
+	Render_Clear(0);
 
 	game.prev_total_monsters = game.total_monsters;
 	game.prev_total_secrets = game.total_secrets;
@@ -315,29 +348,93 @@ void Game_ChangeLevel()
 	game.secrets_found = 0;
 	game.monsters_killed = 0;
 
-	Map* map = Map_GetMap();
-
-	map->level_index++;
-
 	int arr_size = sizeof(LEVELS) / sizeof(LEVELS[0]);
 
 	//finale
-	if (map->level_index >= arr_size)
+	if (level_index >= arr_size)
 	{
 		Game_SetState(GS__FINALE);
 	}
 	else
 	{
-		const char* level = LEVELS[map->level_index];
+		const char* level = LEVELS[level_index];
 
-		Map_Load(level);
-		Player_Init(true);
+		if (!Map_Load(level))
+		{
+			Render_Resume();
+			return false;
+		}
+		Player_Init(false);
 
-		Game_SetState(GS__LEVEL_END);
+		//Game_SetState(GS__LEVEL_END);
 	}
+
+	game.level_index = level_index;
 
 	//resume
 	Render_Resume();
+
+	return true;
+}
+
+void Game_Save(int slot, char desc[32])
+{
+	if (slot < 0 || slot >= MAX_SAVE_SLOTS || game.level_index < 0)
+	{
+		return false;
+	}
+
+	//slot name
+	char slot_name[32];
+	memset(slot_name, 0, sizeof(slot_name));
+
+	sprintf(slot_name, "saves/SAVE%i.sg", slot);
+
+	if (!Save_Game(slot_name, desc))
+	{
+		return false;
+	}
+
+	printf("Save Game Saved\n");
+	Game_SetStatusMessage("GAME SAVED");
+
+	return true;
+}
+
+bool Game_Load(int slot)
+{
+	if (slot < 0 || slot >= MAX_SAVE_SLOTS)
+	{
+		return false;
+	}
+
+	//slot name
+	char slot_name[32];
+	memset(slot_name, 0, sizeof(slot_name));
+
+	sprintf(slot_name, "saves/SAVE%i.sg", slot);
+
+	if (!Load_Game(slot_name))
+	{
+		return false;
+	}
+
+	printf("Save Game Loaded\n");
+	Game_SetStatusMessage("GAME LOADED");
+
+	return true;
+}
+
+int Game_GetLevelIndex()
+{
+	return game.level_index;
+}
+
+void Game_SetStatusMessage(char msg[MAX_STATUS_MESSAGE])
+{
+	strncpy(game.status_msg, msg, sizeof(game.status_msg));
+
+	game.status_msg_timer = STATUS_TIME;
 }
 
 void Game_Reset(bool to_start)
@@ -354,7 +451,7 @@ void Game_Reset(bool to_start)
 
 	if (!to_start)
 	{
-		index = Map_GetLevelIndex();
+		index = 0;
 	}
 
 	const char* level = LEVELS[index];

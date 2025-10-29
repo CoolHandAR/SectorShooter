@@ -12,17 +12,6 @@
 #include "utility.h"
 
 static Map s_map;
-static int CompareSpriteDistances(const void* a, const void* b)
-{
-	Sprite* arg1 = *(Sprite**)a;
-	Sprite* arg2 = *(Sprite**)b;
-
-	if (arg1->dist > arg2->dist) return -1;
-	if (arg1->dist < arg2->dist) return 1;
-
-	return 0;
-}
-
 
 static void Map_UpdateSortedList()
 {
@@ -111,43 +100,6 @@ static float calc_light_attenuation(float distance, float inv_range, float decay
 	return nd * pow(max(distance, 0.0001), -decay);
 }
 
-static void Map_CalculateLight(int light_x, int light_y, int tile_x, int tile_y, float radius, float attenuation, float scale, bool temp_light)
-{
-	
-}
-
-static void SetLightTileCallback(int center_x, int center_y, int x, int y)
-{
-	Object* light_obj = Map_GetObjectAtTile(center_x, center_y);
-
-	float radius = 6;
-	float attenuation = 1;
-	float scale = 1;
-
-	if (light_obj && light_obj->type == OT__LIGHT)
-	{
-		LightInfo* light_info = Info_GetLightInfo(light_obj->sub_type);
-
-		if (light_info)
-		{
-			radius = light_info->radius;
-			attenuation = light_info->attenuation;
-			scale = light_info->scale;
-		}
-	}
-
-	Map_CalculateLight(x, y, center_x, center_y, radius, attenuation, scale, false);
-}
-static void SetTempLightTileCallback(int center_x, int center_y, int x, int y)
-{
-	Map_CalculateLight(x, y, center_x, center_y, 4.5, 1, 0.5, true);
-}
-
-static void Map_SetupLightTiles()
-{
-	
-}
-
 static void Map_FreeListStoreID(ObjectID id)
 {
 	if (s_map.num_free_list >= MAX_OBJECTS)
@@ -177,17 +129,6 @@ static ObjectID Map_GetNewObjectIndex()
 
 	return id;
 }
-
-void Map_SetDirtyTempLight()
-{
-	s_map.dirty_temp_light = true;
-}
-
-int Map_GetLevelIndex()
-{
-	return s_map.level_index;
-}
-
 Map* Map_GetMap()
 {
 	return &s_map;
@@ -214,6 +155,7 @@ Object* Map_NewObject(ObjectType type)
 	obj->sector_index = -1;
 	obj->sector_next = NULL;
 	obj->sector_prev = NULL;
+	obj->unique_id = s_map.unique_id_index++;
 
 	Map_UpdateSortedList();
 
@@ -237,7 +179,6 @@ bool Map_LoadFromIndex(int index)
 		return false;
 	}
 
-	s_map.level_index = index;
 
 	return true;
 }
@@ -246,10 +187,7 @@ bool Map_Load(const char* filename)
 {
 	Map_Destruct();
 
-	//Load_BuildMap("newboard.map", &s_map);
-	Load_DoomIWAD("DOOM.WAD", &s_map);
-	Load_Doommap("E1M1.wad", &s_map);	
-	//LoadData();
+	Load_Doommap(filename, &s_map);
 
 	return true;
 }
@@ -258,7 +196,28 @@ Object* Map_GetObject(ObjectID id)
 {
 	assert((id >= 0 && id < MAX_OBJECTS) && "Invalid Object ID");
 
+	if (id < 0 || id >= MAX_OBJECTS)
+	{
+		return NULL;
+	}
+
 	return &s_map.objects[id];
+}
+
+Object* Map_FindObjectByUniqueID(int unique_id)
+{
+	//lazy search but, probably will only be used for loading save file
+	for (int i = 0; i < MAX_OBJECTS; i++)
+	{
+		Object* obj = Map_GetObject(i);
+
+		if (obj->unique_id == unique_id)
+		{
+			return obj;
+		}
+	}
+
+	return NULL;
 }
 
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot)
@@ -463,9 +422,6 @@ BVH_Tree* Map_GetSpatialTree()
 
 void Map_Destruct()
 {
-	//keep old level index
-	int old_level_index = s_map.level_index;
-
 	if (s_map.line_segs) free(s_map.line_segs);
 	if (s_map.bsp_nodes) free(s_map.bsp_nodes);
 	if (s_map.sectors) free(s_map.sectors);
@@ -476,6 +432,4 @@ void Map_Destruct()
 	BVH_Tree_Destruct(&s_map.spatial_tree);
 
 	memset(&s_map, 0, sizeof(s_map));
-
-	s_map.level_index = old_level_index;
 }

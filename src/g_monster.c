@@ -342,7 +342,7 @@ static bool Monster_Walk(Object* obj, float delta)
 {
 	delta *= obj->speed;
 
-	if (Move_Object(obj, obj->dir_x * delta, obj->dir_y * delta, true))
+	if (Move_Object(obj, obj->dir_x * delta, obj->dir_y * delta, false))
 	{
 		Monster_SetState(obj, MS__WALK);
 		return true;
@@ -629,7 +629,7 @@ void Monster_Spawn(Object* obj)
 	obj->sprite.scale_y = monster_info->sprite_scale;
 	obj->sprite.v_offset = monster_info->sprite_v_offset;
 	obj->hp = monster_info->spawn_hp;
-	obj->size = 5.5;
+	obj->size = 14.5;
 	obj->speed = monster_info->speed;
 
 	Monster_SetState(obj, MS__IDLE);

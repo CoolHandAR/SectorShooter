@@ -154,16 +154,19 @@ inline unsigned char* Image_Get(Image* img, int x, int y)
 {
 	if (x < 0 || x >= img->width)
 	{
-		x &= img->width - 1;
+		//x &= img->width - 1;
 	}
 	if (y < 0 || y >= img->height)
 	{
-		y &= img->height - 1;
+		//y &= img->height - 1;
 	}
+
+	x = Math_Clampl(x, 0, img->width - 1);
+	y = Math_Clampl(y, 0, img->height - 1);
 
 	return img->data + (x + y * img->width) * img->numChannels;
 }
-inline unsigned char* Image_Get2(Image* img, int x, int y)
+inline unsigned char* Image_GetFast(Image* img, int x, int y)
 {
 	return img->data + (x + y * img->width) * img->numChannels;
 }
@@ -244,7 +247,7 @@ void CollumnImage_Destruct(CollumnImage* col_image);
 typedef struct
 {
 	float x, y, z;
-	float offset_x, offset_y;
+	float offset_x, offset_y, offset_z;
 	float scale_x, scale_y;
 	float dist;
 	float v_offset;
@@ -331,9 +334,22 @@ typedef struct
 
 typedef struct
 {
-	DrawCollumn collumns[MAX_DRAW_COLLUMNS];
+	DrawCollumn* collumns;
 	int index;
+	int size;
 } DrawCollumns;
+
+typedef struct
+{
+	short* ytop;
+	short* ybottom;
+
+	struct Texture* texture;
+	float viewheight;
+	int light;
+
+	bool visible;
+} DrawPlane;
 
 #define MAX_DRAWSPRITES 1024
 
@@ -347,17 +363,33 @@ typedef struct
 
 	uint64_t* visited_sectors_bitset;
 	size_t bitset_size;
+
+	DrawPlane floor_plane;
+	DrawPlane ceil_plane;
+	int span_end[2000];
 } RenderData;
 
 typedef struct
 {
 	float view_x, view_y, view_z;
-	float view_sin, view_cos;
+	float view_sin, view_cos, view_angle;
+
+	float tan_cos, tan_sin;
+	float tangent;
+
+	float focal_length_x;
+
 	float h_fov, v_fov;
 	int start_x, end_x;
 
 	short* yclip_top;
 	short* yclip_bottom;
+
+	short* floor_plane_ytop;
+	short* floor_plane_ybottom;
+
+	short* ceil_plane_ytop;
+	short* ceil_plane_ybottom;
 
 	RenderData* render_data;
 
@@ -366,12 +398,18 @@ typedef struct
 
 typedef struct
 {
+	float plane_base_pos_x;
+	float plane_base_pos_y;
+
+	float plane_step_scale_x;
+	float plane_step_scale_y;
+
+	float plane_angle;
+	float sky_plane_y_step;
+
 	float u0, u1;
 	int sy_floor;
 	int sy_ceil;
-
-	float floorz;
-	float ceilz;
 
 	float ceil_step;
 	float floor_step;
@@ -440,7 +478,8 @@ typedef enum
 	TWT__NONE,
 
 	TWT__SHADER,
-	TWT__DRAW_LEVEL
+	TWT__DRAW_LEVEL,
+	TWT__EXIT
 } ThreadWorkType;
 
 typedef struct
@@ -448,17 +487,13 @@ typedef struct
 	RenderData render_data;
 
 	ThreadState state;
-	ThreadWorkType work_type;
 
 	HANDLE thread_handle;
 
 	CRITICAL_SECTION mutex;
-	HANDLE start_work_event;
 	HANDLE active_event;
-	HANDLE finished_work_event;
 
 	int x_start, x_end;
-	bool shutdown;
 } RenderThread;
 
 bool Render_Init(int width, int height);
@@ -469,11 +504,10 @@ void Render_LockObjectMutex(bool writer);
 void Render_UnlockObjectMutex(bool writer);
 void Render_FinishAndStall();
 void Render_Resume();
-void Render_AddScreenSpriteToQueue(Sprite* sprite);
 void Render_QueueFullscreenShader(ShaderFun shader_fun);
 
 void Render_ResizeWindow(int width, int height);
-void Render_View(float x, float y, float z, float angleCos, float angleSin);
+void Render_View(float x, float y, float z, float angle, float angleCos, float angleSin);
 void Render_GetWindowSize(int* r_width, int* r_height);
 void Render_GetRenderSize(int* r_width, int* r_height);
 int Render_GetRenderScale();
@@ -482,15 +516,16 @@ float Render_GetWindowAspect();
 int Render_IsFullscreen();
 void Render_ToggleFullscreen();
 int Render_GetTicks();
+void Render_Clear(int c);
 
 void RenderUtl_ResetClip(ClipSegments* clip, short left, short right);
 void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_end);
+void RenderUtl_Resize(RenderData* data, int width, int x_start, int x_end);
 void RenderUtl_DestroyRenderData(RenderData* data);
 bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector);
 void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector);
 void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light);
 
-void Scene_ResetClip(ClipSegments* clip, short left, short right);
 void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args);
 void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, LineDrawArgs* args, Image* image);
 bool Scene_RenderLine(Image* image, struct Map* map, struct Sector* sector, struct Line* line, DrawingArgs* args);

@@ -37,9 +37,10 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	}
 
 	data->num_draw_sprites = 0;
+	data->draw_collums.index = 0;
+	
 
-	memset(&data->draw_collums, 0, sizeof(data->draw_collums));
-
+	memset(&data->clip_segs, 0, sizeof(data->clip_segs));
 	RenderUtl_ResetClip(&data->clip_segs, 0, width);
 
 	if (x_start > 0)
@@ -52,9 +53,22 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	}
 }
 
+void RenderUtl_Resize(RenderData* data, int width, int x_start, int x_end)
+{
+	//resize the collumns
+	if (data->draw_collums.collumns)
+	{
+		free(data->draw_collums.collumns);
+	}
+
+	data->draw_collums.collumns = calloc((x_end - x_start) + 2, sizeof(DrawCollumn));
+	data->draw_collums.size = (x_end - x_start);
+}
+
 void RenderUtl_DestroyRenderData(RenderData* data)
 {
 	if (data->visited_sectors_bitset) free(data->visited_sectors_bitset);
+	if (data->draw_collums.collumns) free(data->draw_collums.collumns);
 
 	data->visited_sectors_bitset = NULL;
 }

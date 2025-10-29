@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <float.h>
 #include "game_info.h"
+#include "u_math.h"
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -369,6 +370,7 @@ static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
 
             if (!strcmp(name, "F_SKY1"))
             {
+                os->ceil_texture = Game_FindTextureByName("SKY1");
                 os->is_sky = true;
             }
         }
@@ -426,9 +428,19 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         maplinedef_t* mldef = &mlinedefs[linedef_index];
         int side = ms->side;
         
+        os->side_x0 = (int)vertices[mldef->v2].x >> DOOM_VERTEX_SHIFT;
+        os->side_y0 = (int)vertices[mldef->v2].y >> DOOM_VERTEX_SHIFT;
+
+        os->side_x1 = (int)vertices[mldef->v1].x >> DOOM_VERTEX_SHIFT;
+        os->side_y1 = (int)vertices[mldef->v1].y >> DOOM_VERTEX_SHIFT;
+
+        os->side_dx = os->side_x1 - os->side_x0;
+        os->side_dy = os->side_y1 - os->side_y0;
+
         os->front_sector = msides[mldef->sidenum[side]].sector;
 
         os->sidedef = &map->sidedefs[mldef->sidenum[side]];
+
 
         if (mldef->flags & ML_TWOSIDED)
         {
@@ -446,7 +458,7 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         os->dx = os->x1 - os->x0;
         os->dy = os->y1 - os->y0;
 
-        os->width_scale = sqrtf(os->dx * os->dx + os->dy * os->dy);
+        os->width_scale = sqrtf(os->side_dx * os->side_dx + os->side_dy * os->side_dy);
         os->dot = os->dx * os->dx + os->dy * os->dy;
 
         os->bbox[0][0] = min(os->x0, os->x1);
@@ -709,6 +721,7 @@ static void Load_PostProcessMap(Map* map)
         }
     }
 
+    //calc world bounds
     for (int k = 0; k < 2; k++)
     {
         map->world_bounds[0][k] = FLT_MAX;
@@ -783,10 +796,16 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
 
         if (((int)mt->options & 1))
         {
-            continue;
+           // continue;
         }
 
-       // Object_Spawn(OT__MONSTER, SUB__MOB_IMP, object_x, object_y, 128);
+        //Object* obj = Object_Spawn(OT__MONSTER, SUB__MOB_IMP, object_x, object_y, 128);
+
+        float rad_angle = Math_DegToRad(mt->angle);
+
+        //obj->dir_x = cosf(rad_angle);
+        //obj->dir_y = sinf(rad_angle);
+       
 
         //Object_Spawn(OT__THING, SUB__THING_RED_COLLUMN, object_x, object_y, 128);
     }
@@ -795,7 +814,7 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
     {
         map->player_spawn_point_x = (int)player_thing->x >> DOOM_VERTEX_SHIFT;
         map->player_spawn_point_y = (int)player_thing->y >> DOOM_VERTEX_SHIFT;
-        map->player_spawn_point_z = 24;
+        map->player_spawn_rot = Math_DegToRad(player_thing->angle);
     }
 }
 
@@ -891,6 +910,9 @@ bool Load_Doommap(const char* filename, Map* map)
     
     //load objects last
     Load_Things(thing_lump, num_things, map);
+
+    //also save map name
+    strncpy(map->name, filename, strlen(filename));
 
     if (sector_lump) free(sector_lump);
     if (subsector_lump) free(subsector_lump);
@@ -1232,7 +1254,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
 }
 
 
-bool Load_DoomIWAD(const char* filename, Map* map)
+bool Load_DoomIWAD(const char* filename)
 {
     GameAssets* assets = Game_GetAssets();
 
