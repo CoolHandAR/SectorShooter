@@ -6,7 +6,8 @@
 #include <GLFW/glfw3.h>
 
 uint64_t Engine_GetTicks();
-float Engine_GetDeltaTime();
+double Engine_GetDeltaTime();
+double Engine_GetLerpFraction();
 void Engine_SetTimeScale(float scale);
 GLFWwindow* Engine_GetWindow();
 

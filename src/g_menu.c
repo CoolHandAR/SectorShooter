@@ -213,7 +213,7 @@ void Menu_Update(float delta)
 		return;
 	}
 
-	Render_FinishAndStall();
+	//Render_LockObjectMutex(true);
 
 	if (menu_core.input_timer > 0) menu_core.input_timer -= delta;
 	
@@ -242,7 +242,7 @@ void Menu_Update(float delta)
 			if (menu_core.index == SUB_MENU_MAIN)
 			{
 				Game_SetState(GS__LEVEL);
-				return;
+				break;
 			}
 			else if (menu_core.index == SUB_MENU_LOAD || menu_core.index == SUB_MENU_SAVE)
 			{
@@ -289,20 +289,19 @@ void Menu_Update(float delta)
 		}
 	}
 	
-	if (menu_core.id > 0)
-	{
-		if (Menu_CheckInput(GLFW_KEY_UP, GLFW_PRESS)) menu_core.index--;
-		else if (Menu_CheckInput(GLFW_KEY_DOWN, GLFW_PRESS)) menu_core.index++;
+	if (Menu_CheckInput(GLFW_KEY_UP, GLFW_PRESS)) menu_core.index--;
+	else if (Menu_CheckInput(GLFW_KEY_DOWN, GLFW_PRESS)) menu_core.index++;
 
-		if (menu_core.index < 0) menu_core.index = menu_core.id - 1;
-		else if (menu_core.index > menu_core.id - 1) menu_core.index = 0;
-	}
+	if (menu_core.index < 0) menu_core.index = SUB_MENU_EXIT;
+	else if (menu_core.index > SUB_MENU_EXIT) menu_core.index = 0;
 
-	Render_Resume();
+	//Render_UnlockObjectMutex(true);
 }
 
 void Menu_Draw(Image* image, FontData* fd)
 {
+	Render_LockObjectMutex(false);
+
 	int game_level = Game_GetLevelIndex();
 
 	menu_core.id = 0;
@@ -393,6 +392,8 @@ void Menu_Draw(Image* image, FontData* fd)
 	default:
 		break;
 	}
+
+	Render_UnlockObjectMutex(false);
 }
 
 void Menu_LevelEnd_Update(float delta, int secret_goal, int secret_max, int monster_goal, int monster_max)

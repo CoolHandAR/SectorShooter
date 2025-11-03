@@ -7,8 +7,10 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define MONSTER_MELEE_CHECK 5
+#define MONSTER_MELEE_CHECK 45
 #define STUCK_TIMER 2
+
+static int s_SoundPropogationCheck = 0;
 
 static const DirEnum opposite_dirs[DIR_MAX] =
 {
@@ -205,11 +207,19 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 	float view_x, view_y;
 	Player_GetView(&view_x, &view_y, NULL, NULL, NULL, NULL);
 
-	float angle = atan2(obj->y - view_y, obj->x - view_x);
+	Object* pl = Player_GetObj();
+
+	if (pl)
+	{
+		view_x = pl->prev_x;
+		view_y = pl->prev_y;
+	}
+
+	float angle = atan2(obj->prev_y - view_y, obj->prev_x - view_x);
 	float obj_angle = atan2(-obj->dir_y, -obj->dir_x);
 	 
 	float rotation = angle - obj_angle;
-	rotation += Math_DegToRad(45.0 / 2 * 9 - 180.0 / 16);
+	rotation += Math_DegToRad(45.0 / 2.0 * 9 - 180 / 16);
 
 	float abs_dir = fabs(rotation);
 	int round_dir = roundl(abs_dir);
@@ -217,9 +227,12 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 
 	int sign = (round_dir >= 7) ? 1 : -1;
 
+	obj->sprite.flip_h = false;
+	round_dir = abs(round_dir - 3);
+
 	if (obj->state != MS__DIE)
 	{
-		if (rotation * sign < 0)
+		if (round_dir >= 4)
 		{
 			obj->sprite.flip_h = true;
 		}
@@ -229,8 +242,6 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 		}
 	}
 
-	round_dir = abs(round_dir - 3);
-
 	if (obj->state != MS__HIT)
 	{
 		//hack!!
@@ -238,6 +249,14 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 		{
 			round_dir += 5;
 		}
+		else if ((fraction > 0 && round_dir == 6) || (fraction < 0 && round_dir == 1))
+		{
+			round_dir = 0;
+		}
+	}
+	if (round_dir > 11)
+	{
+		round_dir = 0;
 	}
 
 	if (obj->state == MS__WALK || obj->state == MS__IDLE)
@@ -276,13 +295,18 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 	}
 	else if (obj->state == MS__DIE)
 	{
+		if (obj->flags & OBJ_FLAG__EXPLODING)
+		{
+			return MAS__EXPLODE;
+		}
+
 		return MAS__DIE;
 	}
 
 	return MAS__IDLE;
 }
 
-static void Monster_UpdateSpriteAnimation(Object* obj, float delta)
+void Monster_UpdateSpriteAnimation(Object* obj, float delta)
 {
 	MonsterAnimState anim_state = Monster_GetAnimState(obj);
 
@@ -303,7 +327,11 @@ static void Monster_UpdateSpriteAnimation(Object* obj, float delta)
 		s->frame_count = 1;
 	}
 
-	Sprite_UpdateAnimation(s, delta);
+	if (s->frame_count > 1)
+	{
+		//Sprite_UpdateAnimation(s, delta);
+	}
+
 
 	if (anim_info->action_fun)
 	{
@@ -325,8 +353,6 @@ static bool Monster_TryStep(Object* obj, float delta)
 
 	obj->speed = 24;
 
-	delta *= obj->speed;
-
 	if (!Move_CheckStep(obj, dir_x * delta, dir_y * delta, obj->size))
 	{
 		return false;
@@ -340,9 +366,7 @@ static bool Monster_TryStep(Object* obj, float delta)
 
 static bool Monster_Walk(Object* obj, float delta)
 {
-	delta *= obj->speed;
-
-	if (Move_Object(obj, obj->dir_x * delta, obj->dir_y * delta, false))
+	if (Move_Object(obj, obj->dir_x, obj->dir_y, delta, false))
 	{
 		Monster_SetState(obj, MS__WALK);
 		return true;
@@ -373,7 +397,7 @@ static bool Monster_CheckIfMeleePossible(Object* obj)
 		return false;
 	}
 
-	float dist = (obj->x - target->x) * (obj->x - target->x) + (obj->y - target->y) * (obj->y - target->y);
+	float dist = Math_XY_Distance(obj->x, obj->y, target->x, target->y);
 
 	if (dist <= MONSTER_MELEE_CHECK)
 	{
@@ -570,13 +594,13 @@ static void Monster_FaceTarget(Object* obj)
 		return;
 	}
 	
-	float x_point = obj->x - target->x;
-	float y_point = obj->y - target->y;
+	float x_point = target->x - obj->x;
+	float y_point = target->y - obj->y;
 
 	Math_XY_Normalize(&x_point, &y_point);
 
-	obj->dir_x = -x_point;
-	obj->dir_y = -y_point;
+	obj->dir_x = x_point;
+	obj->dir_y = y_point;
 }
 
 static void Monster_LookForTarget(Object* monster)
@@ -589,17 +613,12 @@ static void Monster_LookForTarget(Object* monster)
 	}
 
 	//make sure player is alive and visible
-	if (player->hp <= 0 || !Object_CheckLineToTarget(monster, player))
+	if (player->hp <= 0 || !Object_CheckSight(monster, player))
 	{
 		return;
 	}
 
-	monster->target = player;
-
-	int index = 0;
-
-	//play alert sound
-	Monster_EmitSound(monster, MSOUND__ALERT);
+	Monster_SetTarget(monster, player);
 }
 
 void Monster_Spawn(Object* obj)
@@ -682,9 +701,22 @@ void Monster_SetState(Object* obj, int state)
 
 }
 
+void Monster_SetTarget(Object* obj, Object* target)
+{
+	if (!target || target->hp <= 0)
+	{
+		return;
+	}
+
+	obj->target = target;
+
+	//play alert sound
+	Monster_EmitSound(obj, MSOUND__ALERT);
+}
+
 void Monster_Update(Object* obj, float delta)
 {
-	Monster_UpdateSpriteAnimation(obj, delta);
+	//Monster_UpdateSpriteAnimation(obj, delta);
 
 	//dead
 	if (obj->hp <= 0)
@@ -817,5 +849,80 @@ void Monster_Melee(Object* obj)
 
 	Monster_FaceTarget(obj);
 
-	Object_Hurt(target, obj, info->melee_damage);
+	Object_Hurt(target, obj, info->melee_damage, false);
+}
+
+static void Monster_WakeRecursive(Object* waker, int sector_index)
+{
+	if (sector_index < 0)
+	{
+		return;
+	}
+
+	Sector* sector = Map_GetSector(sector_index);
+
+	//already checked
+	if (sector->sound_propogation_check == s_SoundPropogationCheck)
+	{
+		return;
+	}
+
+	sector->sound_propogation_check = s_SoundPropogationCheck;
+	
+	int num_hits = Trace_SectorAll(sector);
+	int* hits = Trace_GetHitObjects();
+
+	for (int i = 0; i < num_hits; i++)
+	{
+		int index = hits[i];
+
+		if (index >= 0)
+		{
+			Object* sector_obj = Map_GetObject(index);
+
+			if (sector_obj && sector_obj->type == OT__MONSTER && sector_obj->hp > 0 && !(sector_obj->flags & OBJ_FLAG__IGNORE_SOUND))
+			{
+				Monster_SetTarget(sector_obj, waker);
+			}
+		}
+		else
+		{
+			int line_index = -(index + 1);
+			Line* line = Map_GetLine(line_index);
+
+			//nothing to pass through
+			if (line->back_sector < 0)
+			{
+				continue;
+			}
+			Sector* backsector = Map_GetSector(line->back_sector);
+
+			float open_low = max(sector->floor, backsector->floor);
+			float open_high = min(sector->ceil, backsector->ceil);
+			float open_range = open_high - open_low;
+
+			//closed
+			if (open_range <= 0)
+			{
+				continue;
+			}
+
+			int next_sector = (line->front_sector == sector_index) ? line->back_sector : line->front_sector;
+
+			Monster_WakeRecursive(waker, next_sector);
+		}
+	}
+	
+
+}
+
+void Monster_WakeAll(Object* waker)
+{
+	if (waker->sector_index < 0)
+	{
+		return;
+	}
+
+	s_SoundPropogationCheck++;
+	Monster_WakeRecursive(waker, waker->sector_index);
 }

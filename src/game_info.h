@@ -148,7 +148,7 @@ static const MonsterInfo MONSTER_INFO[] =
 		60, //SPAWN HP
 		2, //SPEED,
 		14, //MELEE DAMAGE
-		1, //SPRITE SCALE
+		32, //SPRITE SCALE
 		0, //SPRTE V OFFSET
 	},
 	//PINKY
@@ -221,7 +221,7 @@ static const MonsterInfo MONSTER_INFO[] =
 		150, //SPAWN HP
 		4, //SPEED,
 		16, //MELEE DAMAGE
-		1, //SPRITE SCALE
+		32, //SPRITE SCALE
 		0, //SPRTE V OFFSET
 	},
 	//BRUISER
@@ -294,7 +294,7 @@ static const MonsterInfo MONSTER_INFO[] =
 		400, //SPAWN HP
 		2, //SPEED,
 		30, //MELEE DAMAGE
-		2, //SPRITE SCALE
+		32, //SPRITE SCALE
 		-0.5, //SPRTE V OFFSET
 	},
 };
@@ -308,6 +308,7 @@ typedef struct
 	int explosion_damage;
 	int explosion_size;
 	int direct_damage;
+	float sprite_scale;
 } MissileInfo;
 
 static const MissileInfo MISSILE_INFO[] =
@@ -328,6 +329,7 @@ static const MissileInfo MISSILE_INFO[] =
 		0, //EXPLOSION DAMAGE
 		0, //EXPLOSION SIZE
 		10, //DIRECT HIT DAMAGE
+		32, //SPRITE SCALE
 	},
 	//MEGA SHOT
 	{
@@ -345,6 +347,7 @@ static const MissileInfo MISSILE_INFO[] =
 		40, //EXPLOSION DAMAGE
 		10, //EXPLOSION SIZE
 		70, //DIRECT HIT DAMAGE
+		32, //SPRITE SCALE
 	},
 };
 
@@ -783,7 +786,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 			NULL, 0, 0, 0, 3, 0,
 		},
 		0.5, //time
-		0.5, //sprite scale
+		10, //sprite scale
 	},
 	//WALL HIT
 	{
@@ -793,9 +796,30 @@ static const ParticleInfo PARTICLE_INFOS[] =
 			NULL, 0, 0, 1, 4, 0,
 		},
 		0.5, //time
-		0.25, //sprite scale
+		10, //sprite scale
 	}
+};
 
+typedef struct
+{
+	int type;
+	AnimInfo anim_info;
+	float time;
+	float sprite_scale;
+} DecalInfo;
+
+static const DecalInfo DECAL_INFOS[] =
+{
+	//WALL HIT
+	{
+		SUB__DECAL_WALL_HIT,
+		//ANIM INFO
+		{
+			NULL, 0, 0, 0, 5, 0,
+		},
+		5.5, //time
+		32, //sprite scale
+	}
 };
 
 #define PICKUP_SMALLHP_HEAL 20
@@ -813,6 +837,7 @@ MonsterInfo* Info_GetMonsterInfo(int type);
 ObjectInfo* Info_GetObjectInfo(int type, int sub_type);
 LightInfo* Info_GetLightInfo(int sub_type);
 ParticleInfo* Info_GetParticleInfo(int sub_type);
+DecalInfo* Info_GetDecalInfo(int sub_type);
 MissileInfo* Info_GetMissileInfo(int sub_type);
 
 static const char* LEVELS[] =

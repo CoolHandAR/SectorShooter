@@ -18,6 +18,10 @@
 #define LIGHT_LOW 0
 #define LIGHT_HIGH 1
 
+#define DEPTH_SHADING_SCALE 0.25
+
+typedef float DepthValue;
+
 typedef struct
 {
 	uint8_t light;
@@ -152,15 +156,6 @@ inline void Image_SetScaled(Image* img, int x, int y, float scale, unsigned char
 
 inline unsigned char* Image_Get(Image* img, int x, int y)
 {
-	if (x < 0 || x >= img->width)
-	{
-		//x &= img->width - 1;
-	}
-	if (y < 0 || y >= img->height)
-	{
-		//y &= img->height - 1;
-	}
-
 	x = Math_Clampl(x, 0, img->width - 1);
 	y = Math_Clampl(y, 0, img->height - 1);
 
@@ -264,6 +259,10 @@ typedef struct
 	int frame;
 	bool looping;
 	bool playing;
+	bool finished;
+
+	//for decals only
+	int decal_line_index;
 
 	int loops;
 	int action_loop;
@@ -297,6 +296,8 @@ typedef struct
 
 	short light;
 
+	int decal_line_index;
+
 	bool flip_h;
 	bool flip_v;
 } DrawSprite;
@@ -326,7 +327,7 @@ typedef struct
 	short y1;
 	short y2;
 	short tx;
-	int depth;
+	float depth;
 	float ty_pos;
 	float ty_step;
 	struct Texture* texture;
@@ -366,7 +367,7 @@ typedef struct
 
 	DrawPlane floor_plane;
 	DrawPlane ceil_plane;
-	int span_end[2000];
+	short* span_end;
 } RenderData;
 
 typedef struct
@@ -391,6 +392,8 @@ typedef struct
 	short* ceil_plane_ytop;
 	short* ceil_plane_ybottom;
 
+	float* yslope;
+
 	RenderData* render_data;
 
 	float* depth_buffer;
@@ -398,6 +401,8 @@ typedef struct
 
 typedef struct
 {
+	bool is_both_sky;
+
 	float plane_base_pos_x;
 	float plane_base_pos_y;
 
@@ -429,6 +434,7 @@ typedef struct
 	float backsector_ceil_height;
 
 	float highest_floor;
+	float lowest_ceilling;
 
 	float world_low;
 	float world_high;
@@ -450,18 +456,15 @@ void Video_DrawLine(Image* image, int x0, int y0, int x1, int y1, unsigned char*
 void Video_DrawRectangle(Image* image, int p_x, int p_y, int p_w, int p_h, unsigned char* p_color);
 void Video_DrawCircle(Image* image, int p_x, int p_y, float radius, unsigned char* p_color);
 void Video_DrawBoxLines(Image* image, float box[2][2], unsigned char* color);
-
 void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float h_fov, float v_fov);
-void Video_DrawSprite(Image* image, Sprite* sprite, float* depth_buffer, float p_x, float p_y, float p_dirX, float p_dirY, float p_planeX, float p_planeY);
 void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y, float p_scaleX, float p_scaleY);
 void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
-
-void Video_DrawSprite2(Image* image, float* depth_buffer, Sprite* sprite, float p_x, float p_y, float p_z, float angle);
-
-void Video_DrawSectorCollumn(Image* image, Image* texture, int x, int y1, int y2, int tx, float ty_start, float ty_scale);
-void Video_DrawDoomSectors(Image* image, float p_x, float p_y, float p_z, float p_yaw, float p_angle);
-
-void Video_DrawSprite3(Image* image, DrawingArgs* args, DrawSprite* sprite);
+void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
+void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask);
+void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
+void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
+void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);
 
 typedef void (*ShaderFun)(Image* image, int x, int y, int tx, int ty);
 void Video_Shade(Image* image, ShaderFun shader_fun, int x0, int y0, int x1, int y1);
@@ -520,11 +523,11 @@ void Render_Clear(int c);
 
 void RenderUtl_ResetClip(ClipSegments* clip, short left, short right);
 void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_end);
-void RenderUtl_Resize(RenderData* data, int width, int x_start, int x_end);
+void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int x_end);
 void RenderUtl_DestroyRenderData(RenderData* data);
 bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector);
 void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector);
-void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light);
+void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, bool is_decal);
 
 void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args);
 void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, LineDrawArgs* args, Image* image);
@@ -532,7 +535,6 @@ bool Scene_RenderLine(Image* image, struct Map* map, struct Sector* sector, stru
 void Scene_ProcessSubsector(Image* image, struct Map* map, struct Subsector* sub_sector, DrawingArgs* args);
 int Scene_ProcessBSPNode(Image* image, struct Map* map, int node_index, DrawingArgs* args);
 void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer);
-void Scene_Setup(int width, int height, float h_fov, float v_fov);
 
 #define MAX_FONT_GLYPHS 100
 

@@ -175,6 +175,14 @@ typedef struct
     short		sidenum[2];
 } maplinedef_t;
 
+// Skill flags.
+#define	MTF_EASY		1
+#define	MTF_NORMAL		2
+#define	MTF_HARD		4
+
+// Deaf monsters/do not react to sound.
+#define	MTF_AMBUSH		8
+
 
 //
 // LineDef attributes.
@@ -285,6 +293,18 @@ typedef struct
     short		options;
 } mapthing_t;
 
+
+typedef enum
+{
+    THING__SMALL_HP = 2011,
+    THING__BIG_HP = 2012,
+    THING__ROCKETS = 2046,
+    THING__AMMO = 2048,
+    THING__IMP = 3001,
+    THING__PINKY = 3002,
+    THING__BARON = 3003,
+
+} thingtypes;
 
 static void* MallocLump(FILE* file, filelump_t* lumps, int lump_start, int lump_num, int size, int* r_num)
 {
@@ -465,11 +485,6 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         os->bbox[0][1] = min(os->y0, os->y1);
         os->bbox[1][0] = max(os->x0, os->x1);
         os->bbox[1][1] = max(os->y0, os->y1);
-
-        os->bbox[0][0] -= 0.1;
-        os->bbox[0][1] -= 0.1;
-        os->bbox[1][0] += 0.1;
-        os->bbox[1][1] += 0.1;
 
         Sector* frontsector = &map->sectors[os->front_sector];
         Sector* backsector = NULL;
@@ -799,15 +814,68 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
            // continue;
         }
 
-        //Object* obj = Object_Spawn(OT__MONSTER, SUB__MOB_IMP, object_x, object_y, 128);
+        int flags = 0;
 
-        float rad_angle = Math_DegToRad(mt->angle);
+        if ((int)mt->options & MTF_AMBUSH)
+        {
+            flags |= OBJ_FLAG__IGNORE_SOUND;
+        }
 
-        //obj->dir_x = cosf(rad_angle);
-        //obj->dir_y = sinf(rad_angle);
-       
+        int type = 0;
+        int sub_type = 0;
 
-        //Object_Spawn(OT__THING, SUB__THING_RED_COLLUMN, object_x, object_y, 128);
+        switch (mt->type)
+        {
+        case THING__AMMO:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_AMMO;
+            break;
+        }
+        case THING__ROCKETS:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_ROCKETS;
+            break;
+        }
+        case THING__BIG_HP:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_BIGHP;
+            break;
+        }
+        case THING__SMALL_HP:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_SMALLHP;
+            break;
+        }
+        case THING__IMP:
+        {
+            type = OT__MONSTER;
+            sub_type = SUB__MOB_IMP;
+            break;
+        }
+        case THING__PINKY:
+        {
+            type = OT__MONSTER;
+            sub_type = SUB__MOB_PINKY;
+            break;
+        }
+        default:
+            break;
+        }
+
+        if (type != OT__NONE)
+        {
+            Object* obj = Object_Spawn(type, sub_type, object_x, object_y, 0);
+
+            float rad_angle = Math_DegToRad(mt->angle);
+            obj->dir_x = cosf(rad_angle);
+            obj->dir_y = sinf(rad_angle);
+
+            obj->flags |= flags;
+        }
     }
 
     if (player_thing)
@@ -1238,8 +1306,9 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
 
         if (!strcmp(ourtexture->name, "NUKE24"))
         {
-            //ourtexture->height_mask = texheight - 1;
+            ourtexture->height_mask = 127;
         }
+
         //ourtexture->height_mask = texheight - 1;
 
         //ourtexture->height_mask = texheight - 1;
@@ -1251,6 +1320,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
     if (map_texture1) free(map_texture1);
     if (map_texture2) free(map_texture2);
     if (pnames) free(pnames);
+    if (patchlookup) free(patchlookup);
 }
 
 

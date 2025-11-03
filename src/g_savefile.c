@@ -237,6 +237,10 @@ static bool Save_ObjState(FILE* file, SaveHeader* header, Map* map)
 			{
 				lump->target_id = Num_LittleLong(target->unique_id);
 			}
+			else
+			{
+				lump->target_id = Num_LittleLong(-1);
+			}
 		}
 	}
 
@@ -467,17 +471,25 @@ static void Load_ParseObj(SaveHeader* header, FILE* file, Map* map)
 		obj->y = Num_LittleLong(lump->y);
 		obj->z = Num_LittleLong(lump->z);
 		
-		Move_SetPosition(obj, obj->x, obj->y, obj->z, obj->size);
-
 		Sprite_ResetAnimState(&obj->sprite);
 
 		//hack for dead objects
-		//just so that we won't see monsters dying after loading the map
 		if (obj->hp <= 0)
 		{
-			obj->sprite.frame = 0x7ff;
+			//just so that we won't see monsters dying after loading the map
+			if (obj->type == OT__MONSTER)
+			{
+				obj->sprite.frame = 0x7ff;
+			}
+			else
+			{
+				Object_UnlinkSector(obj);
+				obj->sprite.img = NULL;
+			}
 		}
+		
 
+		//setup target, if we have one
 		int target_id = Num_LittleLong(lump->target_id);
 
 		if (target_id >= 0)
@@ -489,6 +501,9 @@ static void Load_ParseObj(SaveHeader* header, FILE* file, Map* map)
 				obj->target = target;
 			}
 		}
+
+		//set position
+		Move_SetPosition(obj, obj->x, obj->y, obj->z, obj->size);
 	}
 
 	if (obj_lump) free(obj_lump);

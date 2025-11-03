@@ -39,8 +39,6 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	data->num_draw_sprites = 0;
 	data->draw_collums.index = 0;
 	
-
-	memset(&data->clip_segs, 0, sizeof(data->clip_segs));
 	RenderUtl_ResetClip(&data->clip_segs, 0, width);
 
 	if (x_start > 0)
@@ -53,7 +51,7 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	}
 }
 
-void RenderUtl_Resize(RenderData* data, int width, int x_start, int x_end)
+void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int x_end)
 {
 	//resize the collumns
 	if (data->draw_collums.collumns)
@@ -61,14 +59,24 @@ void RenderUtl_Resize(RenderData* data, int width, int x_start, int x_end)
 		free(data->draw_collums.collumns);
 	}
 
-	data->draw_collums.collumns = calloc((x_end - x_start) + 2, sizeof(DrawCollumn));
-	data->draw_collums.size = (x_end - x_start);
+	int num_collumns = ((x_end - x_start)) * 4;
+	data->draw_collums.collumns = calloc(num_collumns, sizeof(DrawCollumn));
+	data->draw_collums.size = num_collumns;
+
+	//resize the span ends array
+	if (data->span_end)
+	{
+		free(data->span_end);
+	}
+
+	data->span_end = calloc(height + 2, sizeof(short));
 }
 
 void RenderUtl_DestroyRenderData(RenderData* data)
 {
 	if (data->visited_sectors_bitset) free(data->visited_sectors_bitset);
 	if (data->draw_collums.collumns) free(data->draw_collums.collumns);
+	if (data->span_end) free(data->span_end);
 
 	data->visited_sectors_bitset = NULL;
 }
@@ -103,7 +111,7 @@ void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector)
 	data->visited_sectors_bitset[mask_index] |= mask;
 }
 
-void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light)
+void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, bool is_decal)
 {
 	if (data->num_draw_sprites >= MAX_DRAWSPRITES)
 	{
@@ -121,7 +129,6 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 
 	int sprite_rect_width = (h_frames > 0) ? sprite->img->width / h_frames : sprite->img->width;
 	int sprite_rect_height = (v_frames > 0) ? sprite->img->height / v_frames : sprite->img->height;
-
 
 	int sprite_light = sprite->light * 255;
 	sprite_light += sector_light;
@@ -141,9 +148,9 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 
 	draw_sprite->frame = sprite->frame + (sprite->frame_offset_x) + (sprite->frame_offset_y * sprite->img->h_frames);
 	draw_sprite->img = sprite->img;
-	draw_sprite->x = sprite->x;
-	draw_sprite->y = sprite->y;
-	draw_sprite->z = sprite->z;
+	draw_sprite->x = sprite->x + sprite->offset_x;
+	draw_sprite->y = sprite->y + sprite->offset_y;
+	draw_sprite->z = sprite->z + sprite->offset_z;
 	draw_sprite->scale_x = sprite->scale_x;
 	draw_sprite->scale_y = sprite->scale_y;
 	draw_sprite->frame_offset_x = sprite_offset_x;
@@ -153,4 +160,5 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	draw_sprite->light = sprite_light;
 	draw_sprite->flip_h = sprite->flip_h;
 	draw_sprite->flip_v = sprite->flip_v;
+	draw_sprite->decal_line_index = (is_decal) ? sprite->decal_line_index : -1;
 }

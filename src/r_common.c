@@ -640,16 +640,19 @@ void Sprite_UpdateAnimation(Sprite* sprite, float delta)
 					if (sprite->looping)
 					{
 						sprite->loops++;
+						sprite->finished = true;
 						frame = 0;
 					}
 					else
 					{
 						frame = last_frame;
 						sprite->playing = false;
+						sprite->finished = true;
 					}
 				}
 				else
 				{
+					sprite->finished = false;
 					frame++;
 				}
 				sprite->_anim_frame_progress = 0.0;

@@ -302,6 +302,15 @@ bool Object_CheckSight(Object* obj, Object* target)
 		return false;
 	}
 
+	//calc distance to target
+	float d = Math_XY_Distance(obj->x, obj->y, target->x, target->y);
+
+	//very close to target
+	if (d <= 100)
+	{
+		return true;
+	}
+
 	float x_point = obj->x - target->x;
 	float y_point = obj->y - target->y;
 
@@ -325,15 +334,6 @@ bool Object_CheckSight(Object* obj, Object* target)
 	else if (obj->dir_y < 0 && y_point < 0)
 	{
 		return false;
-	}
-
-	//calc distance to target
-	float d = (obj->x - target->x) * (obj->x - target->x) + (obj->y - target->y) * (obj->y - target->y);
-
-	//very close to target
-	if (d <= 10)
-	{
-		return true;
 	}
 
 	//check direct line, 
@@ -364,6 +364,11 @@ bool Object_ZPassCheck(Object* obj, Object* col_obj)
 
 void Object_UnlinkSector(Object* obj)
 {
+	if (!obj->sector_linked)
+	{
+		return;
+	}
+
 	Object* sector_prev = obj->sector_prev;
 	Object* sector_next = obj->sector_next;
 
@@ -387,12 +392,15 @@ void Object_UnlinkSector(Object* obj)
 		}
 	}
 
+	obj->sector_linked = false;
 	obj->sector_next = NULL;
 	obj->sector_prev = NULL;
 }
 
 void Object_LinkSector(Object* obj)
 {
+	assert(!obj->sector_linked && "Object already linked\n");
+
 	//no need to link invisible objects
 	if (obj->sector_index < 0 || !obj->sprite.img)
 	{
@@ -411,10 +419,17 @@ void Object_LinkSector(Object* obj)
 	}
 
 	sector->object_list = obj;
+
+	obj->sector_linked = true;
 }
 
 bool Object_IsSectorLinked(Object* obj)
 {
+	if (obj->sector_linked)
+	{
+		return true;
+	}
+
 	if (obj->sector_prev)
 	{
 		return true;
@@ -436,7 +451,7 @@ bool Object_IsSectorLinked(Object* obj)
 	return false;
 }
 
-void Object_Hurt(Object* obj, Object* src_obj, int damage)
+void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive)
 {
 	//already dead or no damage
 	if (obj->hp <= 0 || damage <= 0)
@@ -499,8 +514,13 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage)
 	//set die state
 	if (obj->type == OT__MONSTER)
 	{
-		//game.monsters_killed++;
 		Game_GetGame()->monsters_killed++;
+
+		if (explosive)
+		{
+			obj->flags |= OBJ_FLAG__EXPLODING;
+		}
+
 		Monster_SetState(obj, MS__DIE);
 	}
 	else if (obj->type == OT__PLAYER)
@@ -516,7 +536,7 @@ bool Object_Crush(Object* obj)
 {
 	if (obj->type == OT__PLAYER || obj->type == OT__MONSTER)
 	{
-		Object_Hurt(obj, NULL, 100000);
+		Object_Hurt(obj, NULL, 100000, true);
 
 		return true;
 	}
@@ -547,9 +567,9 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	{
 		float point_x = (target->x) - obj->x;
 		float point_y = (target->y) - obj->y;
-		float point_z = (target->z + 32) - (obj->z + 32);
+		float point_z = (target->z + target->height * 0.5) - (obj->z + obj->height * 0.5);
 
-		Math_XY_Normalize(&point_x, &point_y);
+		Math_XYZ_Normalize(&point_x, &point_y, &point_z);
 
 		dir_x = point_x;
 		dir_y = point_y;
@@ -562,9 +582,11 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	missile->dir_x = dir_x;
 	missile->dir_y = dir_y;
 	missile->dir_z = dir_z;
+	missile->size = 5;
+	missile->step_height = 0;
+	missile->sprite.playing = true;
 
 	Move_SetPosition(missile, missile->x, missile->y, missile->size);
-	Move_ZMove(missile, -100);
 
 	return missile;
 }
@@ -585,21 +607,24 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		return NULL;
 	}
 
+	obj->prev_x = x;
+	obj->prev_y = y;
+	obj->prev_z = z;
+
 	obj->x = x;
 	obj->y = y;
 	obj->z = z;
 
 	obj->sprite.x = x + obj->sprite.offset_x;
 	obj->sprite.y = y + obj->sprite.offset_y;
-	obj->sprite.z = z;
+	obj->sprite.z = z + obj->sprite.offset_z;
+	obj->sub_type = sub_type;
 
-	obj->height = 40;
-	obj->step_height = 12;
-	obj->dropoff_height = 1000;
+	//init defaults
+	obj->height = 70;
+	obj->step_height = 50;
 	obj->size = 22;
 	obj->spatial_id = -1;
-
-	obj->sub_type = sub_type;
 
 	bool assign_to_spatial_tree = false;
 	bool handle_position = true;
@@ -618,11 +643,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	{
 		assign_to_spatial_tree = true;
 
+		Monster_Spawn(obj);
 		Game_GetGame()->total_monsters++;
 
-		Monster_Spawn(obj);
-
-		obj->sprite.offset_z = 40;
+		obj->sprite.offset_z = 70;
 		break;
 	}
 	//fallthrough
@@ -643,24 +667,20 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.offset_x = object_info->sprite_offset_x;
 		obj->sprite.offset_y = object_info->sprite_offset_y;
 		obj->sprite.offset_z = 20;
-
-		if (obj->sprite.img->v_frames > 0)
-		{
-			//obj->height = (obj->sprite.img->height / obj->sprite.img->v_frames) / 2;
-		}
-		else
-		{
-			//obj->height = obj->sprite.img->height;
-		}
-
 		obj->height = 64;
-
+	
 		//obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
 
 		if (obj->sprite.frame_count > 0)
 		{
 			obj->sprite.playing = true;
 		}
+
+		if (type == OT__PICKUP)
+		{
+			assign_to_spatial_tree = true;
+		}
+
 		break;
 	}
 	case OT__TRIGGER:
@@ -697,8 +717,48 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 		obj->sprite.scale_x = particle_info->sprite_scale;
 		obj->sprite.scale_y = particle_info->sprite_scale;
-		obj->sprite.anim_speed_scale = 1;
-		
+
+		if (sub_type == SUB__PARTICLE_BLOOD)
+		{
+			if (obj->sprite.frame_count > 0)
+			{
+				obj->sprite.frame = rand() % obj->sprite.frame_count;
+			}
+		}
+		else if (sub_type == SUB__PARTICLE_WALL_HIT)
+		{
+			obj->sprite.anim_speed_scale = 2;
+			obj->sprite.playing = true;
+		}
+			 
+
+		obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
+		zmove = 0;
+
+		break;
+	}
+	case OT__DECAL:
+	{
+		DecalInfo* decal_info = Info_GetDecalInfo(sub_type);
+		AnimInfo* anim_info = &decal_info->anim_info;
+
+		obj->size = 0.5;
+
+		obj->sprite.img = &assets->decal_textures;
+		obj->move_timer = decal_info->time;
+		obj->sprite.v_offset = Math_randf();
+		obj->sprite.scale_x = 0.5;
+		obj->sprite.scale_y = 0.5;
+
+		obj->sprite.frame_count = anim_info->frame_count;
+		obj->sprite.frame_offset_x = anim_info->x_offset;
+		obj->sprite.frame_offset_y = anim_info->y_offset;
+		obj->sprite.looping = anim_info->looping;
+
+		obj->sprite.scale_x = decal_info->sprite_scale;
+		obj->sprite.scale_y = decal_info->sprite_scale;
+		obj->sprite.anim_speed_scale = 0;
+
 		obj->sprite.playing = true;
 
 		if (obj->sprite.frame_count > 0)
@@ -762,4 +822,22 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 int Object_AreaEffect(Object* obj, float radius)
 {
 	return Trace_AreaObjects(obj, obj->x, obj->y, radius);
+}
+
+void Object_ConsumePickup(Object* obj)
+{
+	if (obj->type != OT__PICKUP)
+	{
+		return;
+	}
+
+	Render_LockObjectMutex(true);
+
+	Object_UnlinkSector(obj);
+
+	//keep for the save file
+	obj->hp = 0;
+	obj->sprite.img = NULL;
+	
+	Render_UnlockObjectMutex(true);
 }

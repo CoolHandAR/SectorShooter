@@ -8,7 +8,7 @@
 #include <cjson/cJSON.h>
 #include "u_math.h"
 #include "game_info.h"
-
+#include "main.h"
 #include "utility.h"
 
 static Map s_map;
@@ -36,7 +36,6 @@ static void Map_UpdateSortedList()
 		}
 	}
 
-	//s_map.num_objects = max_index + 1;
 	s_map.num_sorted_objects = index;
 }
 
@@ -89,17 +88,6 @@ static void Map_ConnectTriggersToTargets()
 		}
 	}
 }
-
-static float calc_light_attenuation(float distance, float inv_range, float decay)
-{
-	float nd = distance * inv_range;
-	nd *= nd;
-	nd *= nd;
-	nd = max(1.0 - nd, 0.0);
-	nd *= nd;
-	return nd * pow(max(distance, 0.0001), -decay);
-}
-
 static void Map_FreeListStoreID(ObjectID id)
 {
 	if (s_map.num_free_list >= MAX_OBJECTS)
@@ -262,6 +250,11 @@ void Map_UpdateObjects(float delta)
 			continue;
 		}
 
+		//always make sure to store prev position
+		obj->prev_x = obj->x;
+		obj->prev_y = obj->y;
+		obj->prev_z = obj->z;
+
 		switch (obj->type)
 		{
 		case OT__MONSTER:
@@ -284,6 +277,11 @@ void Map_UpdateObjects(float delta)
 			Particle_Update(obj, delta);
 			break;
 		}
+		case OT__DECAL:
+		{
+			Decal_Update(obj, delta);
+			break;
+		}
 		case OT__CRUSHER:
 		{
 			Crusher_Update(obj, delta);
@@ -299,23 +297,53 @@ void Map_UpdateObjects(float delta)
 			Lift_Update(obj, delta);
 			break;
 		}
-		//fallthrough
-		case OT__TRIGGER:
-		case OT__PICKUP:
-		case OT__THING:
-		case OT__LIGHT:
+		default:
 		{
-			if (obj->sprite.img && obj->sprite.frame_count > 0 && obj->sprite.anim_speed_scale > 0)
-			{
-				Sprite_UpdateAnimation(&obj->sprite, delta);
-			}
 			break;
 		}
-		default:
-			break;
 		}
 		
 	}
+}
+
+void Map_SmoothUpdate(double lerp, double delta)
+{
+	Render_LockObjectMutex(true);
+
+	for (int i = 0; i < s_map.num_sorted_objects; i++)
+	{
+		ObjectID id = s_map.sorted_list[i];
+		if (id < 0)
+		{
+			continue;
+		}
+
+		Object* obj = &s_map.objects[id];
+
+		//ignore
+		if (obj->type == OT__NONE || obj->type == OT__PLAYER || !obj->sprite.img)
+		{
+			continue;
+		}
+
+		//only lerp objects that are most likely to move
+		if (obj->type == OT__MONSTER || obj->type == OT__MISSILE || obj->type == OT__PARTICLE)
+		{
+			obj->sprite.x = obj->x * lerp + obj->prev_x * (1.0 - lerp);
+			obj->sprite.y = obj->y * lerp + obj->prev_y * (1.0 - lerp);
+			obj->sprite.z = obj->z * lerp + obj->prev_z * (1.0 - lerp);
+		}											   
+		if (obj->type == OT__MONSTER)
+		{
+			Monster_UpdateSpriteAnimation(obj, delta);
+		}
+		if (obj->sprite.frame_count > 0 && obj->sprite.anim_speed_scale > 0)
+		{
+			Sprite_UpdateAnimation(&obj->sprite, delta);
+		}
+	}
+
+	Render_UnlockObjectMutex(true);
 }
 
 void Map_DeleteObject(Object* obj)

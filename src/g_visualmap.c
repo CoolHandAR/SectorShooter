@@ -113,7 +113,7 @@ void VisualMap_Init()
 	s_visualMap.player_follow_mode = true;
 }
 
-void VisualMap_Update(GLFWwindow* window, float delta)
+void VisualMap_Update(GLFWwindow* window, double delta)
 {
 	VisualMap_ProcessInput(window, delta);
 
@@ -254,7 +254,7 @@ void VisualMap_Draw(Image* image, FontData* font)
 			index = -(index + 1);
 			Line* line = &map->line_segs[index];
 
-			if (!(line->flags & MF__LINE_MAPPED))
+			if (!(line->flags & MF__LINE_MAPPED) || (line->flags & MF__LINE_DONT_DRAW))
 			{
 				continue;
 			}
@@ -268,7 +268,7 @@ void VisualMap_Draw(Image* image, FontData* font)
 
 			unsigned char color[4] = { WALL_COLOR[0], WALL_COLOR[1], WALL_COLOR[2], 255};
 
-			if (backsector)
+			if (backsector && !(line->flags & MF__LINE_SECRET))
 			{
 				if (line->special == 1 || line->special == 62)
 				{

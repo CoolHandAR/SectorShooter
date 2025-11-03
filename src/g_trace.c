@@ -257,7 +257,10 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 			
 			if (Check_CanObjectFitInSector(obj, frontsector, backsector))
 			{
-				continue;
+				if (!(line->flags & MF__LINE_BLOCKING))
+				{
+					continue;
+				}
 			}
 			
 			if (Line_BoxOnPointSide(line, bbox) >= 0)
@@ -421,7 +424,7 @@ int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end
 				min_obj_hit = index;
 				min_obj_hit_x = hit_x;
 				min_obj_hit_y = hit_y;
-				min_obj_hit_z = trace_obj->z + 44;
+				min_obj_hit_z = trace_obj->z + trace_obj->height * 0.5;
 			}
 		}
 	}
@@ -450,36 +453,30 @@ int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end
 				float open_high = min(frontsector->ceil, backsector->ceil);
 				float open_range = open_high - open_low;
 
-				if (open_range > 0)
+				float line_dist = attack_range * min_frac + 0.0001;
+				float obj_dist = attack_range * min_obj_frac + 0.0001;
+	
+				float line_pitch_low = (open_low - z) / line_dist;
+				float line_pitch_high = (open_high - z) / line_dist;
+
+				float obj_bottom_pitch = (trace_obj->z - z) / obj_dist;
+				float obj_top_pitch = ((trace_obj->z + trace_obj->height) - z) / obj_dist;
+
+				if (obj_bottom_pitch < line_pitch_high && line_pitch_high < Math_DegToRad(35.0))
 				{
-					float line_dist = attack_range * min_frac;
-					if (line_dist == 0) line_dist = 0.001;
-
-					float obj_dist = attack_range * min_obj_frac;
-					if (obj_dist == 0) obj_dist = 0.001;
-				
-					float line_pitch_low = (open_low - z) / line_dist;
-					float line_pitch_high = (open_high - z) / line_dist;
-
-					float obj_bottom_pitch = (trace_obj->z - z) / obj_dist;
-					float obj_top_pitch = ((trace_obj->z + 64) - z) / obj_dist;
-
-					if (obj_bottom_pitch < line_pitch_high && line_pitch_high < Math_DegToRad(35.0))
-					{
-						min_hit = min_obj_hit;
-						min_frac = min_obj_frac;
-						min_hit_x = min_obj_hit_x;
-						min_hit_y = min_obj_hit_y;
-						min_hit_z = min_obj_hit_z;
-					}
-					else if (obj_top_pitch > line_pitch_low && line_pitch_low > Math_DegToRad(35.0))
-					{
-						min_hit = min_obj_hit;
-						min_frac = min_obj_frac;
-						min_hit_x = min_obj_hit_x;
-						min_hit_y = min_obj_hit_y;
-						min_hit_z = min_obj_hit_z;
-					}
+					min_hit = min_obj_hit;
+					min_frac = min_obj_frac;
+					min_hit_x = min_obj_hit_x;
+					min_hit_y = min_obj_hit_y;
+					min_hit_z = min_obj_hit_z;
+				}
+				else if (obj_top_pitch > line_pitch_low && line_pitch_low > Math_DegToRad(35.0))
+				{
+					min_hit = min_obj_hit;
+					min_frac = min_obj_frac;
+					min_hit_x = min_obj_hit_x;
+					min_hit_y = min_obj_hit_y;
+					min_hit_z = min_obj_hit_z;
 				}
 				
 			}
@@ -585,7 +582,6 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 						continue;
 					}
 				}
-
 			}
 
 			if (frac < min_line_frac)
@@ -837,6 +833,42 @@ int Trace_SectorLines(Sector* sector)
 		if (line->back_sector == sector->index || line->front_sector == sector->index)
 		{
 			s_traceCore.result_items[num_collisions++] = line_index;
+		}
+	}
+
+	return num_collisions;
+}
+
+int Trace_SectorAll(Sector* sector)
+{
+	int num_traces = BVH_Tree_Cull_Box(Map_GetSpatialTree(), sector->bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+
+	int num_collisions = 0;
+
+	for (int i = 0; i < num_traces; i++)
+	{
+		int index = s_traceCore.result_items[i];
+
+		//is line
+		if (index < 0)
+		{
+			int line_index = -(index + 1);
+			Line* line = Map_GetLine(line_index);
+
+			if (line->back_sector == sector->index || line->front_sector == sector->index)
+			{
+				s_traceCore.result_items[num_collisions++] = index;
+			}
+		}
+		else
+		{
+			//object
+			Object* trace_obj = Map_GetObject(index);
+
+			if (trace_obj->sector_index == sector->index)
+			{
+				s_traceCore.result_items[num_collisions++] = index;
+			}
 		}
 	}
 

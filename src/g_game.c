@@ -95,6 +95,10 @@ bool Game_LoadAssets()
 	{
 		return false;
 	}
+	if (!Image_CreateFromPath(&assets.decal_textures, "assets/textures/decal_sheet.png"))
+	{
+		return false;
+	}
 	if (!Image_CreateFromPath(&assets.menu_texture, "assets/textures/menu.png"))
 	{
 		return false;
@@ -141,6 +145,9 @@ bool Game_LoadAssets()
 	assets.particle_textures.h_frames = 4;
 	assets.particle_textures.v_frames = 2;
 
+	assets.decal_textures.h_frames = 5;
+	assets.decal_textures.v_frames = 1;
+
 	Image_GenerateFrameInfo(&assets.wall_textures);
 	Image_GenerateFrameInfo(&assets.object_textures);
 	Image_GenerateFrameInfo(&assets.shotgun_texture);
@@ -149,6 +156,7 @@ bool Game_LoadAssets()
 	Image_GenerateFrameInfo(&assets.pinky_texture);
 	Image_GenerateFrameInfo(&assets.bruiser_texture);
 	Image_GenerateFrameInfo(&assets.particle_textures);
+	Image_GenerateFrameInfo(&assets.decal_textures);
 	Image_GenerateFrameInfo(&assets.machinegun_texture);
 	Image_GenerateFrameInfo(&assets.pistol_texture);
 	Image_GenerateFrameInfo(&assets.devastator_texture);
@@ -168,6 +176,7 @@ void Game_DestructAssets()
 	Image_Destruct(&assets.pinky_texture);
 	Image_Destruct(&assets.bruiser_texture);
 	Image_Destruct(&assets.particle_textures);
+	Image_Destruct(&assets.decal_textures);
 	Image_Destruct(&assets.menu_texture);
 	Image_Destruct(&assets.machinegun_texture);
 	Image_Destruct(&assets.pistol_texture);
@@ -192,13 +201,62 @@ void Game_DestructAssets()
 	if (assets.patchy_textures) free(assets.patchy_textures);
 }
 
-void Game_Update(float delta)
+void Game_NewTick()
+{
+	game.tick++;
+}
+
+int Game_GetTick()
+{
+	return game.tick;
+}
+
+void Game_LogicUpdate(double delta)
 {
 	if (game.status_msg_timer > 0)
 	{
 		game.status_msg_timer -= delta;
 	}
 
+	GLFWwindow* window = Engine_GetWindow();
+
+	switch (game.state)
+	{
+	case GS__MENU:
+	{
+		break;
+	}
+	case GS__LEVEL:
+	{
+		//no map loaded? load the first map
+		if (game.level_index < 0)
+		{
+			Game_ChangeLevel(1);
+			break;
+		}
+
+		Player_Update(window, delta);
+		Map_UpdateObjects(delta);
+
+		if (game.secret_timer > 0) game.secret_timer -= delta;
+		break;
+	}
+	case GS__LEVEL_END:
+	{
+		break;
+	}
+	case GS__FINALE:
+	{
+		break;
+	}
+	default:
+		break;
+	}
+
+}
+
+void Game_SmoothUpdate(double lerp, double delta)
+{
 	GLFWwindow* window = Engine_GetWindow();
 
 	switch (game.state)
@@ -217,12 +275,10 @@ void Game_Update(float delta)
 			break;
 		}
 
-		Player_Update(window, delta);
-		Map_UpdateObjects(delta);
+		Player_LerpUpdate(lerp, delta);
+		Map_SmoothUpdate(lerp, delta);
 
 		VisualMap_Update(window, delta);
-
-		if (game.secret_timer > 0) game.secret_timer -= delta;
 		break;
 	}
 	case GS__LEVEL_END:
@@ -238,7 +294,6 @@ void Game_Update(float delta)
 	default:
 		break;
 	}
-
 }
 
 void Game_Draw(Image* image, FontData* fd)
@@ -256,7 +311,7 @@ void Game_Draw(Image* image, FontData* fd)
 		{
 			break;
 		}
-		//handled by the renderer
+		//level rendering and sprite renddering is handled by the renderer
 
 		//just shader dispatches
 		Player_Draw(image, fd);
@@ -293,12 +348,6 @@ void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x)
 
 		//draw player stuff (gun and hud)
 		Player_DrawHud(image, fd, start_x, end_x);
-
-		if (game.secret_timer > 0)
-		{
-			//Text_DrawColor(image, fd, 0.25, 0.2, 1, 1, 255, 255, 255, 255, "SECRET FOUND!");
-		}
-
 		break;
 	}
 	default:
@@ -359,14 +408,18 @@ bool Game_ChangeLevel(int level_index)
 	{
 		const char* level = LEVELS[level_index];
 
+		printf("Setting Level to %s\n", level);
+
 		if (!Map_Load(level))
 		{
 			Render_Resume();
 			return false;
 		}
-		Player_Init(false);
 
-		//Game_SetState(GS__LEVEL_END);
+		Map* map = Map_GetMap();
+		printf("Num Lines: %i, Num Sectors %i, Num Objects %i \n", map->num_line_segs, map->num_sectors, map->num_objects);
+
+		Player_Init(false);
 	}
 
 	game.level_index = level_index;

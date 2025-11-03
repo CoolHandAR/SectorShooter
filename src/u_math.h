@@ -87,6 +87,12 @@ inline float Math_sign_float(float x)
 {
 	return x > 0 ? +1.0f : (x < 0 ? -1.0f : 0.0f);
 }
+
+inline float Math_Smooth(float t) 
+{
+	return t * t * (3.0f - 2.0f * t);
+}
+
 inline float Math_move_towardf(float from, float to, float delta)
 {
 	return fabsf(to - from) <= delta ? to : from + Math_sign_float(to - from) * delta;
@@ -94,7 +100,11 @@ inline float Math_move_towardf(float from, float to, float delta)
 
 inline float Math_lerp(float from, float to, float t) 
 {
-	return from + t * (to - from);
+	return from + (to - from) * t;
+}
+inline float Math_SmoothInterp(float from, float to, float t)
+{
+	return from + Math_Smooth(t) * (to - from);
 }
 
 inline long double Math_fract2(long double x)
@@ -172,10 +182,22 @@ inline void Math_XY_Bounce(float x, float y, float nx, float ny, float* r_x, flo
 	*r_x = -t_x;
 	*r_y = -t_y;
 }
+inline float Math_XY_Cross(float x1, float y1, float x2, float y2)
+{
+	return x1 * y2 - y1 - x2;
+}
 inline float Math_XY_Angle(float x, float y)
 {
 	return atan2(y, x);
 }
+inline float Math_XY_AngleToPoint(float x1, float y1, float x2, float y2)
+{
+	float a = Math_XY_Cross(x1, y1, x2, y2);
+	float d = Math_XY_Dot(x1, y1, x2, y2);
+
+	return atan2(a, d);
+}
+
 inline void Math_XY_Rotate(float* x, float* y, float p_cos, float p_sin)
 {
 	float t_x = *x;
@@ -190,6 +212,42 @@ inline void Math_XY_RotateAngle(float* x, float* y, float angle)
 	float sin = sinf(angle);
 
 	Math_XY_Rotate(x, y, cos, sin);
+}
+inline float Math_XYZ_Dot(float x1, float y1, float z1, float x2, float y2, float z2)
+{
+	return x1 * x2 + y1 * y2 + z1 * z2;
+}
+inline float Math_XYZ_Length(float x, float y, float z)
+{
+	float dot = Math_XYZ_Dot(x, y, z, x, y, z);
+
+	return sqrtf(dot);
+}
+inline void Math_XYZ_Normalize(float* x, float* y, float* z)
+{
+	float x_local = *x;
+	float y_local = *y;
+	float z_local = *z;
+
+	float len = Math_XYZ_Length(x_local, y_local, z_local);
+
+	if (len == 0.0f)
+	{
+		*x = 0;
+		*y = 0;
+		*z = 0;
+		return;
+	}
+
+	float n = 1.0 / len;
+
+	x_local = x_local * n;
+	y_local = y_local * n;
+	z_local = z_local * n;
+
+	*x = x_local;
+	*y = y_local;
+	*z = z_local;
 }
 
 inline bool Math_TraceLineVsBox(float p_x, float p_y, float p_endX, float p_endY, float box_x, float box_y, float size, float* r_interX, float* r_interY, float* r_dist)

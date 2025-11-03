@@ -15,23 +15,28 @@
 #include "utility.h"
 #include "main.h"
 #include "sound.h"
+#include "u_math.h"
 
 #define WINDOW_SCALE 3
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 360
 #define WINDOW_NAME "FPS_GAME"
 
+#define MAX_STEPS 8
+#define TICKS_PER_SECOND 60.0
 
 typedef struct
 {
 	double time_scale;
 	double delta;
+	double lerp_fraction;
 	uint64_t ticks;
 	GLFWwindow* window;
 } EngineData;
 
 static EngineData s_engine;
 static double MIN_DT = 1.0 / 1000000.0;
+static const double TIME_STEP = 1.0 / TICKS_PER_SECOND;
 
 extern void Render_WindowCallback(GLFWwindow* window, int width, int height);
 
@@ -203,9 +208,14 @@ uint64_t Engine_GetTicks()
 {
 	return s_engine.ticks;
 }
-float Engine_GetDeltaTime()
+double Engine_GetDeltaTime()
 {
 	return s_engine.delta;
+}
+
+double Engine_GetLerpFraction()
+{
+	return s_engine.lerp_fraction;
 }
 
 void Engine_SetTimeScale(float scale)
@@ -238,8 +248,11 @@ int main()
 		return -1;
 	}
 
+	int min_steps = 100;
+	int max_steps = 0;
 	double lastTime = 0;
 	double currentTime = 0;
+	double accumulator = 0;
 
 	s_engine.time_scale = 1.0;
 
@@ -257,18 +270,32 @@ int main()
 	while (!glfwWindowShouldClose(s_engine.window) && Game_GetState() != GS__EXIT)
 	{
 		currentTime = glfwGetTime();
-		s_engine.delta = currentTime - lastTime;
+		float delta = currentTime - lastTime;
 		lastTime = currentTime;
 
-		s_engine.delta *= s_engine.time_scale;
+		delta *= s_engine.time_scale;
 
-		if (s_engine.delta < MIN_DT)
-		{
-			s_engine.delta = MIN_DT;
+		s_engine.delta = TIME_STEP;
+
+		accumulator += delta;
+		int steps = 0;
+		while (accumulator >= TIME_STEP && steps < MAX_STEPS)
+		{	
+			Game_LogicUpdate(TIME_STEP);
+			accumulator -= TIME_STEP;
+			steps++;
 		}
-		
-		Game_Update(s_engine.delta);
-		
+
+		min_steps = min(min_steps, steps);
+		max_steps = max(max_steps, steps);
+
+		double lerp_time = Math_Clampd(accumulator / TIME_STEP, 0.0, 1.0);
+
+		s_engine.delta = delta;
+		s_engine.lerp_fraction = lerp_time;
+
+		Game_SmoothUpdate(lerp_time, delta);
+
 		glfwPollEvents();
 
 		s_engine.ticks++;

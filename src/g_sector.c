@@ -169,6 +169,9 @@ void Door_Update(Object* obj, float delta)
 
 	Sector* sector = Map_GetSector(obj->sector_index);
 
+	obj->prev_x = sector->ceil;
+	obj->prev_y = sector->floor;
+
 	float speed = delta * obj->speed;
 	float ceil_clamp = sector->neighbour_sector_value;
 

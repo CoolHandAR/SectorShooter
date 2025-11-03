@@ -11,11 +11,8 @@
 
 #define TRACE_NO_HIT INT_MAX
 
-#define EMPTY_TILE 0
-#define DOOR_TILE 2
 #define NULL_INDEX -1
 #define MAX_OBJECTS 1024
-#define TILE_SIZE 64
 
 #define SECTOR_SLEEP 0
 #define SECTOR_OPEN 1
@@ -76,6 +73,8 @@ typedef struct
 
 	char status_msg[MAX_STATUS_MESSAGE];
 	float status_msg_timer;
+
+	int tick;
 } Game;
 
 //A lazy way to store assets, but good enough for now
@@ -92,6 +91,7 @@ typedef struct
 	Image pinky_texture;
 	Image bruiser_texture;
 	Image particle_textures;
+	Image decal_textures;
 	Image menu_texture;
 	Image missing_texture;
 
@@ -109,7 +109,10 @@ bool Game_Init();
 void Game_Exit();
 bool Game_LoadAssets();
 void Game_DestructAssets();
-void Game_Update(float delta);
+void Game_NewTick();
+int Game_GetTick();
+void Game_LogicUpdate(double delta);
+void Game_SmoothUpdate(double lerp, double delta);
 void Game_Draw(Image* image, FontData* fd);
 void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x);
 void Game_SetState(GameState state);
@@ -174,6 +177,7 @@ typedef enum
 	OT__LIFT,
 	OT__LIGHT_STROBER,
 	OT__PARTICLE,
+	OT__DECAL,
 	OT__MAX
 } ObjectType;
 
@@ -240,6 +244,9 @@ typedef enum
 	SUB__PARTICLE_WALL_HIT,
 	SUB__PARTICLE_MAX,
 
+	//DECALS
+	SUB__DECAL_WALL_HIT,
+
 	SUB__MAX
 } SubType;
 
@@ -260,7 +267,7 @@ typedef enum
 	OBJ_FLAG__DONT_COLLIDE_WITH_LINES = 1 << 7,
 
 	OBJ_FLAG__IGNORE_POSITION_CHECK = 1 << 8,
-	
+	OBJ_FLAG__IGNORE_SOUND = 1 << 9,
 } ObjectFlag;
 
 typedef struct
@@ -276,13 +283,16 @@ typedef struct
 	SubType sub_type;
 
 	float x, y, z;
+	float prev_x, prev_y, prev_z;
 	float vel_x, vel_y, vel_z;
 	float height;
 	float step_height;
-	float dropoff_height;
 	float dir_x, dir_y, dir_z;
 	float size;
 	float speed;
+
+	float floor_clamp;
+	float ceil_clamp;
 
 	int hp;
 
@@ -308,7 +318,10 @@ typedef struct
 	float stuck_timer;
 	DirEnum dir_enum;
 	int state;
+
+	bool sector_linked;
 } Object;
+
 typedef enum
 {
 	MF__NODE_NONE = 0,
@@ -316,6 +329,8 @@ typedef enum
 	MF__LINE_BLOCKING = 1,
 	MF__LINE_DONT_PEG_TOP = 8,
 	MF__LINE_DONT_PEG_BOTTOM = 16,
+	MF__LINE_SECRET = 32,
+	MF__LINE_DONT_DRAW = 128,
 	MF__LINE_MAPPED = 256,
 	MF__MAX
 } MapFlags;
@@ -384,6 +399,9 @@ typedef struct
 	int special;
 	int sector_object;
 
+	int sound_propogation_check;
+	
+	float r_floor, r_ceil;
 	float floor, ceil;
 	float base_floor, base_ceil;
 
@@ -461,6 +479,7 @@ Object* Map_GetObject(ObjectID id);
 Object* Map_FindObjectByUniqueID(int unique_id);
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot);
 void Map_UpdateObjects(float delta);
+void Map_SmoothUpdate(double lerp, double delta);
 void Map_DeleteObject(Object* obj);
 Subsector* Map_FindSubsector(float p_x, float p_y);
 Sector* Map_FindSector(float p_x, float p_y);
@@ -482,6 +501,7 @@ typedef struct
 	Object* obj;
 
 	float view_x, view_y, view_z;
+	float prev_x, prev_y;
 
 	float angle;
 	int move_x;
@@ -506,6 +526,8 @@ typedef struct
 	float gun_offset_x;
 	float gun_offset_y;
 
+	float current_speed;
+
 	int stored_hp;
 
 	GunType gun;
@@ -524,6 +546,7 @@ void Player_Rotate(float rot);
 void Player_Hurt(float dir_x, float dir_y);
 void Player_HandlePickup(Object* obj);
 void Player_Update(GLFWwindow* window, float delta);
+void Player_LerpUpdate(double lerp, double delta);
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle);
 void Player_MouseCallback(float x, float y);
 void Player_Draw(Image* image, FontData* font);
@@ -535,11 +558,11 @@ void Player_SetSensitivity(float sens);
 //Movement stuff
 float Move_GetLineDot(float x, float y, Line* line);
 void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_line);
-bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex);
+bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex, float* r_floorZ, float* r_ceilZ);
 bool Move_SetPosition(Object* obj, float x, float y, float size);
 bool Move_CheckStep(Object* obj, float p_stepX, float p_stepY, float p_size);
 bool Move_ZMove(Object* obj, float p_moveZ);
-bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide);
+bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_slide);
 bool Move_Unstuck(Object* obj);
 bool Move_Teleport(Object* obj, float x, float y);
 bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_minFloorClamp, float p_maxFloorFlamp, float p_minCeilClamp, float p_maxCeilClamp, bool p_crush);
@@ -548,7 +571,7 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 bool Check_CanObjectFitInSector(Object* obj, Sector* sector, Sector* backsector);
 
 //Missile stuff
-void Missile_Update(Object* obj, float delta);
+void Missile_Update(Object* obj, double delta);
 void Missile_DirectHit(Object* obj, Object* target);
 void Missile_Explode(Object* obj);
 
@@ -563,13 +586,14 @@ int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y
 int Trace_AreaObjects(Object* obj, float x, float y, float size);
 int Trace_SectorObjects(Sector* sector);
 int Trace_SectorLines(Sector* sector);
+int Trace_SectorAll(Sector* sector);
 
 //Object stuff
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
 void Object_UnlinkSector(Object* obj);
 void Object_LinkSector(Object* obj);
 bool Object_IsSectorLinked(Object* obj);
-void Object_Hurt(Object* obj, Object* src_obj, int damage);
+void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive);
 bool Object_Crush(Object* obj);
 bool Object_CheckLineToTarget(Object* obj, Object* target);
 bool Object_CheckSight(Object* obj, Object* target);
@@ -579,6 +603,7 @@ bool Object_HandleSwitch(Object* obj);
 void Object_HandleTriggers(Object* obj, Object* trigger);
 Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float z);
 int Object_AreaEffect(Object* obj, float radius);
+void Object_ConsumePickup(Object* obj);
 
 //Event Stuff
 typedef enum
@@ -607,17 +632,23 @@ void DirEnumToDirEnumVector(DirEnum dir, DirEnum* r_x, DirEnum* r_y);
 //Particle stuff
 void Particle_Update(Object* obj, float delta);
 
+//Decal stuff
+void Decal_Update(Object* obj, float delta);
+
 //Monster stuff
 void Monster_Spawn(Object* obj);
 void Monster_SetState(Object* obj, int state);
+void Monster_SetTarget(Object* obj, Object* target);
+void Monster_UpdateSpriteAnimation(Object* obj, float delta);
 void Monster_Update(Object* obj, float delta);
 void Monster_Imp_FireBall(Object* obj);
 void Monster_Bruiser_FireBall(Object* obj);
 void Monster_Melee(Object* obj);
+void Monster_WakeAll(Object* waker);
 
 //Visual map stuff
 void VisualMap_Init();
-void VisualMap_Update(GLFWwindow* window, float delta);
+void VisualMap_Update(GLFWwindow* window, double delta);
 void VisualMap_Draw(Image* image, FontData* font);
 int VisualMap_GetMode();
 
@@ -639,9 +670,12 @@ int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y);
 
 //LINE CHECK STUFF
 int Line_PointSide(Line* line, float p_x, float p_y);
+int LineSide_PointSide(Line* line, float p_x, float p_y);
 int Line_BoxOnPointSide(Line* line, float p_bbox[2][2]);
+int LineSide_BoxOnPointSide(Line* line, float p_bbox[2][2]);
 float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line);
 float Line_InterceptLine(Line* line1, Line* line2);
+float LineSide_InterceptLine(Line* line1, Line* line2);
 bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float *r_interY);
-
+bool LineSide_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY);
 #endif

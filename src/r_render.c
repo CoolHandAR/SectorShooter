@@ -9,8 +9,6 @@
 #include "utility.h"
 #include "u_math.h"
 
-#define NUM_RENDER_THREADS 11
-
 static const char* VERTEX_SHADER_SOURCE[] =
 {
 	"#version 330 core \n"
@@ -48,7 +46,6 @@ static const char* FRAGMENT_SHADER_SOURCE[] =
 typedef struct
 {
 	int render_ticks;
-	int threads_finished;
 
 	short* clip_y_top;
 	short* clip_y_bottom;
@@ -58,6 +55,10 @@ typedef struct
 
 	short* ceil_plane_ytop;
 	short* ceil_plane_ybottom;
+
+	short* span_end;
+
+	float* yslopes;
 
 	GLuint gl_texture, gl_vao, gl_vbo, gl_shader;
 
@@ -77,7 +78,9 @@ typedef struct
 
 	FontData font_data;
 
-	RenderThread threads[NUM_RENDER_THREADS];
+	int threads_finished;
+	int num_threads;
+	RenderThread* threads;
 
 	RenderData render_data;
 
@@ -179,6 +182,7 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 	drawing_args.floor_plane_ybottom = s_renderCore.floor_plane_ybottom;
 	drawing_args.ceil_plane_ytop = s_renderCore.ceil_plane_ytop;
 	drawing_args.ceil_plane_ybottom = s_renderCore.ceil_plane_ybottom;
+	drawing_args.yslope = s_renderCore.yslopes;
 	drawing_args.depth_buffer = s_renderCore.depth_buffer;
 	drawing_args.h_fov = s_renderCore.hfov * (float)s_renderCore.h;
 	drawing_args.v_fov = s_renderCore.vfov * (float)s_renderCore.h;
@@ -192,15 +196,19 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 	//draw draw collumns
 	Scene_DrawDrawCollumns(&s_renderCore.framebuffer, &drawing_args.render_data->draw_collums, s_renderCore.depth_buffer);
 	
-
-	//draw sprites
+	//draw sprites and decals
 	for (int i = 0; i < render_data->num_draw_sprites; i++)
 	{
 		DrawSprite* sprite = &render_data->draw_sprites[i];
 
-		sprite->scale_x = 32;
-		sprite->scale_y = 32;
-		Video_DrawSprite3(&s_renderCore.framebuffer, &drawing_args, sprite);
+		if (sprite->decal_line_index >= 0)
+		{
+			Video_DrawDecalSprite(&s_renderCore.framebuffer, &drawing_args, sprite);
+		}
+		else
+		{
+			Video_DrawSprite(&s_renderCore.framebuffer, &drawing_args, sprite);
+		}	
 	}
 }
 
@@ -214,8 +222,6 @@ static void Render_MainThreadLoop()
 	float view_y = 0;
 	float view_z = 0;
 	float angle = 0;
-	float angle_cos = 0;
-	float angle_sin = 0;
 
 	SetEvent(s_renderCore.main_thread_active_event);
 
@@ -265,7 +271,6 @@ static void Render_MainThreadLoop()
 
 static void Render_ThreadLoop(RenderThread* thread)
 {
-
 	Map* map = Map_GetMap();
 
 	int start_tick = s_renderCore.render_ticks;
@@ -338,7 +343,7 @@ static void Render_WaitForAllThreads()
 {
 	EnterCriticalSection(&s_renderCore.end_mutex);
 
-	while (s_renderCore.threads_finished < NUM_RENDER_THREADS)
+	while (s_renderCore.threads_finished < s_renderCore.num_threads)
 	{
 		SleepConditionVariableCS(&s_renderCore.end_work_cv, &s_renderCore.end_mutex, INFINITE);
 	}
@@ -378,22 +383,22 @@ static void Render_ResumeMainThread()
 	WaitForSingleObject(s_renderCore.main_thread_active_event, INFINITE);
 }
 
-static void Render_SetThreadsStartAndEnd(int width)
+static void Render_SetThreadsStartAndEnd(int width, int height)
 {
-	float num_threads = NUM_RENDER_THREADS;
+	float num_threads = s_renderCore.num_threads;
 	int slice = ceil((float)width / num_threads);
 
 	int x_start = 0;
 	int x_end = slice;
 
-	for (int i = 0; i < NUM_RENDER_THREADS; i++)
+	for (int i = 0; i < s_renderCore.num_threads; i++)
 	{
 		RenderThread* thr = &s_renderCore.threads[i];
 
 		thr->x_start = x_start;
 		thr->x_end = x_end;
 
-		RenderUtl_Resize(&thr->render_data, width, thr->x_start, thr->x_end);
+		RenderUtl_Resize(&thr->render_data, width, height, thr->x_start, thr->x_end);
 
 		x_start = x_end;
 		x_end += slice;
@@ -401,6 +406,8 @@ static void Render_SetThreadsStartAndEnd(int width)
 		x_start = Math_Clampl(x_start, 0, width);
 		x_end = Math_Clampl(x_end, 0, width);
 	}
+
+	printf("Render Thread Slice: %i\n", slice);
 }
 
 static bool Render_SetupGL(int width, int height)
@@ -545,7 +552,20 @@ bool Render_Init(int width, int height)
 	s_renderCore.main_thread_active_event = CreateEvent(NULL, TRUE, FALSE, NULL);
 	s_renderCore.main_thread_standby_event = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	for (int i = 0; i < NUM_RENDER_THREADS; i++)
+	int num_threads = QueryNumLogicalProcessors();
+
+	if (num_threads <= 0)
+	{
+		num_threads = 1;
+	}
+	s_renderCore.threads = calloc(num_threads, sizeof(RenderThread));
+
+	if (!s_renderCore.threads)
+	{
+		return false;
+	}
+
+	for (int i = 0; i < num_threads; i++)
 	{
 		RenderThread* thr = &s_renderCore.threads[i];
 
@@ -555,9 +575,11 @@ bool Render_Init(int width, int height)
 		thr->thread_handle = CreateThread(NULL, 0, Render_ThreadLoop, thr, 0, &render_thread_id);
 	}
 
-	Render_ResizeWindow(width, height);
+	s_renderCore.num_threads = num_threads;
 
-	Scene_Setup(width, height, (float)width * s_renderCore.hfov, (float)height * s_renderCore.vfov);
+	printf("Initialized Render Threads: %i \n", s_renderCore.num_threads);
+
+	Render_ResizeWindow(width, height);
 
 	return true;
 }
@@ -573,7 +595,7 @@ void Render_ShutDown()
 	Render_SetWorkStateForAllThreads(TWT__EXIT);
 	Render_WaitForAllThreads();
 
-	for (int i = 0; i < NUM_RENDER_THREADS; i++)
+	for (int i = 0; i < s_renderCore.num_threads; i++)
 	{
 		RenderThread* thr = &s_renderCore.threads[i];
 
@@ -603,12 +625,14 @@ void Render_ShutDown()
 	if (s_renderCore.floor_plane_ybottom) free(s_renderCore.floor_plane_ybottom);
 	if (s_renderCore.ceil_plane_ytop) free(s_renderCore.ceil_plane_ytop);
 	if (s_renderCore.ceil_plane_ybottom) free(s_renderCore.ceil_plane_ybottom);
+	if (s_renderCore.yslopes) free(s_renderCore.yslopes);
+	if (s_renderCore.threads) free(s_renderCore.threads);
 }
 
 
 void Render_LockThreadsMutex()
 {
-	for (int i = 0; i < NUM_RENDER_THREADS; i++)
+	for (int i = 0; i < s_renderCore.num_threads; i++)
 	{
 		RenderThread* thr = &s_renderCore.threads[i];
 
@@ -618,7 +642,7 @@ void Render_LockThreadsMutex()
 
 void Render_UnlockThreadsMutex()
 {
-	for (int i = 0; i < NUM_RENDER_THREADS; i++)
+	for (int i = 0; i < s_renderCore.num_threads; i++)
 	{
 		RenderThread* thr = &s_renderCore.threads[i];
 
@@ -684,9 +708,7 @@ void Render_QueueFullscreenShader(ShaderFun shader_fun)
 void Render_ResizeWindow(int width, int height)
 {
 	Render_FinishAndStall();
-	Render_SetThreadsStartAndEnd(width);
-
-	Scene_Setup(width, height, s_renderCore.hfov, s_renderCore.vfov);
+	Render_SetThreadsStartAndEnd(width, height);
 
 	Image_Resize(&s_renderCore.framebuffer, width, height);
 
@@ -730,8 +752,21 @@ void Render_ResizeWindow(int width, int height)
 	if (s_renderCore.ceil_plane_ybottom) free(s_renderCore.ceil_plane_ybottom);
 	s_renderCore.ceil_plane_ybottom = calloc(width + 2, sizeof(short));
 
+	if (s_renderCore.span_end) free(s_renderCore.span_end);
+	s_renderCore.span_end = calloc(width + 2, sizeof(short));
+
+	if (s_renderCore.yslopes) free(s_renderCore.yslopes);
+	s_renderCore.yslopes = calloc(height + 2, sizeof(float));
+
+	for (int y = 0; y < height + 2; y++)
+	{
+		s_renderCore.yslopes[y] = ((height * s_renderCore.vfov) / ((height / 2.0 - ((float)y)) - 0.0 * height * s_renderCore.vfov));
+	}
+
 	s_renderCore.w = width;
 	s_renderCore.h = height;
+
+	printf("Window size: %i W, %i H \n", s_renderCore.w, s_renderCore.h);
 
 	Render_SizeChanged();
 

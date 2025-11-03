@@ -14,12 +14,12 @@
 #define PLAYER_MAX_HP 100
 #define PLAYER_MAX_AMMO 100
 #define PLAYER_OVERHEAL_HP_TICK_TIME 0.25
-#define PLAYER_SPEED 100
+#define PLAYER_SPEED 150
 #define MOUSE_SENS_DIVISOR 1000
 #define MIN_SENS 0.5
 #define MAX_SENS 16
 #define XY_VIEW_LERP 100
-#define Z_VIEW_LERP 20
+#define Z_VIEW_LERP 3
 
 static const float PI = 3.14159265359;
 
@@ -101,6 +101,10 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		return;
 	}
 
+	float origin_x = inter_x;
+	float origin_y = inter_y;
+	float origin_z = inter_z;
+
 	float dx = (p_x + p_dirX) - p_x;
 	float dy = (p_y + p_dirY) - p_y;
 
@@ -108,6 +112,7 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 
 	inter_x = p_x + dx * frac;
 	inter_y = p_y + dy * frac;
+	
 
 	//hit a an object
 	if (hit >= 0)
@@ -145,14 +150,21 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 			player.hit_timer = HIT_TIME;
 		}
 
-		Object_Hurt(hit_obj, player.obj, dmg);
+		Object_Hurt(hit_obj, player.obj, dmg, false);
 	}
 	else
 	{
+		//hit a wall
+		//spawn wall dust
 		Object_Spawn(OT__PARTICLE, SUB__PARTICLE_WALL_HIT, inter_x, inter_y, inter_z);
+
+		//spawn bullet hole decal
+		Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_WALL_HIT, inter_x, inter_y, inter_z);
+
+		decal->sprite.decal_line_index = -(hit + 1);
 	}
 
-	return;
+	Monster_WakeAll(player.obj);
 }
 
 static void Player_Use()
@@ -581,9 +593,9 @@ void Player_Init(int keep)
 	player.view_y = player.obj->y;
 	player.view_z = 0;
 
-	player.obj->height = 45;
+	player.obj->speed = PLAYER_SPEED;
+	player.obj->height = 100;
 	player.obj->step_height = 32;
-	player.obj->dropoff_height = 32;
 
 	Player_SetupGunSprites();
 
@@ -752,13 +764,19 @@ void Player_HandlePickup(Object* obj)
 	if (player.buck_ammo >= PLAYER_MAX_AMMO) player.buck_ammo = PLAYER_MAX_AMMO;
 	if (player.rocket_ammo >= PLAYER_MAX_AMMO) player.rocket_ammo = PLAYER_MAX_AMMO;
 
-	//delete the object
-	Map_DeleteObject(obj);
+	//"delete" the object
+	Object_ConsumePickup(obj);
 }
 
 static void Player_Move(float dirx, float diry, float delta)
 {
-	Move_Object(player.obj, dirx * delta, diry * delta, true);
+	player.obj->speed = PLAYER_SPEED;
+	if (player.slow_move == 1) player.obj->speed *= 0.5;
+
+	player.prev_x = player.obj->x;
+	player.prev_y = player.obj->y;
+
+	Move_Object(player.obj, dirx, diry, delta, true);
 	Move_ZMove(player.obj, GRAVITY_SCALE * delta);
 }
 
@@ -786,24 +804,24 @@ void Player_Update(GLFWwindow* window, float delta)
 	if (player.obj->hp > 0)
 	{
 		//move player
-		float speed = PLAYER_SPEED;
-		if (player.slow_move == 1) speed *= 0.5;
-
 		float dir_x = (player.move_x * cosf(player.angle) + (player.move_y * cosf(player.angle - Math_DegToRad(90.0))));
 		float dir_y = (player.move_x * sinf(player.angle) + (player.move_y * sinf(player.angle - Math_DegToRad(90.0))));
 
-		Player_Move(dir_x * speed, dir_y * speed, delta);
+		Player_Move(dir_x, dir_y, delta);
 	}
 
 	//bob gun
 	if (player.move_x != 0 || player.move_y != 0)
 	{
-		float bob_amp = 0.001;
+		float bob_amp = 0.003;
 		float bob_freq = 16;
+
+		float player_speed = Math_XY_Length(player.obj->vel_x, player.obj->vel_y);
 
 		if (player.slow_move == 1) bob_freq *= 0.5;
 			
 		player.bob += delta;
+		bob_freq += player_speed;
 
 		player.gun_offset_x = cosf(player.bob * bob_freq / bob_freq) * bob_amp;
 		player.gun_offset_y = sinf(player.bob * bob_freq) * bob_amp;
@@ -811,13 +829,23 @@ void Player_Update(GLFWwindow* window, float delta)
 	//smooth view lerp
 	if (XY_VIEW_LERP > 0)
 	{
-		player.view_x = Math_lerp(player.view_x, player.obj->x, XY_VIEW_LERP * delta);
-		player.view_y = Math_lerp(player.view_y, player.obj->y, XY_VIEW_LERP * delta);
+		//player.view_x = Math_lerp(player.view_x, player.obj->x, XY_VIEW_LERP * delta);
+		//player.view_y = Math_lerp(player.view_y, player.obj->y, XY_VIEW_LERP * delta);
+	}
+	else
+	{
+		//player.view_x = player.obj->x;
+		//player.view_y = player.obj->y;
 	}
 	if (Z_VIEW_LERP > 0)
 	{
-		player.view_z = Math_lerp(player.view_z, player.obj->z + player.obj->height, Z_VIEW_LERP * delta);
+		//player.view_z = Math_lerp(player.view_z, player.obj->z + player.obj->height, Z_VIEW_LERP * delta);
 	}
+	else
+	{
+		//player.view_z = player.obj->z + player.obj->height;
+	}
+	
 
 	//make sure to reset the frame
 	if (!player.gun_sprites[player.gun].playing)
@@ -827,6 +855,36 @@ void Player_Update(GLFWwindow* window, float delta)
 
 	//hacky way to store hp, since we reset the map objects on map change 
 	player.stored_hp = player.obj->hp;
+}
+
+void Player_LerpUpdate(double lerp, double delta)
+{
+	if (!player.obj)
+	{
+		return;
+	}
+
+	double exp_lerp = exp2(lerp * delta);
+
+	//smooth view lerp
+	if (XY_VIEW_LERP > 0)
+	{
+		player.view_x = player.obj->x * lerp + player.prev_x * (1.0 - lerp);
+		player.view_y = player.obj->y * lerp + player.prev_y * (1.0 - lerp);
+	}
+	else
+	{
+		player.view_x = player.obj->x;
+		player.view_y = player.obj->y;
+	}
+	if (Z_VIEW_LERP > 0)
+	{
+		player.view_z = (player.obj->z + player.obj->height) * lerp + (player.obj->prev_z + player.obj->height) * (1.0 - lerp);
+	}
+	else
+	{
+		player.view_z = player.obj->z + player.obj->height;
+	}
 }
 
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle)

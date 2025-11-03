@@ -237,14 +237,10 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 				}
 			}
 		}
-		
 
 		if (hit == TRACE_NO_HIT || best_frac >= 1)
 		{
 			Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size);
-			
-			obj->vel_x = p_moveX;
-			obj->vel_y = p_moveY;
 
 			return true;
 		}
@@ -265,9 +261,6 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 		{
 			return true;
 		}
-		
-		obj->vel_x = p_moveX;
-		obj->vel_y = p_moveY;
 	}
 
 	return true;
@@ -337,7 +330,7 @@ void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_li
 	*r_dy = clip_line->dy * den;
 }
 
-bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex)
+bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex, float* r_floorZ, float* r_ceilZ)
 {
 	Sector* new_sector = Map_FindSector(x, y);
 
@@ -347,56 +340,97 @@ bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sector
 	
 	bool on_ground = (obj->z <= floor);
 
+	float old_z = obj->z;
+
+	if (obj->z <= new_sector->floor)
+	{
+		//obj->z = new_sector->floor;
+	}
+	if (obj->z + obj->height > new_sector->ceil)
+	{
+		//obj->z = new_sector->ceil - obj->height;
+	}
+
 	if (!Trace_CheckBoxPosition(obj, x, y, size, &floor, &ceil, &low_floor))
 	{
+		obj->z = old_z;
 		return false;
 	}
 
-	float range = max(ceil, floor) - min(ceil, floor);
+	float range = ceil - floor;
 
 	//can't fit in gap
 	if (range < obj->height)
 	{
+		obj->z = old_z;
 		return false;
 	}
 	//you will bonk your head
 	if (ceil - obj->z < obj->height)
 	{
+		obj->z = old_z;
 		return false;
 	}
-	//you are too short for stepping over
-	if (floor - obj->z > obj->step_height && on_ground)
+	if (obj->type == OT__MISSILE)
 	{
-		return false;
+		if (floor - obj->z > obj->height)
+		{
+			obj->z = old_z;
+			return false;
+		}
 	}
-	//too big of a fall
-	if ((floor - low_floor) > obj->step_height)
+	else
 	{
-		//return false;
+		//you are too short for stepping over
+		if (floor - obj->z > obj->step_height)
+		{
+			obj->z = old_z;
+			return false;
+		}
+		//too big of a fall
+		if (obj->type != OT__PLAYER)
+		{
+			if ((floor - low_floor) > obj->step_height)
+			{
+				obj->z = old_z;
+				return false;
+			}
+		}
 	}
 
 	if (r_sectorIndex) *r_sectorIndex = new_sector->index;
-	
+	if (r_floorZ) *r_floorZ = floor;
+	if (r_ceilZ) *r_ceilZ = ceil;
+
+	obj->z = old_z;
 
 	return true;
 }
 bool Move_SetPosition(Object* obj, float x, float y, float size)
 {
+	obj->prev_x = obj->x;
+	obj->prev_y = obj->y;
+
 	int new_sector_index = -1;
+
+	float floor_z = 0;
+	float ceil_z = 0;
 
 	if (!(obj->flags & OBJ_FLAG__IGNORE_POSITION_CHECK))
 	{
 		//just spawned? try to corrent to proper position
-		if (obj->sector_index < 0)
+		if (obj->sector_index < 0 && obj->type != OT__MISSILE)
 		{
 			Sector* new_sector = Map_FindSector(x, y);
 
 			obj->z = new_sector->floor;
+			floor_z = new_sector->floor;
+			ceil_z = new_sector->ceil;
 			new_sector_index = new_sector->index;
 		}
 		else
 		{
-			if (!Move_CheckPosition(obj, x, y, size, &new_sector_index))
+			if (!Move_CheckPosition(obj, x, y, size, &new_sector_index, &floor_z, &ceil_z))
 			{
 				return false;
 			}
@@ -407,10 +441,9 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 		Sector* new_sector = Map_FindSector(x, y);
 
 		new_sector_index = new_sector->index;
+		floor_z = new_sector->floor;
+		ceil_z = new_sector->ceil;
 	}
-
-
-	Render_LockObjectMutex(true);
 
 	float old_pos_x = obj->x;
 	float old_pos_y = obj->y;
@@ -419,21 +452,22 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 	obj->x = x;
 	obj->y = y;
 
-	//also update sprite
-	obj->sprite.x = obj->x + obj->sprite.offset_x;
-	obj->sprite.y = obj->y + obj->sprite.offset_y;
-	obj->sprite.z = obj->z + obj->sprite.offset_z;
+	//update clamp
+	obj->ceil_clamp = ceil_z;
+	obj->floor_clamp = floor_z;
 
 	//setup sector links
 	if (new_sector_index != obj->sector_index)
 	{
+		Render_LockObjectMutex(true);
+
 		Object_UnlinkSector(obj);
 
 		obj->sector_index = new_sector_index;
 		Object_LinkSector(obj);
+
+		Render_UnlockObjectMutex(true);
 	}
-	
-	Render_UnlockObjectMutex(true);
 
 	//update bvh
 	if (obj->spatial_id >= 0)
@@ -481,62 +515,94 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 
 bool Move_CheckStep(Object* obj, float p_stepX, float p_stepY, float p_size)
 {
-	return Move_CheckPosition(obj, obj->x + p_stepX, obj->y + p_stepY, p_size, NULL);
+	return Move_CheckPosition(obj, obj->x + p_stepX, obj->y + p_stepY, p_size, NULL, NULL, NULL);
 }
 
 bool Move_ZMove(Object* obj, float p_moveZ)
 {
-	//should not happen
-	if (obj->sector_index < 0)
-	{
-		return false;
-	}
-	Map* map = Map_GetMap();	
-	Sector* sector = &map->sectors[obj->sector_index];
-
 	float next_z = obj->z + p_moveZ;
-	float z = obj->z;
+	float z = next_z;
 
-	if (p_moveZ < 0 && next_z < sector->floor + obj->height)
+	obj->prev_z = obj->z;
+
+	if (!(obj->flags & OBJ_FLAG__IGNORE_POSITION_CHECK))
 	{
-		z = sector->floor + obj->height;
-	}
-	else if (p_moveZ > 0 && next_z > sector->ceil)
-	{
-		z = obj->z;
-	}
-	else
-	{
-		z = next_z;
+		if (next_z <= obj->floor_clamp)
+		{
+			if (obj->type == OT__MISSILE)
+			{
+				return false;
+			}
+
+			z = obj->floor_clamp;
+		}
+		if (next_z + obj->height > obj->ceil_clamp)
+		{
+			if (obj->type == OT__MISSILE)
+			{
+				return false;
+			}
+
+			z = obj->ceil_clamp - obj->height;
+		}
 	}
 
+	obj->vel_z = p_moveZ;
 	obj->z = z;
-	obj->sprite.z = obj->z + obj->sprite.offset_z;
 
 	return true;
 }
 
-bool Move_Object(Object* obj, float p_moveX, float p_moveY, bool p_slide)
+bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_slide)
 {
+	obj->prev_x = obj->x;
+	obj->prev_y = obj->y;
+
+	bool moved = false;
+
+	float max_speed = obj->speed * delta;
+	float friction = 1.0 - (2 * delta);
+	float stop_speed = 2 * delta;
+	//apply friction
+	if (obj->type == OT__PLAYER)
+	{
+		obj->vel_x += p_moveX * max_speed;
+		obj->vel_y += p_moveY * max_speed;
+
+		obj->vel_x *= friction;
+		obj->vel_y *= friction;
+
+		if (fabs(obj->vel_x) < stop_speed && fabs(obj->vel_y) < stop_speed)
+		{
+			//obj->vel_x = 0;
+			//obj->vel_y = 0;
+		}
+	}
+	else
+	{
+		obj->vel_x = p_moveX * max_speed;
+		obj->vel_y = p_moveY * max_speed;
+	}
+
+	obj->vel_x = Math_Clamp(obj->vel_x, -max_speed, max_speed);
+	obj->vel_y = Math_Clamp(obj->vel_y, -max_speed, max_speed);
+
 	//nothing to move
-	if (p_moveX == 0 && p_moveY == 0)
+	if (Math_IsZeroApprox(obj->vel_x) && Math_IsZeroApprox(obj->vel_y))
 	{
 		return false;
 	}
 
-	bool moved = false;
-
 	if (p_slide)
 	{
 		//returns true if we moved the full ammount
-		moved = Move_ClipMove(obj, p_moveX, p_moveY);
+		moved = Move_ClipMove(obj, obj->vel_x, obj->vel_y);
 	}
 	else
 	{
 		//return true if we moved
-		moved = Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size);
+		moved = Move_SetPosition(obj, obj->x + obj->vel_x, obj->y + obj->vel_y, obj->size);
 	}
-	
 
 	return moved;
 }
@@ -557,7 +623,7 @@ bool Move_Unstuck(Object* obj)
 		int x_sign = (rand() % 100 > 50) ? 1 : -1;
 		int y_sign = (rand() % 100 > 50) ? 1 : -1;
 
-		if (Move_Object(obj, x_random * x_sign, y_random * y_sign, false))
+		if (Move_Object(obj, x_random * x_sign, y_random * y_sign, Engine_GetDeltaTime(), false))
 		{
 			return true;
 		}
@@ -618,8 +684,10 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 			continue;
 		}
 
+		Move_SetPosition(obj, obj->x, obj->y, obj->size);
+
 		//obj will be not be crushed
-		if (next_ceil - next_floor >= obj->height * 2.0)
+		if (next_ceil - next_floor >= obj->height)
 		{
 			continue;
 		}

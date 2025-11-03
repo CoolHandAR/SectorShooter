@@ -97,6 +97,23 @@ ParticleInfo* Info_GetParticleInfo(int sub_type)
 	return &PARTICLE_INFOS[index];
 }
 
+DecalInfo* Info_GetDecalInfo(int sub_type)
+{
+	int arr_size = sizeof(DECAL_INFOS) / sizeof(DECAL_INFOS[0]);
+	int index = sub_type - SUB__DECAL_WALL_HIT;
+
+	if (index < 0)
+	{
+		index = 0;
+	}
+	else if (index >= arr_size)
+	{
+		index = arr_size - 1;
+	}
+
+	return &DECAL_INFOS[index];
+}
+
 MissileInfo* Info_GetMissileInfo(int sub_type)
 {
 	int arr_size = sizeof(MISSILE_INFO) / sizeof(MISSILE_INFO[0]);
