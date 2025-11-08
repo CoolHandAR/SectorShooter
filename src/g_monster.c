@@ -67,21 +67,17 @@ typedef enum
 	ROT__BACK
 } RotType;
 
-static const RotType SPRITE_ROTATION_OFFSET_LUT[11] =
+static const RotType SPRITE_ROTATION_OFFSET_LUT[8] =
 {
 	ROT__FORWARD, //0
 	ROT__FORWARD_SIDE, //1
 	ROT__SIDE, //2,
-	ROT__BACK, //3
+	ROT__BACK_SIDE, //3
 	ROT__BACK, //4
-	ROT__SIDE, //5
-	ROT__FORWARD_SIDE, //6
-	ROT__FORWARD, //7
-	ROT__BACK_SIDE, //8 (3 + 5)
-	ROT__BACK_SIDE, //9 (4 + 5)
-	ROT__FORWARD, //10
+	ROT__BACK_SIDE, //5
+	ROT__SIDE, //6
+	ROT__FORWARD_SIDE, //7
 };
-
 typedef enum
 {
 	MSOUND__ALERT,
@@ -98,7 +94,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	{
 	case MSOUND__ALERT:
 	{
-		switch (obj->type)
+		switch (obj->sub_type)
 		{
 		case SUB__MOB_IMP:
 		{
@@ -122,7 +118,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	}
 	case MSOUND__HIT:
 	{
-		switch (obj->type)
+		switch (obj->sub_type)
 		{
 		case SUB__MOB_IMP:
 		{
@@ -146,7 +142,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	}
 	case MSOUND__DEATH:
 	{
-		switch (obj->type)
+		switch (obj->sub_type)
 		{
 		case SUB__MOB_IMP:
 		{
@@ -170,7 +166,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	}
 	case MSOUND__ATTACK:
 	{
-		switch (obj->type)
+		switch (obj->sub_type)
 		{
 		case SUB__MOB_IMP:
 		{
@@ -201,38 +197,30 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, 0, 0, 0);
 	}
 }
-
 static MonsterAnimState Monster_GetAnimState(Object* obj)
 {
-	float view_x, view_y;
-	Player_GetView(&view_x, &view_y, NULL, NULL, NULL, NULL);
+	float view_x, view_y, view_angle;
+	Player_GetView(&view_x, &view_y, NULL, NULL, &view_angle);
 
-	Object* pl = Player_GetObj();
+	float view_to_obj_angle = Math_XY_Angle(view_x - obj->x, view_y - obj->y);
+	float obj_angle = Math_XY_Angle(obj->dir_x, obj->dir_y);
 
-	if (pl)
+	int rot = Math_RadToDeg(view_to_obj_angle - obj_angle) + 22.5;
+
+	if (rot > 360)
 	{
-		view_x = pl->prev_x;
-		view_y = pl->prev_y;
+		rot = 0;
+	}
+	else if (rot < 0)
+	{
+		rot = 360 + rot;
 	}
 
-	float angle = atan2(obj->prev_y - view_y, obj->prev_x - view_x);
-	float obj_angle = atan2(-obj->dir_y, -obj->dir_x);
-	 
-	float rotation = angle - obj_angle;
-	rotation += Math_DegToRad(45.0 / 2.0 * 9 - 180 / 16);
-
-	float abs_dir = fabs(rotation);
-	int round_dir = roundl(abs_dir);
-	float fraction = abs_dir - round_dir;
-
-	int sign = (round_dir >= 7) ? 1 : -1;
-
-	obj->sprite.flip_h = false;
-	round_dir = abs(round_dir - 3);
+	int index = Math_Clampl(rot / 45, 0, 7);
 
 	if (obj->state != MS__DIE)
 	{
-		if (round_dir >= 4)
+		if (index >= 5)
 		{
 			obj->sprite.flip_h = true;
 		}
@@ -241,53 +229,36 @@ static MonsterAnimState Monster_GetAnimState(Object* obj)
 			obj->sprite.flip_h = false;
 		}
 	}
-
-	if (obj->state != MS__HIT)
-	{
-		//hack!!
-		if ((fraction < 0.1 && round_dir == 3) || (fraction > 0.1 && round_dir == 4))
-		{
-			round_dir += 5;
-		}
-		else if ((fraction > 0 && round_dir == 6) || (fraction < 0 && round_dir == 1))
-		{
-			round_dir = 0;
-		}
-	}
-	if (round_dir > 11)
-	{
-		round_dir = 0;
-	}
-
+	
 	if (obj->state == MS__WALK || obj->state == MS__IDLE)
 	{
-		RotType offset = MAS__WALK_FORWARD + SPRITE_ROTATION_OFFSET_LUT[round_dir];
+		RotType offset = MAS__WALK_FORWARD + SPRITE_ROTATION_OFFSET_LUT[index];
 
 		return offset;
 	}
 	else if (obj->state == MS__MISSILE)
 	{
-		RotType offset = MAS__ATTACK_FORWARD + SPRITE_ROTATION_OFFSET_LUT[round_dir];
+		RotType offset = MAS__ATTACK_FORWARD + SPRITE_ROTATION_OFFSET_LUT[index];
 
 		return offset;
 	}
 	else if (obj->state == MS__MELEE)
 	{
-		RotType offset = MAS__MELEE_FORWARD + SPRITE_ROTATION_OFFSET_LUT[round_dir];
+		RotType offset = MAS__MELEE_FORWARD + SPRITE_ROTATION_OFFSET_LUT[index];
 
 		return offset;
 	}
 	else if (obj->state == MS__HIT)
 	{
-		if (round_dir == 0 || round_dir == 1 || round_dir == 6 || round_dir == 7)
+		if (index == 0 || index == 1 || index == 7)
 		{
 			return MAS__HIT_FORWARD;
 		}
-		else if (round_dir == 2 || round_dir == 5)
+		else if (index == 2 || index == 6)
 		{
 			return MAS__HIT_SIDE;
 		}
-		else if (round_dir == 3 || round_dir == 4)
+		else if (index == 4 || index == 5 || index == 3)
 		{
 			return MAS__HIT_BACK;
 		}
@@ -320,29 +291,30 @@ void Monster_UpdateSpriteAnimation(Object* obj, float delta)
 	s->frame_offset_y = anim_info->y_offset;
 	s->looping = anim_info->looping;
 	s->anim_speed_scale = 0.5;
-	s->playing = true;
+	
+	if (anim_info->action_fun)
+	{
+		s->action_frame = anim_info->action_frame;
+
+		if (s->action_loop != s->loops)
+		{
+			anim_info->action_fun(obj);
+			s->action_loop = s->loops;
+		}
+	}
+
+	if (obj->state == MS__DIE && s->finished && s->frame == s->frame_count - 1)
+	{
+		s->playing = false;
+	}
+	else
+	{
+		s->playing = true;
+	}
 
 	if (obj->state == MS__IDLE)
 	{
 		s->frame_count = 1;
-	}
-
-	if (s->frame_count > 1)
-	{
-		//Sprite_UpdateAnimation(s, delta);
-	}
-
-
-	if (anim_info->action_fun)
-	{
-		if (s->frame == anim_info->action_frame && s->action_loop != s->loops)
-		{
-			//play action sound
-			Monster_EmitSound(obj, MSOUND__ATTACK);
-
-			anim_info->action_fun(obj);
-			s->action_loop = s->loops;
-		}
 	}
 }
 
@@ -351,9 +323,9 @@ static bool Monster_TryStep(Object* obj, float delta)
 	float dir_x = x_diags[obj->dir_enum];
 	float dir_y = y_diags[obj->dir_enum];
 
-	obj->speed = 24;
+	float delta_speed = obj->speed * delta;
 
-	if (!Move_CheckStep(obj, dir_x * delta, dir_y * delta, obj->size))
+	if (!Move_CheckStep(obj, dir_x * delta_speed, dir_y * delta_speed, obj->size))
 	{
 		return false;
 	}
@@ -631,6 +603,8 @@ void Monster_Spawn(Object* obj)
 		return;
 	}
 	
+	assert(monster_info->speed >= monster_info->size && "This can cause monsters to walk through walls\n");
+
 	if (obj->sub_type == SUB__MOB_IMP)
 	{
 		obj->sprite.img = &assets->imp_texture;
@@ -646,10 +620,15 @@ void Monster_Spawn(Object* obj)
 
 	obj->sprite.scale_x = monster_info->sprite_scale;
 	obj->sprite.scale_y = monster_info->sprite_scale;
-	obj->sprite.v_offset = monster_info->sprite_v_offset;
+	obj->sprite.offset_x = monster_info->sprite_x_offset;
+	obj->sprite.offset_y = monster_info->sprite_y_offset;
+	obj->sprite.offset_z = monster_info->sprite_z_offset;
+
 	obj->hp = monster_info->spawn_hp;
-	obj->size = 14.5;
+	obj->size = monster_info->size;
 	obj->speed = monster_info->speed;
+	obj->height = monster_info->height;
+	obj->step_height = 64;
 
 	Monster_SetState(obj, MS__IDLE);
 
@@ -664,7 +643,18 @@ void Monster_SetState(Object* obj, int state)
 
 	if (state == MS__HIT)
 	{
-		int index = 0;
+		if (obj->hit_timer > 0)
+		{
+			return;
+		}
+
+		//roll
+		MonsterInfo* monster_info = Info_GetMonsterInfo(obj->sub_type);
+
+		if (rand() % 100 > monster_info->hit_chance)
+		{
+			return;
+		}
 
 		//play hit sound
 		Monster_EmitSound(obj, MSOUND__HIT);
@@ -677,12 +667,11 @@ void Monster_SetState(Object* obj, int state)
 		obj->move_timer = 0;
 		obj->attack_timer = 0;
 		obj->stop_timer = 0.2;
+		obj->hit_timer = monster_info->hit_time;
 		obj->flags |= OBJ_FLAG__JUST_HIT;
 	}
 	else if (state == MS__DIE)
 	{
-		int index = 0;
-
 		//play death sound
 		Monster_EmitSound(obj, MSOUND__DEATH);
 
@@ -694,11 +683,11 @@ void Monster_SetState(Object* obj, int state)
 	obj->state = state;
 	
 	//make sure to reset the animation
+	obj->sprite.action_loop = 0;
 	obj->sprite.frame = 0;
 	obj->sprite._anim_frame_progress = 0;
 	obj->sprite.playing = false;
-	obj->sprite.action_loop = 0;
-
+	obj->sprite.finished = false;
 }
 
 void Monster_SetTarget(Object* obj, Object* target)
@@ -716,7 +705,12 @@ void Monster_SetTarget(Object* obj, Object* target)
 
 void Monster_Update(Object* obj, float delta)
 {
-	//Monster_UpdateSpriteAnimation(obj, delta);
+	Monster_CheckForPushBack(obj, delta);
+
+	obj->stop_timer -= delta;
+
+	//always update z
+	Move_ZMove(obj, GRAVITY_SCALE * delta);
 
 	//dead
 	if (obj->hp <= 0)
@@ -725,8 +719,6 @@ void Monster_Update(Object* obj, float delta)
 		Monster_SetState(obj, MS__DIE);
 		return;
 	}
-	//always update z
-	Move_ZMove(obj, GRAVITY_SCALE * delta);
 
 	Object* target = obj->target;
 	//no target
@@ -748,8 +740,8 @@ void Monster_Update(Object* obj, float delta)
 		return;
 	}
 
-	obj->stop_timer -= delta;
 	obj->attack_timer -= delta;
+	obj->hit_timer -= delta;
 
 	if (obj->stop_timer > 0)
 	{
@@ -765,7 +757,7 @@ void Monster_Update(Object* obj, float delta)
 	}
 
 	//check if possible to launch missiles
-	if (Monster_CheckIfMissilesPossible(obj) && obj->attack_timer <= 0)
+	if (obj->attack_timer <= 0 && Monster_CheckIfMissilesPossible(obj))
 	{
 		Monster_SetState(obj, MS__MISSILE);
 		obj->flags |= OBJ_FLAG__JUST_ATTACKED;
@@ -795,12 +787,13 @@ void Monster_Imp_FireBall(Object* obj)
 	}
 
 	Monster_FaceTarget(obj);
+
+	//play action sound
+	Monster_EmitSound(obj, MSOUND__ATTACK);
 	
 	Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
 
 	missile->owner = obj;
-
-	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
 }
 
 void Monster_Bruiser_FireBall(Object* obj)
@@ -814,6 +807,9 @@ void Monster_Bruiser_FireBall(Object* obj)
 
 	Monster_FaceTarget(obj);
 
+	//play action sound
+	Monster_EmitSound(obj, MSOUND__ATTACK);
+
 	for (int i = -2; i < 2; i++)
 	{
 		Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
@@ -822,8 +818,6 @@ void Monster_Bruiser_FireBall(Object* obj)
 		missile->dir_y += i * 0.1;
 
 		missile->owner = obj;
-
-		Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
 	}
 }
 
@@ -848,6 +842,9 @@ void Monster_Melee(Object* obj)
 	}
 
 	Monster_FaceTarget(obj);
+
+	//play action sound
+	Monster_EmitSound(obj, MSOUND__ATTACK);
 
 	Object_Hurt(target, obj, info->melee_damage, false);
 }
@@ -925,4 +922,37 @@ void Monster_WakeAll(Object* waker)
 
 	s_SoundPropogationCheck++;
 	Monster_WakeRecursive(waker, waker->sector_index);
+}
+
+void Monster_CheckForPushBack(Object* obj, float delta)
+{
+	if (obj->stop_timer <= 0)
+	{
+		obj->vel_x = 0;
+		obj->vel_y = 0;
+		return;
+	}
+
+	MonsterInfo* monster_info = Info_GetMonsterInfo(obj->sub_type);
+
+	if (!monster_info)
+	{
+		return;
+	}
+	
+	float push_back_speed = delta * (300 / monster_info->weight);
+
+	Move_SetPosition(obj, obj->x + (obj->vel_x * push_back_speed), obj->y + (obj->vel_y * push_back_speed), obj->size);
+}
+
+void Monster_ApplyPushback(Object* pusher, Object* monster)
+{
+	float dx = pusher->x - monster->x;
+	float dy = pusher->y - monster->y;
+	
+	Math_XY_Normalize(&dx, &dy);
+	
+	monster->vel_x = -dx;
+	monster->vel_y = -dy;
+
 }

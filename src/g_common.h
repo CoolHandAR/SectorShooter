@@ -8,6 +8,7 @@
 #include "BVH_Tree2D.h"
 
 #include "r_common.h"
+#include "sound.h"
 
 #define TRACE_NO_HIT INT_MAX
 
@@ -17,9 +18,10 @@
 #define SECTOR_SLEEP 0
 #define SECTOR_OPEN 1
 #define SECTOR_CLOSE 2
-#define SECTOR_AUTOCLOSE_TIME 5
+#define SECTOR_AUTOCLOSE_TIME 2
 #define GRAVITY_SCALE -500
 #define PLAYER_SIZE 8
+#define PLAYER_STEP_SIZE 50
 
 #define MAX_RENDER_SCALE 3
 
@@ -30,15 +32,6 @@
 static const char SAVEFOLDER[] = { "\\saves" };
 
 typedef int16_t ObjectID;
-
-typedef struct
-{
-	Image img;
-	CollumnImage collumn_image;
-	unsigned char name[10];
-	int width_mask;
-	int height_mask;
-} Texture;
 
 typedef enum
 {
@@ -80,7 +73,6 @@ typedef struct
 //A lazy way to store assets, but good enough for now
 typedef struct
 {
-	Image wall_textures;
 	Image shotgun_texture;
 	Image pistol_texture;
 	Image machinegun_texture;
@@ -93,12 +85,10 @@ typedef struct
 	Image particle_textures;
 	Image decal_textures;
 	Image menu_texture;
-	Image missing_texture;
+	Texture missing_texture;
 
 	Texture* flat_textures;
 	int num_flat_textures;
-
-	Texture test_texture;
 
 	Texture* patchy_textures;
 	int num_patchy_textures;
@@ -246,6 +236,7 @@ typedef enum
 
 	//DECALS
 	SUB__DECAL_WALL_HIT,
+	SUB__DECAL_SCORCH,
 
 	SUB__MAX
 } SubType;
@@ -304,20 +295,24 @@ typedef struct
 	//for monsters and triggers
 	struct Object* target;
 
-	//for various collision checks
-	struct Object* col_object;
-
 	//for rendering when traversing through the subsectors
 	struct Object* sector_next;
 	struct Object* sector_prev;
+
+	//for various collision checks
+	int collision_hit;
 
 	//for monsters, special sectors and doors
 	float move_timer;
 	float attack_timer;
 	float stop_timer;
 	float stuck_timer;
+	float hit_timer;
 	DirEnum dir_enum;
 	int state;
+	
+	//for objects with active sound sources (missiles, torches, etc..)
+	SoundID sound_id;
 
 	bool sector_linked;
 } Object;
@@ -342,14 +337,12 @@ typedef struct
 
 typedef struct
 {
-	int x_offset;
-	int y_offset;
-
 	Texture* top_texture;
 	Texture* middle_texture;
 	Texture* bottom_texture;
 
-	int sector_index;
+	int x_offset;
+	int y_offset;
 } Sidedef;
 typedef struct
 {
@@ -401,6 +394,7 @@ typedef struct
 
 	int sound_propogation_check;
 	
+	//needed for smooth rendering
 	float r_floor, r_ceil;
 	float floor, ceil;
 	float base_floor, base_ceil;
@@ -557,6 +551,7 @@ void Player_SetSensitivity(float sens);
 
 //Movement stuff
 float Move_GetLineDot(float x, float y, Line* line);
+void Move_Accelerate(Object* obj, float p_moveX, float p_moveY, float p_moveZ);
 void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_line);
 bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex, float* r_floorZ, float* r_ceilZ);
 bool Move_SetPosition(Object* obj, float x, float y, float size);
@@ -566,6 +561,7 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 bool Move_Unstuck(Object* obj);
 bool Move_Teleport(Object* obj, float x, float y);
 bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_minFloorClamp, float p_maxFloorFlamp, float p_minCeilClamp, float p_maxCeilClamp, bool p_crush);
+
 
 //Checking
 bool Check_CanObjectFitInSector(Object* obj, Sector* sector, Sector* backsector);
@@ -580,7 +576,7 @@ int* Trace_GetSpecialLines(int* r_length);
 int* Trace_GetHitObjects();
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ);
 int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, float end_y, float size, float* best_frac);
-int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
+int Trace_AttackLine(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float range, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
 bool Trace_CheckLineToTarget(Object* obj, Object* target);
 int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y, float z);
 int Trace_AreaObjects(Object* obj, float x, float y, float size);
@@ -614,6 +610,7 @@ typedef enum
 } EventLineTriggerType;
 
 void Event_TriggerSpecialLine(Object* obj, int side, Line* line, EventLineTriggerType trigger_type);
+void Event_CreateExistingSectorObject(int type, int sub_type, int state, float stop_timer, int sector_index);
 
 void Sector_CreateLightStrober(Sector* sector, SubType light_type);
 float Sector_FindHighestNeighbourCeilling(Sector* sector);
@@ -645,6 +642,8 @@ void Monster_Imp_FireBall(Object* obj);
 void Monster_Bruiser_FireBall(Object* obj);
 void Monster_Melee(Object* obj);
 void Monster_WakeAll(Object* waker);
+void Monster_CheckForPushBack(Object* obj, float delta);
+void Monster_ApplyPushback(Object* pusher, Object* monster);
 
 //Visual map stuff
 void VisualMap_Init();

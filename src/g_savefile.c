@@ -12,7 +12,7 @@
 #define LINE_LUMP 0
 #define SECTOR_LUMP 1
 #define OBJECT_LUMP 2
-#define SPECIAL_OBJECT_LUMP 3
+#define SECTOR_OBJECT_LUMP 3
 #define PLAYER_LUMP 4
 #define MAX_LUMPS 5
 
@@ -44,6 +44,8 @@ typedef struct
 	int state;
 	int unique_id;
 	int target_id;
+	int sector_index;
+	float stop_timer;
 } ObjectLump;
 
 typedef struct
@@ -254,7 +256,7 @@ static bool Save_ObjState(FILE* file, SaveHeader* header, Map* map)
 
 	return true;
 }
-static bool Save_SpecialObjects(FILE* file, SaveHeader* header, Map* map)
+static bool Save_SectorObjects(FILE* file, SaveHeader* header, Map* map)
 {
 	ObjectLump* obj_lump = calloc(MAX_OBJECTS, sizeof(ObjectLump));
 
@@ -264,6 +266,7 @@ static bool Save_SpecialObjects(FILE* file, SaveHeader* header, Map* map)
 	}
 
 	int num = 0;
+
 	for (int i = 0; i < map->num_sectors; i++)
 	{
 		Sector* sector = &map->sectors[i];
@@ -273,16 +276,31 @@ static bool Save_SpecialObjects(FILE* file, SaveHeader* header, Map* map)
 			continue;
 		}
 
-		Object* object = Map_GetObject(sector->sector_object);
+		Object* obj = Map_GetObject(sector->sector_object);
 
-		if (!object)
+		if (!obj)
+		{
+			continue;
+		}
+
+		if (obj->sector_index != sector->index)
 		{
 			continue;
 		}
 		
 		ObjectLump* lump = &obj_lump[num++];
 		
-		
+		lump->stop_timer = Num_LittleFloat(obj->stop_timer);
+		lump->state = Num_LittleLong(obj->state);
+		lump->type = Num_LittleLong(obj->type);
+		lump->sub_type = Num_LittleLong(obj->sub_type);
+		lump->sector_index = Num_LittleLong(obj->sector_index);
+	}
+
+	if (!Save_Lump(file, header, SECTOR_OBJECT_LUMP, obj_lump, sizeof(ObjectLump) * num))
+	{
+		free(obj_lump);
+		return false;
 	}
 
 	free(obj_lump);
@@ -365,6 +383,11 @@ bool Save_Game(const char* filename, const char name[SAVE_GAME_NAME_MAX_CHARS])
 		fclose(file);
 		return false;
 	}
+	if (!Save_SectorObjects(file, &header, map))
+	{
+		fclose(file);
+		return false;
+	}
 	if (!Save_ObjState(file, &header, map))
 	{
 		fclose(file);
@@ -418,18 +441,46 @@ static void Load_ParseWorld(SaveHeader* header, FILE* file, Map* map)
 		num_sectors = map->num_sectors;
 	}
 
-	for (int i = 0; i > num_sectors; i++)
+	for (int i = 0; i < num_sectors; i++)
 	{
 		Sector* sector = &map->sectors[i];
 		SectorLump* lump = &sector_lump[i];
 
 		sector->ceil = Num_LittleLong(lump->ceil);
 		sector->floor = Num_LittleLong(lump->floor);
+
+		sector->r_floor = sector->floor;
+		sector->r_ceil = sector->ceil;
 	}
 
 	if (sector_lump) free(sector_lump);
 }
 
+static void Load_ParseSectorObjects(SaveHeader* header, FILE* file, Map* map)
+{
+	int num_objects = 0;
+	ObjectLump* obj_lump = MallocLump(file, header, SECTOR_OBJECT_LUMP, sizeof(ObjectLump), &num_objects);
+
+	//probably should not happen, but clamp so it won't crash
+	if (num_objects > MAX_OBJECTS)
+	{
+		num_objects = MAX_OBJECTS;
+	}
+	for (int i = 0; i < num_objects; i++)
+	{
+		ObjectLump* lump = &obj_lump[i];
+
+		int sector_index = Num_LittleLong(lump->sector_index);
+		int state = Num_LittleLong(lump->state);
+		int type = Num_LittleLong(lump->type);
+		int sub_type = Num_LittleLong(lump->sub_type);
+		float stop_timer = Num_LittleFloat(lump->stop_timer);
+		
+		Event_CreateExistingSectorObject(type, sub_type, state, stop_timer, sector_index);
+	}
+
+	if (obj_lump) free(obj_lump);
+}
 static void Load_ParseObj(SaveHeader* header, FILE* file, Map* map)
 {
 	int num_objects = 0;
@@ -602,6 +653,7 @@ bool Load_Game(const char* filename)
 	Load_ParseWorld(&header, file, map);
 	Load_ParseObj(&header, file, map);
 	Load_ParsePlayer(&header, file, map);
+	Load_ParseSectorObjects(&header, file, map);
 
 	return fclose(file) == 0;
 }

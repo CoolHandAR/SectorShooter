@@ -57,7 +57,10 @@ inline bool Math_IsEqualApprox(float left, float right)
 
 	return fabs(left - right) < thr;
 }
-
+inline int Math_RoundToInt(double real)
+{
+	return floor(real + 0.5);
+}
 inline float Math_Clamp(float v, float min_v, float max_v)
 {
 	return v < min_v ? min_v : (v > max_v ? max_v : v);
@@ -101,6 +104,16 @@ inline float Math_move_towardf(float from, float to, float delta)
 inline float Math_lerp(float from, float to, float t) 
 {
 	return from + (to - from) * t;
+}
+inline float Math_lerpClamped(float from, float to, float t)
+{
+	t = Math_Clamp(t, 0, 1);
+
+	return from + (to - from) * t;
+}
+inline float Math_lerpFraction(float from, float to, float lerp)
+{
+	return to * lerp + from * (1.0 - lerp);
 }
 inline float Math_SmoothInterp(float from, float to, float t)
 {

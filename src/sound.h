@@ -2,10 +2,13 @@
 #define SOUND_H
 #pragma once
 
+#include <stdint.h>
 #include <stdbool.h>
 #include "miniaudio/miniaudio.h"
 
 #define MAX_SOUNDS 1024
+
+typedef int16_t SoundID;
 
 typedef struct
 {
@@ -27,10 +30,10 @@ float Sound_GetMasterVolume();
 int Sound_Preload(int type);
 void Sound_Emit(int type, float volume);
 void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z);
-int Sound_EmitWorld(int type, float x, float y, float dir_x, float dir_y);
-void Sound_Set(int id, float x, float y, float dir_x, float dir_y);
-void Sound_Play(int id);
-void Sound_Stop(int id);
+SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z);
+void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, float dir_y, float dir_z);
+void Sound_Play(SoundID id);
+void Sound_Stop(SoundID id);
 void Sound_Stream(int type);
 void Sound_SetAsMusic(int type);
 

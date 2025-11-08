@@ -16,7 +16,6 @@ static Map s_map;
 static void Map_UpdateSortedList()
 {
 	int index = 0;
-	int max_index = 0;
 
 	for (int i = 0; i < s_map.num_objects; i++)
 	{
@@ -29,11 +28,6 @@ static void Map_UpdateSortedList()
 		}
 
 		s_map.sorted_list[index++] = i;
-
-		if (i > max_index)
-		{
-			max_index = i;
-		}
 	}
 
 	s_map.num_sorted_objects = index;
@@ -133,6 +127,8 @@ Object* Map_NewObject(ObjectType type)
 
 	Object* obj = &s_map.objects[index];
 
+	obj->sprite.decal_line_index = -1;
+	obj->sprite.action_frame = -1;
 	obj->sprite.scale_x = 1;
 	obj->sprite.scale_y = 1;
 	obj->id = index;
@@ -143,6 +139,8 @@ Object* Map_NewObject(ObjectType type)
 	obj->sector_index = -1;
 	obj->sector_next = NULL;
 	obj->sector_prev = NULL;
+	obj->sector_linked = false;
+	obj->sound_id = -1;
 	obj->unique_id = s_map.unique_id_index++;
 
 	Map_UpdateSortedList();
@@ -321,25 +319,42 @@ void Map_SmoothUpdate(double lerp, double delta)
 		Object* obj = &s_map.objects[id];
 
 		//ignore
-		if (obj->type == OT__NONE || obj->type == OT__PLAYER || !obj->sprite.img)
+		if (obj->type == OT__NONE || obj->type == OT__PLAYER)
 		{
 			continue;
 		}
 
-		//only lerp objects that are most likely to move
-		if (obj->type == OT__MONSTER || obj->type == OT__MISSILE || obj->type == OT__PARTICLE)
+		if (obj->sprite.img)
 		{
-			obj->sprite.x = obj->x * lerp + obj->prev_x * (1.0 - lerp);
-			obj->sprite.y = obj->y * lerp + obj->prev_y * (1.0 - lerp);
-			obj->sprite.z = obj->z * lerp + obj->prev_z * (1.0 - lerp);
-		}											   
-		if (obj->type == OT__MONSTER)
-		{
-			Monster_UpdateSpriteAnimation(obj, delta);
+			//only lerp objects that are most likely to move
+			if (obj->type == OT__MONSTER || obj->type == OT__MISSILE || obj->type == OT__PARTICLE)
+			{
+				obj->sprite.x = obj->x * lerp + obj->prev_x * (1.0 - lerp);
+				obj->sprite.y = obj->y * lerp + obj->prev_y * (1.0 - lerp);
+				obj->sprite.z = obj->z * lerp + obj->prev_z * (1.0 - lerp);
+			}
+
+			if (obj->type == OT__MONSTER)
+			{
+				Monster_UpdateSpriteAnimation(obj, delta);
+			}
+			if (obj->sprite.frame_count > 0 && obj->sprite.anim_speed_scale > 0)
+			{
+				Sprite_UpdateAnimation(&obj->sprite, delta);
+			}
 		}
-		if (obj->sprite.frame_count > 0 && obj->sprite.anim_speed_scale > 0)
+		else
 		{
-			Sprite_UpdateAnimation(&obj->sprite, delta);
+			if (obj->type == OT__DOOR || obj->type == OT__CRUSHER || obj->type == OT__LIFT)
+			{
+				if (obj->sector_index >= 0)
+				{
+					Sector* sector = Map_GetSector(obj->sector_index);
+
+					sector->r_ceil = sector->ceil * lerp + obj->prev_x * (1.0 - lerp);
+					sector->r_floor = sector->floor * lerp + obj->prev_y * (1.0 - lerp);
+				}
+			}
 		}
 	}
 
@@ -351,6 +366,10 @@ void Map_DeleteObject(Object* obj)
 	if (obj->spatial_id >= 0)
 	{
 		BVH_Tree_Remove(&s_map.spatial_tree, obj->spatial_id);
+	}
+	if (obj->sound_id >= 0)
+	{
+		Sound_DeleteSound(obj->sound_id);
 	}
 
 	if (Object_IsSectorLinked(obj))

@@ -99,7 +99,7 @@ static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x,
 	{
 		if (rx1 > ry1) return false;
 		if (ry1 == 0) return false;
-		sx1 = (int)floor(half_width + rx1 * half_width / ry1);
+		sx1 = Math_RoundToInt(half_width + rx1 * half_width / ry1);
 	}
 	else
 	{
@@ -111,7 +111,7 @@ static bool Scene_checkBBOX(DrawingArgs* args, int width, int height, float p_x,
 	{
 		if (rx2 < -ry2) return false;
 		if (ry2 == 0) return false;
-		sx2 = (int)floor(half_width + rx2 * half_width / ry2);
+		sx2 = Math_RoundToInt(half_width + rx2 * half_width / ry2);
 	}
 	else
 	{
@@ -205,7 +205,7 @@ static void Scene_DrawPlane(Image* image, DrawPlane* plane, LineDrawArgs* args, 
 		return;
 	}
 
-	//only set depth
+	//set depth and set image to black
 	if (plane->light <= 0)
 	{
 		float* depth_buff = args->draw_args->depth_buffer;
@@ -218,7 +218,15 @@ static void Scene_DrawPlane(Image* image, DrawPlane* plane, LineDrawArgs* args, 
 
 			for (int y = t; y < b; y++)
 			{
-				depth_buff[index += image->width] = fabs(plane->viewheight * args->draw_args->yslope[y]);
+				size_t i = index * 4;
+
+				image->data[index + 0] = 0;
+				image->data[index + 1] = 0;
+				image->data[index + 2] = 0;
+
+				depth_buff[index] = fabs(plane->viewheight * args->draw_args->yslope[y]);
+
+				index += image->width;
 			}
 		}
 
@@ -569,7 +577,7 @@ crunch:
 }
 bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, DrawingArgs* args)
 {
-	//src: parts adapted from https://github.com/ZDoom/gzdoom/blob/master/src/rendering/swrenderer/line/r_wallsetup.cpp#L52
+	//clipping parts adapted from https://github.com/ZDoom/gzdoom/blob/master/src/rendering/swrenderer/line/r_wallsetup.cpp#L52
 	float vx2 = line->x0 - args->view_x;
 	float vy2 = line->y0 - args->view_y;
 
@@ -607,7 +615,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	{
 		if (tx1 > tanZ1) return false;
 		if (tanZ1 == 0) return false;
-		fsx1 = image->half_width + tx1 * image->half_width / tanZ1;
+		fsx1 = (float)image->half_width + tx1 * (float)image->half_width / tanZ1;
 		fsz1 = tanZ1;
 		u0 = 0.0f;
 	}
@@ -629,7 +637,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	{
 		if (tx2 < -tanZ2) return false;
 		if (tanZ2 == 0) return false;
-		fsx2 = image->half_width + tx2 * image->half_width / tanZ2;
+		fsx2 = (float)image->half_width + tx2 * (float)image->half_width / tanZ2;
 		fsz2 = tanZ2;
 		u1 = 1.0f;
 	}
@@ -638,7 +646,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		if (tx1 > tanZ1) return false;
 		float den = tanZ2 - tanZ1 - tx2 + tx1;
 		if (den == 0) return false;
-		fsx2 = image->width;
+		fsx2 = (float)image->width;
 		u1 = (tx1 - tanZ1) / den;
 		fsz2 = tanZ1 + (tanZ2 - tanZ1) * u1;
 	}
@@ -648,8 +656,8 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		return false;
 	}
 
-	int x1 = (int)floor(fsx1 + 0.5);
-	int x2 = (int)floor(fsx2 + 0.5);
+	int x1 = Math_RoundToInt(fsx1);
+	int x2 = Math_RoundToInt(fsx2);
 
 	//not visible
 	if (x1 >= x2 || x2 <= args->start_x || x1 >= args->end_x)
@@ -681,8 +689,8 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	float yscale1 = args->v_fov * (1.0 / fsz1);
 	float yscale2 = args->v_fov * (1.0 / fsz2);
 
-	float yceil = sector->ceil - args->view_z;
-	float yfloor = sector->floor - args->view_z;
+	float yceil = sector->r_ceil - args->view_z;
+	float yfloor = sector->r_floor - args->view_z;
 
 	int ceil_y1 = (image->half_height) - (int)((yceil)*yscale1);
 	int ceil_y2 = (image->half_height) - (int)((yceil)*yscale2);
@@ -751,7 +759,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	line_draw_args.line = line;
 	line_draw_args.sector = sector;
 	line_draw_args.draw_args = args;
-	line_draw_args.sector_height = sector->ceil - sector->floor;
+	line_draw_args.sector_height = sector->r_ceil - sector->r_floor;
 	line_draw_args.world_bottom = yfloor;
 	line_draw_args.world_top = yceil;
 	line_draw_args.lowest_ceilling = sector->floor;
@@ -789,13 +797,13 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		line_draw_args.plane_angle = args->view_angle - Math_DegToRad(90);
 
 		line_draw_args.sky_plane_y_step = 1.0 / (float)args->v_fov;
-		line_draw_args.sky_plane_y_step *= 90.0 / 90.0;
+		line_draw_args.sky_plane_y_step *= VIEW_FOV / 90.0;
 	}
 
 	if (backsector)
 	{
-		float ybacksector_ceil = backsector->ceil - args->view_z;
-		float ybacksector_floor = backsector->floor - args->view_z;
+		float ybacksector_ceil = backsector->r_ceil - args->view_z;
+		float ybacksector_floor = backsector->r_floor - args->view_z;
 
 		int backceil_y1 = (image->half_height) - (int)((ybacksector_ceil)*yscale1);
 		int backceil_y2 = (image->half_height) - (int)((ybacksector_ceil)*yscale2);
@@ -811,7 +819,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 		line_draw_args.backsector_floor_height = (backsector->base_ceil - backsector->floor) * 0.5;
 		//line_draw_args.backsector_floor_height -= (sector->base_ceil - sector->base_floor) * 0.5;
 
-		line_draw_args.backsector_ceil_height = (backsector->ceil - backsector->base_floor) * 0.5;
+		line_draw_args.backsector_ceil_height = (backsector->r_ceil - backsector->base_floor) * 0.5;
 		line_draw_args.backsector_ceil_height -= (sector->base_ceil - sector->base_floor) * 0.5;
 		line_draw_args.world_high = ybacksector_ceil;
 		line_draw_args.world_low = ybacksector_floor;

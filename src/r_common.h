@@ -8,6 +8,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <windows.h>
+#include <assert.h>
 
 #define MAX_IMAGE_MIPMAPS 8
 #define DEPTH_CLEAR 9999999
@@ -19,6 +20,7 @@
 #define LIGHT_HIGH 1
 
 #define DEPTH_SHADING_SCALE 0.25
+#define VIEW_FOV 90
 
 typedef float DepthValue;
 
@@ -69,6 +71,8 @@ typedef struct
 	struct Image* mipmaps[MAX_IMAGE_MIPMAPS];
 	float x_scale;
 	float y_scale;
+
+	bool is_collumn_stored;
 } Image;
 
 bool Image_Create(Image* img, int p_width, int p_height, int p_numChannels);
@@ -159,11 +163,33 @@ inline unsigned char* Image_Get(Image* img, int x, int y)
 	x = Math_Clampl(x, 0, img->width - 1);
 	y = Math_Clampl(y, 0, img->height - 1);
 
-	return img->data + (x + y * img->width) * img->numChannels;
+	size_t index = 0;
+
+	if (img->is_collumn_stored)
+	{
+		index = ((x * img->height) + y) * img->numChannels;
+	}
+	else
+	{
+		index = (x + y * img->width) * img->numChannels;
+	}
+
+	return &img->data[index];
 }
 inline unsigned char* Image_GetFast(Image* img, int x, int y)
 {
-	return img->data + (x + y * img->width) * img->numChannels;
+	size_t index = 0;
+
+	if (img->is_collumn_stored)
+	{
+		index = ((x * img->height) + y) * img->numChannels;
+	}
+	else
+	{
+		index = (x + y * img->width) * img->numChannels;
+	}
+
+	return &img->data[index];
 }
 
 //unfinished
@@ -217,27 +243,11 @@ AlphaSpan* FrameInfo_GetAlphaSpan(FrameInfo* frame_info, int x);
 
 typedef struct
 {
-	size_t offset;
-	size_t count;
-} CollumnData;
-
-typedef struct
-{
-	int half_width;
-	int half_height;
-
-	int numChannels;
-	int width;
-	int height;
-	CollumnData* collumn_data;
-	unsigned int* data;
-
-	int h_frames;
-	int v_frames;
-} CollumnImage;
-
-bool CollumnImage_Create(CollumnImage* col_image, int p_width, int p_height, int p_numChannels);
-void CollumnImage_Destruct(CollumnImage* col_image);
+	Image img;
+	unsigned char name[10];
+	int width_mask;
+	int height_mask;
+} Texture;
 
 typedef struct
 {
@@ -266,6 +276,7 @@ typedef struct
 
 	int loops;
 	int action_loop;
+	int action_frame;
 
 	int frame_offset_x;
 	int frame_offset_y;
@@ -273,6 +284,10 @@ typedef struct
 	//image data
 	Image* img;
 } Sprite;
+
+void Sprite_UpdateAnimation(Sprite* sprite, float delta);
+void Sprite_ResetAnimState(Sprite* sprite);
+void Sprite_CheckForActionFunction(Sprite* sprite, int frame);
 
 //Packed, slighty smaller version of sprite, only used for rendering
 typedef struct
@@ -302,8 +317,6 @@ typedef struct
 	bool flip_v;
 } DrawSprite;
 
-void Sprite_UpdateAnimation(Sprite* sprite, float delta);
-void Sprite_ResetAnimState(Sprite* sprite);
 
 #define MAX_CLIPSEGMENTS 2000
 
@@ -456,7 +469,7 @@ void Video_DrawLine(Image* image, int x0, int y0, int x1, int y1, unsigned char*
 void Video_DrawRectangle(Image* image, int p_x, int p_y, int p_w, int p_h, unsigned char* p_color);
 void Video_DrawCircle(Image* image, int p_x, int p_y, float radius, unsigned char* p_color);
 void Video_DrawBoxLines(Image* image, float box[2][2], unsigned char* color);
-void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float h_fov, float v_fov);
+void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float tan_sin, float tan_cos, float v_fov, int x_start, int x_end);
 void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y, float p_scaleX, float p_scaleY);
 void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
@@ -499,7 +512,7 @@ typedef struct
 	int x_start, x_end;
 } RenderThread;
 
-bool Render_Init(int width, int height);
+bool Render_Init(int width, int height, int scale);
 void Render_ShutDown();
 void Render_LockThreadsMutex();
 void Render_UnlockThreadsMutex();

@@ -506,52 +506,6 @@ AlphaSpan* FrameInfo_GetAlphaSpan(FrameInfo* frame_info, int x)
 	return &frame_info->alpha_spans[x];
 }
 
-bool CollumnImage_Create(CollumnImage* col_image, int p_width, int p_height, int p_numChannels)
-{
-	memset(col_image, 0, sizeof(CollumnImage));
-
-	if (p_width < 1)
-	{
-		p_width = 1;
-	}
-	if (p_height < 1)
-	{
-		p_height = 1;
-	}
-
-	col_image->width = p_width;
-	col_image->height = p_height;
-	col_image->numChannels = p_numChannels;
-
-	size_t size = col_image->width * col_image->height * col_image->numChannels;
-
-	//allocate a buffer
-	unsigned char* data = malloc(size);
-
-	if (!data)
-	{
-		printf("ERROR:: Failed to create collumn image");
-		return false;
-	}
-
-	memset(data, 0, size);
-	col_image->data = data;
-
-	col_image->collumn_data = calloc(p_width, sizeof(CollumnData));
-
-	col_image->half_width = col_image->width / 2;
-	col_image->half_height = col_image->height / 2;
-
-	return true;
-}
-
-void CollumnImage_Destruct(CollumnImage* col_image)
-{
-	if (col_image->data) free(col_image->data);
-	if (col_image->collumn_data) free(col_image->collumn_data);
-}
-
-
 void Image_Copy(Image* dest, Image* src)
 {
 	assert(dest->numChannels == src->numChannels);
@@ -648,12 +602,14 @@ void Sprite_UpdateAnimation(Sprite* sprite, float delta)
 						frame = last_frame;
 						sprite->playing = false;
 						sprite->finished = true;
+						break;
 					}
 				}
 				else
 				{
 					sprite->finished = false;
 					frame++;
+					Sprite_CheckForActionFunction(sprite, frame);
 				}
 				sprite->_anim_frame_progress = 0.0;
 			}
@@ -678,5 +634,13 @@ void Sprite_ResetAnimState(Sprite* sprite)
 	sprite->playing = false;
 	sprite->frame = 0;
 	sprite->_anim_frame_progress = 0;
+}
+
+void Sprite_CheckForActionFunction(Sprite* sprite, int frame)
+{
+	if (sprite->action_frame == frame)
+	{
+		sprite->action_loop = sprite->loops;
+	}
 }
 

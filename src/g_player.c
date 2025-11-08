@@ -18,8 +18,7 @@
 #define MOUSE_SENS_DIVISOR 1000
 #define MIN_SENS 0.5
 #define MAX_SENS 16
-#define XY_VIEW_LERP 100
-#define Z_VIEW_LERP 3
+#define Z_VIEW_LERP 25
 
 static const float PI = 3.14159265359;
 
@@ -91,10 +90,10 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 	float inter_y = 0;
 	float inter_z = 0;
 
-	p_dirX *= 1000;
-	p_dirY *= 1000;
+	p_dirX *= 1024;
+	p_dirY *= 1024;
 
-	int hit = Trace_Line(player.obj, p_x, p_y, p_x + p_dirX, p_y + p_dirY, player.obj->z + player.obj->height, &inter_x, &inter_y, &inter_z, &frac);
+	int hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX, p_y + p_dirY, player.obj->z + player.obj->height, 1024, &inter_x, &inter_y, &inter_z, &frac);
 
 	if (hit == TRACE_NO_HIT)
 	{
@@ -159,12 +158,54 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		Object_Spawn(OT__PARTICLE, SUB__PARTICLE_WALL_HIT, inter_x, inter_y, inter_z);
 
 		//spawn bullet hole decal
-		Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_WALL_HIT, inter_x, inter_y, inter_z);
+		Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_WALL_HIT, origin_x, origin_y, origin_z);
 
 		decal->sprite.decal_line_index = -(hit + 1);
 	}
 
 	Monster_WakeAll(player.obj);
+}
+static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY)
+{
+	float frac = 0;
+	float inter_x = 0;
+	float inter_y = 0;
+	float inter_z = 0;
+
+	p_dirX *= 1024;
+	p_dirY *= 1024;
+
+	int hit = TRACE_NO_HIT;
+
+	for (int i = 0; i < 4; i++)
+	{
+		float offset = (float)i * 0.1;
+
+		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX + offset, p_y + p_dirY + offset, player.obj->z + player.obj->height, 1024, &inter_x, &inter_y, &inter_z, &frac);
+
+		if (hit != TRACE_NO_HIT && hit >= 0)
+		{
+			break;
+		}
+	}
+
+	if (hit == TRACE_NO_HIT || hit < 0)
+	{
+		Object* missile = Object_Missile(player.obj, NULL, SUB__MISSILE_MEGASHOT);
+
+		//missile->dir_x = p_dirX;
+		//missile->dir_y = p_dirY;
+	}
+	else
+	{
+		Object* trace_obj = Map_GetObject(hit);
+
+		if (trace_obj->type == OT__MONSTER)
+		{
+			Object* missile = Object_Missile(player.obj, trace_obj, SUB__MISSILE_MEGASHOT);
+		}
+		
+	}
 }
 
 static void Player_Use()
@@ -174,7 +215,7 @@ static void Player_Use()
 		return;
 	}
 
-	float check_range = 22;
+	float check_range = 45;
 	int hit = Trace_FindSpecialLine(player.obj->x, player.obj->y, player.obj->x + (player.obj->dir_x * check_range), player.obj->y + (player.obj->dir_y * check_range), player.obj->z + player.obj->height);
 
 	//no special line was found
@@ -213,7 +254,6 @@ static void Player_SetGun(GunType gun_type)
 	player.gun = gun_type;
 	player.gun_info = gun_info;
 }
-
 static void Player_ShootGun()
 {
 	if (player.gun_timer > 0)
@@ -311,22 +351,12 @@ static void Player_ShootGun()
 
 		static float DEV_ANGLE = 0.1;
 
-		for (int i = 0; i < 2; i++)
+		for (int i = 0; i < 1; i++)
 		{
-			Object* missile = Object_Missile(player.obj, NULL, SUB__MISSILE_MEGASHOT);
-
-			if (!missile)
-			{
-				break;
-			}
-			
 			float offset = (float)i * DEV_ANGLE;
 
-			missile->x += (offset) - DEV_ANGLE;
-			missile->y += (offset) - DEV_ANGLE;
-			missile->dir_x += offset;
-			missile->dir_y += offset;
-		}
+			Player_ShootMissile(player.obj->x + offset - DEV_ANGLE, player.obj->y + offset - DEV_ANGLE, dir_x + offset, dir_y + offset);
+		}										
 		
 		player.rocket_ammo--;
 		break;
@@ -413,7 +443,7 @@ static void Player_UpdateListener()
 	ma_engine* sound_engine = Sound_GetEngine();
 
 	ma_engine_listener_set_position(sound_engine, 0, player.obj->x, player.obj->z, player.obj->y);
-	ma_engine_listener_set_direction(sound_engine, 0, -player.obj->dir_x, -player.obj->z, -player.obj->dir_y);
+	ma_engine_listener_set_direction(sound_engine, 0, player.obj->dir_x, -player.obj->z, -player.obj->dir_y);
 }
 
 static void Player_ProcessInput(GLFWwindow* window)
@@ -595,7 +625,7 @@ void Player_Init(int keep)
 
 	player.obj->speed = PLAYER_SPEED;
 	player.obj->height = 100;
-	player.obj->step_height = 32;
+	player.obj->step_height = PLAYER_STEP_SIZE;
 
 	Player_SetupGunSprites();
 
@@ -647,6 +677,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_SMALLHP:
 	{
 		Sound_Emit(SOUND__PICKUP_HP, 0.25);
+		Game_SetStatusMessage("SMALL HP PACK PICKED UP!");
 
 		player.obj->hp += PICKUP_SMALLHP_HEAL;
 		break;
@@ -654,6 +685,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_BIGHP:
 	{
 		Sound_Emit(SOUND__PICKUP_HP, 0.25);
+		Game_SetStatusMessage("BIG HP PACK PICKED UP!");
 
 		player.obj->hp += PICKUP_BIGHP_HEAL;
 		break;
@@ -661,6 +693,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_AMMO:
 	{
 		Sound_Emit(SOUND__PICKUP_AMMO, 0.35);
+		Game_SetStatusMessage("AMMO PACK PICKED UP!");
 
 		player.buck_ammo += PICKUP_AMMO_GIVE / 2;
 		player.bullet_ammo += PICKUP_AMMO_GIVE;
@@ -784,9 +817,7 @@ void Player_Update(GLFWwindow* window, float delta)
 {
 	Player_ProcessInput(window);
 	Player_UpdateTimers(delta);
-	Player_UpdateListener();
-	Sprite_UpdateAnimation(&player.gun_sprites[player.gun], delta);
-
+	
 	//tick down if overhealed
 	if (player.obj->hp > PLAYER_MAX_HP)
 	{
@@ -809,50 +840,7 @@ void Player_Update(GLFWwindow* window, float delta)
 
 		Player_Move(dir_x, dir_y, delta);
 	}
-
-	//bob gun
-	if (player.move_x != 0 || player.move_y != 0)
-	{
-		float bob_amp = 0.003;
-		float bob_freq = 16;
-
-		float player_speed = Math_XY_Length(player.obj->vel_x, player.obj->vel_y);
-
-		if (player.slow_move == 1) bob_freq *= 0.5;
-			
-		player.bob += delta;
-		bob_freq += player_speed;
-
-		player.gun_offset_x = cosf(player.bob * bob_freq / bob_freq) * bob_amp;
-		player.gun_offset_y = sinf(player.bob * bob_freq) * bob_amp;
-	}
-	//smooth view lerp
-	if (XY_VIEW_LERP > 0)
-	{
-		//player.view_x = Math_lerp(player.view_x, player.obj->x, XY_VIEW_LERP * delta);
-		//player.view_y = Math_lerp(player.view_y, player.obj->y, XY_VIEW_LERP * delta);
-	}
-	else
-	{
-		//player.view_x = player.obj->x;
-		//player.view_y = player.obj->y;
-	}
-	if (Z_VIEW_LERP > 0)
-	{
-		//player.view_z = Math_lerp(player.view_z, player.obj->z + player.obj->height, Z_VIEW_LERP * delta);
-	}
-	else
-	{
-		//player.view_z = player.obj->z + player.obj->height;
-	}
 	
-
-	//make sure to reset the frame
-	if (!player.gun_sprites[player.gun].playing)
-	{
-		player.gun_sprites[player.gun].frame = 0;
-	}
-
 	//hacky way to store hp, since we reset the map objects on map change 
 	player.stored_hp = player.obj->hp;
 }
@@ -864,27 +852,34 @@ void Player_LerpUpdate(double lerp, double delta)
 		return;
 	}
 
-	double exp_lerp = exp2(lerp * delta);
+	Player_UpdateListener();
+	Sprite_UpdateAnimation(&player.gun_sprites[player.gun], delta);
 
+	//make sure to reset the frame
+	if (!player.gun_sprites[player.gun].playing)
+	{
+		player.gun_sprites[player.gun].frame = 0;
+	}
+
+	//bob gun
+	if (player.move_x != 0 || player.move_y != 0)
+	{
+		float bob_amp = 0.003;
+		float bob_freq = 16;
+
+		if (player.slow_move == 1) bob_freq *= 0.5;
+
+		player.bob += delta;
+
+		player.gun_offset_x = cosf(player.bob * bob_freq / bob_freq) * bob_amp;
+		player.gun_offset_y = sinf(player.bob * bob_freq) * bob_amp;
+	}
 	//smooth view lerp
-	if (XY_VIEW_LERP > 0)
-	{
-		player.view_x = player.obj->x * lerp + player.prev_x * (1.0 - lerp);
-		player.view_y = player.obj->y * lerp + player.prev_y * (1.0 - lerp);
-	}
-	else
-	{
-		player.view_x = player.obj->x;
-		player.view_y = player.obj->y;
-	}
-	if (Z_VIEW_LERP > 0)
-	{
-		player.view_z = (player.obj->z + player.obj->height) * lerp + (player.obj->prev_z + player.obj->height) * (1.0 - lerp);
-	}
-	else
-	{
-		player.view_z = player.obj->z + player.obj->height;
-	}
+	player.view_x = Math_lerpFraction(player.prev_x, player.obj->x, lerp);
+	player.view_y = Math_lerpFraction(player.prev_y, player.obj->y, lerp);
+	float z = Math_lerpFraction(player.obj->prev_z + player.obj->height, player.obj->z + player.obj->height, lerp);
+
+	player.view_z = Math_lerpClamped(player.view_z, z, delta * Z_VIEW_LERP);
 }
 
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle)

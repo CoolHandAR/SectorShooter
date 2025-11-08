@@ -191,9 +191,7 @@ void VisualMap_Update(GLFWwindow* window, double delta)
 	if (s_visualMap.rotate)
 	{
 		s_visualMap.angle += Math_DegToRad(90);
-		//s_visualMap.angle = -s_visualMap.angle;
-
-		Math_XY_Rotate(&s_visualMap.center_x, &s_visualMap.center_y, cosf(s_visualMap.angle), sinf(s_visualMap.angle));
+		//s_visualMap.angle = -s_visualMap.angle;;
 	}
 
 	s_visualMap.w_offset = width;
@@ -229,8 +227,16 @@ void VisualMap_Draw(Image* image, FontData* font)
 	float player_x = s_visualMap.player_x;
 	float player_y = s_visualMap.player_y;
 
-	float center_x = s_visualMap.center_x - s_visualMap.w_offset;
-	float center_y = s_visualMap.center_y - s_visualMap.h_offset;
+	float center_x = s_visualMap.center_x;
+	float center_y = s_visualMap.center_y;
+
+	if (rotate)
+	{
+		Math_XY_Rotate(&center_x, &center_y, cosf(angle), sinf(angle));
+	}
+
+	center_x -= s_visualMap.w_offset;
+	center_y -= s_visualMap.h_offset;
 
 	float pulse = s_visualMap.pulse;
 	float zoom_level = ((float)s_visualMap.zoom_level * (float)ZOOM_STEP) * (float)Render_GetRenderScale();

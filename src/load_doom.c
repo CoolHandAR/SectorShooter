@@ -363,6 +363,9 @@ static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
         os->base_ceil = os->ceil;
         os->base_floor = os->floor;
 
+        os->r_ceil = os->ceil;
+        os->r_floor = os->floor;
+
         os->sector_tag = ms->tag;
         os->special = ms->special;
         os->sector_object = -1;
@@ -1037,20 +1040,17 @@ static unsigned* Load_Pallete(FILE* file, filelump_t* file_infos, int lump_index
         return NULL;
     }
 
-    if (pallete_size == 3 * 256 * 14)
+    for (int i = 0; i < 256; i++)
     {
-        for (int i = 0; i < 256; i++)
-        {
-            unsigned char c[4];
-            c[0] = 255;
-            c[1] = palette[pal_index + 2];
-            c[2] = palette[pal_index + 1];
-            c[3] = palette[pal_index + 0];
+        unsigned char c[4];
+        c[0] = 255;
+        c[1] = palette[pal_index + 2];
+        c[2] = palette[pal_index + 1];
+        c[3] = palette[pal_index + 0];
 
-            pal_index += 3;
+        pal_index += 3;
 
-            lut[i] = Pack_Color(c);
-        }
+        lut[i] = Pack_Color(c);
     }
 
     if (palette) free(palette);
@@ -1191,7 +1191,8 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
         int patchcount = mtexture->patchcount;
 
         Image_Create(&ourtexture->img, texwidth, texheight, 4);
-        CollumnImage_Create(&ourtexture->collumn_image, texwidth, texheight, 4);
+
+        ourtexture->img.is_collumn_stored = true;
 
         mappatch_t* mpatch = &mtexture->patches[0];
 
@@ -1245,30 +1246,30 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
                     if (count > 0)
                     {
                         unsigned int* pix = ourtexture->img.data;
-                        for (int y = 0; y < count; y++)
+                        if (!ourtexture->img.is_collumn_stored)
                         {
-                            unsigned color = paletteLut[*src];
+                            for (int y = 0; y < count; y++)
+                            {
+                                unsigned color = paletteLut[*src];
 
-                            pix[x + (y + position) * ourtexture->img.width] = color;
+                                pix[x + (y + position) * ourtexture->img.width] = color;
 
-                            src++;
+                                src++;
+                            }
                         }
-
-                        CollumnData* cd = &ourtexture->collumn_image.collumn_data[x];
-                        src = (unsigned char*)patchcol + 3;
-                        cd->offset = tcoll_offset;
-                        cd->count = count;
-                        unsigned* pix2 = ourtexture->collumn_image.data;
-                        int offset = 0;
-                        for (int y = 0; y < count; y++)
+                        else
                         {
-                            unsigned color = paletteLut[*src];
-                            pix2[tcoll_offset++] = color;
+                            for (int y = 0; y < count; y++)
+                            {
+                                unsigned color = paletteLut[*src];
 
-                            src++;
+                                size_t index = (x * ourtexture->img.height) + (y + position);
+
+                                pix[index] = color;
+
+                                src++;
+                            }
                         }
-                        
-                       // tcoll_offset += texheight;
 
                     }
 

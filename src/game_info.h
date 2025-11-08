@@ -6,10 +6,6 @@
 #include <stddef.h>
 #include "g_common.h"
 
-extern void Monster_Bruiser_FireBall(struct Object* obj);
-extern void Monster_Imp_FireBall(struct Object* obj);
-extern void Monster_Melee(struct Object* obj);
-
 typedef enum
 {
 	MS__IDLE,
@@ -72,232 +68,16 @@ typedef struct
 	int spawn_hp;
 	int speed;
 	int melee_damage;
+	float size;
+	float height;
+	float weight;
+	int hit_chance;
+	float hit_time;
 	float sprite_scale;
-	float sprite_v_offset;
+	float sprite_x_offset;
+	float sprite_y_offset;
+	float sprite_z_offset;
 } MonsterInfo;
-
-static const MonsterInfo MONSTER_INFO[] =
-{
-	//IMP
-	{
-		//ANIM
-		{
-			//IDLE
-			NULL, 0, 0, 0, 1, 1,
-
-			//WALK FORWARD
-			NULL, 0, 0, 0, 4, 1,
-
-			//WALK FORWARD SIDE
-			NULL, 0, 0, 1, 4, 1,
-
-			//WALK SIDE
-			NULL, 0, 0, 2, 4, 1,
-
-			//WALK BACK SIDE
-			NULL, 0, 0, 3, 4, 1,
-
-			//WALK BACK
-			NULL, 0, 0, 4, 4, 1,
-
-			//ATTACK FORWARD
-			Monster_Imp_FireBall, 1, 4, 0, 3, 0,
-
-			//ATTACK FORWARD SIDE
-			Monster_Imp_FireBall, 1, 4, 1, 3, 0,
-
-			//ATTACK SIDE
-			Monster_Imp_FireBall, 1, 4, 2, 3, 0,
-
-			//ATTACK BACK SIDE
-			Monster_Imp_FireBall, 1, 4, 3, 3, 0,
-
-			//ATTACK BACK
-			Monster_Imp_FireBall, 2, 4, 4, 4, 0,
-
-			//MELEE FORWARD
-			Monster_Melee, 1, 4, 0, 3, 1,
-
-			//MELEE FORWARD SIDE
-			Monster_Melee, 1, 4, 1, 3, 1,
-
-			//MELEE SIDE
-			Monster_Melee, 1, 4, 2, 3, 1,
-
-			//MELEE BACK SIDE
-			Monster_Melee, 1, 4, 3, 3, 1,
-
-			//MELEE BACK
-			Monster_Melee, 2, 4, 4, 4, 1,
-
-			//HIT FORWARD
-			NULL, 0, 0, 5, 1, 0,
-
-			//HIT SIDE
-			NULL, 0, 1, 5, 1, 0,
-
-			//HIT BACK
-			NULL, 0, 2, 5, 1, 0,
-
-			//DIE
-			NULL, 0, 0, 6, 4, 0,
-
-			//EXPLODE
-			NULL, 0, 0, 7, 8, 0,
-		},
-		60, //SPAWN HP
-		2, //SPEED,
-		14, //MELEE DAMAGE
-		32, //SPRITE SCALE
-		0, //SPRTE V OFFSET
-	},
-	//PINKY
-	{
-		//ANIM
-		{
-			//IDLE
-			NULL, 0, 0, 0, 1, 1,
-
-			//WALK FORWARD
-			NULL, 0, 0, 0, 4, 1,
-
-			//WALK FORWARD SIDE
-			NULL, 0, 0, 1, 4, 1,
-
-			//WALK SIDE
-			NULL, 0, 0, 2, 4, 1,
-
-			//WALK BACK SIDE
-			NULL, 0, 0, 3, 4, 1,
-
-			//WALK BACK
-			NULL, 0, 0, 4, 4, 1,
-
-			//ATTACK FORWARD
-			NULL, 0, 0, 0, 0, 0,
-
-			//ATTACK FORWARD SIDE
-			NULL, 0, 0, 0, 0, 0,
-
-			//ATTACK SIDE
-			NULL, 0, 0, 0, 0, 0,
-
-			//ATTACK BACK SIDE
-			NULL, 0, 0, 0, 0, 0,
-
-			//ATTACK BACK
-			NULL, 0, 0, 0, 0, 0,
-
-			//MELEE FORWARD
-			Monster_Melee, 1, 4, 0, 3, 1,
-
-			//MELEE FORWARD SIDE
-			Monster_Melee, 1, 4, 1, 3, 1,
-
-			//MELEE SIDE
-			Monster_Melee, 1, 4, 2, 3, 1,
-
-			//MELEE BACK SIDE
-			Monster_Melee, 1, 4, 3, 3, 1,
-
-			//MELEE BACK
-			Monster_Melee, 2, 4, 4, 4, 1,
-
-			//HIT FORWARD
-			NULL, 0, 0, 0, 0, 0,
-
-			//HIT SIDE
-			NULL, 0, 0, 0, 0, 0,
-
-			//HIT BACK
-			NULL, 0, 0, 0, 0, 0,
-
-			//DIE
-			NULL, 0, 0, 5, 6, 0,
-
-			//EXPLODE
-			NULL, 0, 0, 5, 6, 0,
-		},
-		150, //SPAWN HP
-		4, //SPEED,
-		16, //MELEE DAMAGE
-		32, //SPRITE SCALE
-		0, //SPRTE V OFFSET
-	},
-	//BRUISER
-	{
-		//ANIM
-		{
-			//IDLE
-			NULL, 0, 0, 0, 1, 1,
-
-			//WALK FORWARD
-			NULL, 0, 0, 0, 4, 1,
-
-			//WALK FORWARD SIDE
-			NULL, 0, 0, 1, 4, 1,
-
-			//WALK SIDE
-			NULL, 0, 0, 2, 4, 1,
-
-			//WALK BACK SIDE
-			NULL, 0, 0, 3, 4, 1,
-
-			//WALK BACK
-			NULL, 0, 0, 4, 4, 1,
-
-			//ATTACK FORWARD
-			Monster_Bruiser_FireBall, 1, 4, 0, 3, 0,
-
-			//ATTACK FORWARD SIDE
-			Monster_Bruiser_FireBall, 1, 4, 1, 3, 0,
-
-			//ATTACK SIDE
-			Monster_Bruiser_FireBall, 1, 4, 2, 3, 0,
-
-			//ATTACK BACK SIDE
-			Monster_Bruiser_FireBall, 1, 4, 3, 3, 0,
-
-			//ATTACK BACK
-			Monster_Bruiser_FireBall, 2, 4, 4, 4, 0,
-
-			//MELEE FORWARD
-			Monster_Melee, 1, 8, 0, 3, 1,
-
-			//MELEE FORWARD SIDE
-			Monster_Melee, 1, 8, 1, 3, 1,
-
-			//MELEE SIDE
-			Monster_Melee, 1, 8, 2, 3, 1,
-
-			//MELEE BACK SIDE
-			Monster_Melee, 1, 8, 3, 3, 1,
-
-			//MELEE BACK
-			Monster_Melee, 2, 8, 4, 3, 1,
-
-			//HIT FORWARD
-			NULL, 0, 7, 0, 1, 0,
-
-			//HIT SIDE
-			NULL, 0, 7, 2, 1, 0,
-
-			//HIT BACK
-			NULL, 0, 7, 4, 1, 0,
-
-			//DIE
-			NULL, 0, 0, 5, 14, 0,
-
-			//EXPLODE
-			NULL, 0, 0, 5, 14, 0,
-		},
-		400, //SPAWN HP
-		2, //SPEED,
-		30, //MELEE DAMAGE
-		32, //SPRITE SCALE
-		-0.5, //SPRTE V OFFSET
-	},
-};
 
 typedef struct
 {
@@ -311,52 +91,13 @@ typedef struct
 	float sprite_scale;
 } MissileInfo;
 
-static const MissileInfo MISSILE_INFO[] =
-{
-	//SIMPLE FIREBALL
-	{
-		SUB__MISSILE_FIREBALL,
-		//ANIM
-		{
-			//FLY
-			NULL, 0, 0, 0, 2, 1,
-
-			//EXPLODE
-			NULL, 0, 2, 0, 3, 0,
-		},
-		8, //SPEED
-		0.25, //SIZE,
-		0, //EXPLOSION DAMAGE
-		0, //EXPLOSION SIZE
-		10, //DIRECT HIT DAMAGE
-		32, //SPRITE SCALE
-	},
-	//MEGA SHOT
-	{
-		SUB__MISSILE_MEGASHOT,
-		//ANIM
-		{
-			//FLY
-			NULL, 0, 0, 1, 2, 1,
-
-			//EXPLODE
-			NULL, 0, 2, 1, 3, 0,
-		},
-		8, //SPEED
-		0.25, //SIZE,
-		40, //EXPLOSION DAMAGE
-		10, //EXPLOSION SIZE
-		70, //DIRECT HIT DAMAGE
-		32, //SPRITE SCALE
-	},
-};
-
 typedef enum
 {
 	SOUND__NONE,
 
 	SOUND__FIREBALL_THROW,
 	SOUND__FIREBALL_EXPLODE,
+	SOUND__FIREBALL_FOLLOW,
 	
 	SOUND__IMP_ALERT,
 	SOUND__IMP_HIT,
@@ -407,6 +148,9 @@ static const char* SOUND_INFO[SOUND__MAX] =
 
 	//FIREBALL EXPLODE
 	"assets/sfx/fireball_explode.wav",
+
+	//FIREBALL FOLLOW
+	"assets/sfx/fireball_follow.wav",
 
 	//IMP ALERT
 	"assets/sfx/imp_alert.wav",
@@ -499,60 +243,6 @@ typedef struct
 	float scale;
 } GunInfo;
 
-static const GunInfo GUN_INFOs[GUN__MAX] =
-{
-	//NONE
-	{
-		GUN__NONE,
-		0, //DMG
-		0, //SPREAD
-		0, //CD,
-		0, //SCREEN X
-		0, //SCREEN Y
-		0, //SCALE
-	},
-	//PISTOL
-	{
-		GUN__PISTOL,
-		12, //DMG
-		1, //SPREAD
-		0.3, //CD,
-		0.55, //SCREEN X
-		0.6, //SCREEN Y
-		1.5, //SCALE
-	},
-	//MACHINE GUN
-	{
-		GUN__MACHINEGUN,
-		15, //DMG
-		1, //SPREAD
-		0.17, //CD,
-		0.2, //SCREEN X
-		0.18, //SCREEN Y
-		1.5, //SCALE
-	},
-	//SHOTGUN
-	{
-		GUN__SHOTGUN,
-		6, //DMG
-		1, //SPREAD
-		1.25, //CD,
-		0.05, //SCREEN X
-		0.2, //SCREEN Y
-		1.2, //SCALE
-	},
-	//DEVASTATOR
-	{
-		GUN__DEVASTATOR,
-		0, //DMG
-		1, //SPREAD
-		1.70, //CD,
-		0.25, //SCREEN X
-		0.4, //SCREEN Y
-		1.5, //SCALE
-	},
-};
-
 typedef struct
 {	
 	int type;
@@ -560,187 +250,10 @@ typedef struct
 	float anim_speed;
 	float sprite_offset_x;
 	float sprite_offset_y;
+	float sprite_offset_z;
+	float sprite_scale;
+	float size;
 } ObjectInfo;
-
-static const ObjectInfo OBJECT_INFOS[] =
-{
-	//TORCH
-	{
-		SUB__LIGHT_TORCH,
-		//ANIM
-		{
-			NULL, 0, 0, 1, 4, 1,
-		},
-		0.5, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//LAMP
-	{
-		SUB__LIGHT_LAMP,
-		//ANIM
-		{
-			NULL, 0, 0, 0, 4, 1,
-		},
-		0.5, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//SMALL HP
-	{
-		SUB__PICKUP_SMALLHP,
-		//ANIM
-		{
-			NULL, 0, 0, 2, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.0, //SPRITE OFFSET X
-		0.0, //SPRITE OFFSET Y
-	},
-	//BIG HP
-	{
-		SUB__PICKUP_BIGHP,
-		//ANIM
-		{
-			NULL, 0, 1, 2, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.0, //SPRITE OFFSET X
-		0.0, //SPRITE OFFSET Y
-	},
-	//RED COLLUMN
-	{
-		SUB__THING_RED_COLLUMN,
-		//ANIM
-		{
-			NULL, 0, 0, 4, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//BLUE COLLUMN
-	{
-		SUB__THING_BLUE_COLLUMN,
-		//ANIM
-		{
-			NULL, 0, 1, 4, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//RED FLAG
-	{
-		SUB__THING_RED_FLAG,
-		//ANIM
-		{
-			NULL, 0, 2, 4, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//BLUE FLAG
-	{
-		SUB__THING_BLUE_FLAG,
-		//ANIM
-		{
-			NULL, 0, 3, 4, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//TELEPORTER
-	{
-		SUB__TARGET_TELEPORT,
-		//ANIM
-		{
-			NULL, 0, 0, 3, 4, 1,
-		},
-		0.5, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//INVUNERABILITY PICKUP
-	{
-		SUB__PICKUP_INVUNERABILITY,
-		//ANIM
-		{
-			NULL, 0, 0, 5, 4, 1,
-		},
-		0.5, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//QUAD PICKUP
-	{
-		SUB__PICKUP_QUAD_DAMAGE,
-		//ANIM
-		{
-			NULL, 0, 0, 6, 4, 1,
-		},
-		0.5, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//SHOTGUN PICKUP
-	{
-		SUB__PICKUP_SHOTGUN,
-		//ANIM
-		{
-			NULL, 0, 0, 7, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//MACHINE PICKUP
-	{
-		SUB__PICKUP_MACHINEGUN,
-		//ANIM
-		{
-			NULL, 0, 1, 7, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//AMMO PICKUP
-	{
-		SUB__PICKUP_AMMO,
-		//ANIM
-		{
-			NULL, 0, 2, 2, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//DEVASTATOR PICKUP
-	{
-		SUB__PICKUP_DEVASTATOR,
-		//ANIM
-		{
-			NULL, 0, 2, 7, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-	//ROCKET PICKUP
-	{
-		SUB__PICKUP_ROCKETS,
-		//ANIM
-		{
-			NULL, 0, 3, 2, 0, 0,
-		},
-		0.0, //ANIM SPEED
-		0.5, //SPRITE OFFSET X
-		0.5, //SPRITE OFFSET Y
-	},
-};
 
 typedef struct
 {
@@ -750,24 +263,6 @@ typedef struct
 	float scale;
 } LightInfo;
 
-static const LightInfo LIGHT_INFOS[] =
-{
-	//TORCH
-	{
-		SUB__LIGHT_TORCH,
-		32, //radius
-		1.0, //attenuation
-		1 // scale
-	},
-	//LAMP
-	{
-		SUB__LIGHT_LAMP,
-		12, //radius
-		1.5, //attenuation
-		1 // scale
-	}
-};
-
 typedef struct
 {
 	int type;
@@ -775,30 +270,6 @@ typedef struct
 	float time;
 	float sprite_scale;
 } ParticleInfo;
-
-static const ParticleInfo PARTICLE_INFOS[] =
-{
-	//BLOOD SPLATTER
-	{
-		SUB__PARTICLE_BLOOD,
-		//ANIM INFO
-		{
-			NULL, 0, 0, 0, 3, 0,
-		},
-		0.5, //time
-		10, //sprite scale
-	},
-	//WALL HIT
-	{
-		SUB__PARTICLE_WALL_HIT,
-		//ANIM INFO
-		{
-			NULL, 0, 0, 1, 4, 0,
-		},
-		0.5, //time
-		10, //sprite scale
-	}
-};
 
 typedef struct
 {
@@ -808,19 +279,6 @@ typedef struct
 	float sprite_scale;
 } DecalInfo;
 
-static const DecalInfo DECAL_INFOS[] =
-{
-	//WALL HIT
-	{
-		SUB__DECAL_WALL_HIT,
-		//ANIM INFO
-		{
-			NULL, 0, 0, 0, 5, 0,
-		},
-		5.5, //time
-		32, //sprite scale
-	}
-};
 
 #define PICKUP_SMALLHP_HEAL 20
 #define PICKUP_BIGHP_HEAL 50
@@ -845,7 +303,9 @@ static const char* LEVELS[] =
 	"test.WAD",
 	"E1M1.WAD",
 	"E1M2.WAD",
-	"E1M3.WAD"
+	"E1M3.WAD",
+	"M13.WAD",
+	"ourmap00.WAD"
 };
 
 //SPECIAL ENUMS
@@ -855,6 +315,8 @@ typedef enum
 	SPECIAL__USE_DOOR = 1,
 	SPECIAL__USE_DOOR_NEVER_CLOSE = 31,
 	SPECIAL__USE_LIFT = 62,
+
+	SPECIAL__TRIGGER_CRUSHER = 49, 
 	
 } SpecialType;
 typedef enum

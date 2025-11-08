@@ -163,7 +163,7 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 
 	DrawingArgs drawing_args;
 	
-	float tangent = tan(Math_DegToRad(90.0) / 2.0);
+	float tangent = tan(Math_DegToRad(VIEW_FOV) / 2.0);
 
 	//setup drawing args
 	drawing_args.view_x = s_renderCore.view_x;
@@ -209,6 +209,37 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 		{
 			Video_DrawSprite(&s_renderCore.framebuffer, &drawing_args, sprite);
 		}	
+	}
+}
+
+static void Render_DrawAllObjectBoxes()
+{
+	Map* map = Map_GetMap();
+
+	float tangent = tan(Math_DegToRad(VIEW_FOV) / 2.0);
+	float view_cos = tangent * s_renderCore.view_cos;
+	float view_sin = tangent * s_renderCore.view_sin;
+
+	for (int i = 0; i < map->num_objects; i++)
+	{
+		Object* obj = Map_GetObject(i);
+
+		if (obj->type == OT__NONE || obj->type == OT__PLAYER)
+		{
+			continue;
+		}
+
+		float box[2][3];
+		box[0][0] = obj->x - obj->size;
+		box[0][1] = obj->y - obj->size;
+		box[0][2] = obj->z;
+
+		box[1][0] = obj->x + obj->size;
+		box[1][1] = obj->y + obj->size;
+		box[1][2] = obj->z + obj->height;
+
+		Video_DrawBox(&s_renderCore.framebuffer, box, s_renderCore.view_x, s_renderCore.view_y, s_renderCore.view_z, s_renderCore.view_cos, s_renderCore.view_sin, view_sin, view_cos, s_renderCore.vfov * (float)s_renderCore.h,
+			0, s_renderCore.framebuffer.width);
 	}
 }
 
@@ -508,11 +539,25 @@ void Render_WindowCallback(GLFWwindow* window, int width, int height)
 	Render_SizeChanged();
 }
 
-bool Render_Init(int width, int height)
+bool Render_Init(int width, int height, int scale)
 {
 	memset(&s_renderCore, 0, sizeof(RenderCore));
 
 	Video_Setup();
+
+	if (scale < 1)
+	{
+		scale = 1;
+	}
+	else if (scale > MAX_RENDER_SCALE)
+	{
+		scale = MAX_RENDER_SCALE;
+	}
+
+	s_renderCore.scale = scale;
+
+	width *= scale;
+	height *= scale;
 
 	if (!Render_SetupGL(width, height))
 	{
@@ -786,18 +831,20 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 	s_renderCore.view_angle = angle;
 
 	//clear image to black
-	Image_Clear(&s_renderCore.framebuffer, 0);
+	//Image_Clear(&s_renderCore.framebuffer, 0);
 
 	if (game_state == GS__LEVEL && Game_GetLevelIndex() >= 0)
 	{
 		//clear wall depth buffer
-		memset(s_renderCore.depth_buffer, (int)DEPTH_CLEAR, sizeof(float) * s_renderCore.w * s_renderCore.h);
+		//memset(s_renderCore.depth_buffer, (int)DEPTH_CLEAR, sizeof(float) * s_renderCore.w * s_renderCore.h);
 
 		//set work state for all threads
 		Render_SetWorkStateForAllThreads(TWT__DRAW_LEVEL);
 
 		//wait for all threads to finish
 		Render_WaitForAllThreads();
+
+		//Render_DrawAllObjectBoxes();
 
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
 	}

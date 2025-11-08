@@ -123,6 +123,9 @@ void Crusher_Update(Object* obj, float delta)
 
 	Sector* sector = Map_GetSector(obj->sector_index);
 	
+	obj->prev_x = sector->ceil;
+	obj->prev_y = sector->floor;
+
 	float speed = delta * obj->speed;
 	float floor_move = obj->dir_y * speed;
 	float ceil_move = obj->dir_z * speed;
@@ -141,7 +144,7 @@ void Crusher_Update(Object* obj, float delta)
 	}
 	else if (obj->state == CRUSHER__MOVING_TO_ORIGIN)
 	{
-		Move_Sector(sector, floor_move, ceil_move, sector->base_floor, sector->ceil, sector->floor, sector->base_ceil, false);
+		Move_Sector(sector, -floor_move, -ceil_move, sector->base_floor, sector->ceil, sector->floor, sector->base_ceil, false);
 
 		if ((int)sector->floor == (int)sector->base_floor && (int)sector->ceil == (int)sector->base_ceil)
 		{
@@ -267,6 +270,9 @@ void Lift_Update(Object* obj, float delta)
 
 	//kinda same as the door code above
 	Sector* sector = Map_GetSector(obj->sector_index);
+
+	obj->prev_x = sector->ceil;
+	obj->prev_y = sector->floor;
 
 	float speed = delta * obj->speed;
 	float floor_clamp = sector->neighbour_sector_value;

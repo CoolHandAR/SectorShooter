@@ -35,7 +35,7 @@ typedef struct
 } EngineData;
 
 static EngineData s_engine;
-static double MIN_DT = 1.0 / 1000000.0;
+static const double MIN_DT = 1.0 / 1000000.0;
 static const double TIME_STEP = 1.0 / TICKS_PER_SECOND;
 
 extern void Render_WindowCallback(GLFWwindow* window, int width, int height);
@@ -167,7 +167,7 @@ static bool Engine_SetupSubSystems()
 
 	glfwSwapInterval(0);
 
-	if (!Render_Init(WINDOW_WIDTH * WINDOW_SCALE, WINDOW_HEIGHT * WINDOW_SCALE))
+	if (!Render_Init(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_SCALE))
 	{
 		printf("Failed to load renderer!\n");
 		return false;
@@ -248,8 +248,6 @@ int main()
 		return -1;
 	}
 
-	int min_steps = 100;
-	int max_steps = 0;
 	double lastTime = 0;
 	double currentTime = 0;
 	double accumulator = 0;
@@ -259,7 +257,7 @@ int main()
 	//set defaults
 	Player_SetSensitivity(1);
 	Sound_setMasterVolume(1.0);
-	Render_SetRenderScale(WINDOW_SCALE);
+	//Render_SetRenderScale(WINDOW_SCALE);
 
 	//attempt to load cfg
 	Engine_LoadCfg("config.cfg");
@@ -285,9 +283,6 @@ int main()
 			accumulator -= TIME_STEP;
 			steps++;
 		}
-
-		min_steps = min(min_steps, steps);
-		max_steps = max(max_steps, steps);
 
 		double lerp_time = Math_Clampd(accumulator / TIME_STEP, 0.0, 1.0);
 

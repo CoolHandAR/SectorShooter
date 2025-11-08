@@ -93,8 +93,6 @@ static void Sound_FreeUnusedSounds()
 			num_sounds = i;
 		}
 	}
-
-	//sound_core.num_sounds = num_sounds;
 	
 }
 
@@ -135,7 +133,12 @@ static Sound* Sound_IDToSound(int id)
 
 void Sound_DeleteSound(int id)
 {
-	Sound* sound = &sound_core.sounds[id];
+	Sound* sound = Sound_IDToSound(id);
+
+	if (!sound)
+	{
+		return;
+	}
 
 	if (sound->alive)
 	{
@@ -229,7 +232,7 @@ void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float
 	ma_sound_start(&snd->snd);
 }
 
-int Sound_EmitWorld(int type, float x, float y, float dir_x, float dir_y)
+SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z)
 {
 	if (type < 0 || type >= SOUND__MAX)
 	{
@@ -257,8 +260,9 @@ int Sound_EmitWorld(int type, float x, float y, float dir_x, float dir_y)
 
 	Sound_load(sound_file, MA_SOUND_FLAG_NO_PITCH, &snd->snd);
 
-	ma_sound_set_position(&snd->snd, x, 0, y);
-	ma_sound_set_direction(&snd->snd, dir_x, 0, dir_y);
+	ma_sound_set_looping(&snd->snd, MA_TRUE);
+	ma_sound_set_position(&snd->snd, x, z, y);
+	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
 	ma_sound_start(&snd->snd);
 
 	return id;
@@ -294,7 +298,6 @@ int Sound_Preload(int type)
 
 void Sound_Emit(int type, float volume)
 {
-
 	if (type < 0 || type >= SOUND__MAX)
 	{
 		return;
@@ -324,8 +327,9 @@ void Sound_Emit(int type, float volume)
 	ma_sound_start(&snd->snd);
 }
 
-void Sound_Set(int id, float x, float y, float dir_x, float dir_y)
+void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, float dir_y, float dir_z)
 {
+
 	Sound* snd = Sound_IDToSound(id);
 
 	if (!snd)
@@ -333,11 +337,11 @@ void Sound_Set(int id, float x, float y, float dir_x, float dir_y)
 		return;
 	}
 
-	ma_sound_set_position(&snd->snd, x, 0, y);
-	ma_sound_set_direction(&snd->snd, dir_x, 0, dir_y);
+	ma_sound_set_position(&snd->snd, x, z, y);
+	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
 }
 
-void Sound_Play(int id)
+void Sound_Play(SoundID id)
 {
 	Sound* snd = Sound_IDToSound(id);
 
@@ -349,7 +353,7 @@ void Sound_Play(int id)
 	ma_sound_start(&snd->snd);
 }
 
-void Sound_Stop(int id)
+void Sound_Stop(SoundID id)
 {
 	Sound* snd = Sound_IDToSound(id);
 

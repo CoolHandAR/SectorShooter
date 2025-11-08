@@ -134,7 +134,7 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 	}
 
 	//some objects are ignored from collisions
-	if (collision_obj->type == OT__PARTICLE || collision_obj->type == OT__TARGET || collision_obj->hp <= 0)
+	if (collision_obj->type == OT__PARTICLE || collision_obj->type == OT__DECAL || collision_obj->type == OT__TARGET || collision_obj->hp <= 0)
 	{
 		return true;
 	}
@@ -143,7 +143,6 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 	{
 	case OT__DOOR:
 	{
-		obj->col_object = collision_obj;
 
 		//if door is moving in any way, don't move into it
 		if (collision_obj->state != SECTOR_SLEEP)
@@ -163,8 +162,35 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 
 		break;
 	}
+	case OT__MONSTER:
+	{
+		if (obj->type == OT__PLAYER)
+		{
+			//check z 
+			if (!Object_ZPassCheck(obj, collision_obj))
+			{
+				return false;
+			}
+			else
+			{
+				return true;
+			}
+		}
+		//don't collide with monsters of same type
+		else if (obj->type == OT__MONSTER && obj->sub_type == collision_obj->sub_type)
+		{
+			return true;
+		}
+
+		break;
+	}
 	case OT__PICKUP:
 	{
+		//check z 
+		if (Object_ZPassCheck(obj, collision_obj))
+		{
+			return true;
+		}
 		//pickup pickups for player
 		if (obj->type == OT__PLAYER)
 		{
@@ -214,7 +240,12 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 			{
 				return true;
 			}
+		}
 
+		//check z 
+		if (Object_ZPassCheck(obj, collision_obj))
+		{
+			return true;
 		}
 
 		//perform direct hit damage
@@ -499,6 +530,7 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive)
 	{
 		if (obj->type == OT__MONSTER)
 		{
+			Monster_ApplyPushback(src_obj, obj);
 			Monster_SetState(obj, MS__HIT);
 		}
 		else if (obj->type == OT__PLAYER)
@@ -534,6 +566,11 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive)
 
 bool Object_Crush(Object* obj)
 {
+	if (obj->hp <= 0)
+	{
+		//return true;
+	}
+
 	if (obj->type == OT__PLAYER || obj->type == OT__MONSTER)
 	{
 		Object_Hurt(obj, NULL, 100000, true);
@@ -578,13 +615,17 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	missile->owner = obj;
 	missile->x = (obj->x) + dir_x * 2;
 	missile->y = (obj->y) + dir_y * 2;
-	missile->z = (obj->z + 32);
+	missile->z = (obj->z + 64);
 	missile->dir_x = dir_x;
 	missile->dir_y = dir_y;
 	missile->dir_z = dir_z;
 	missile->size = 5;
 	missile->step_height = 0;
 	missile->sprite.playing = true;
+
+	missile->sound_id = Sound_EmitWorld(SOUND__FIREBALL_FOLLOW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
+
+	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
 
 	Move_SetPosition(missile, missile->x, missile->y, missile->size);
 
@@ -615,12 +656,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	obj->y = y;
 	obj->z = z;
 
-	obj->sprite.x = x + obj->sprite.offset_x;
-	obj->sprite.y = y + obj->sprite.offset_y;
-	obj->sprite.z = z + obj->sprite.offset_z;
 	obj->sub_type = sub_type;
 
 	//init defaults
+	obj->sprite.decal_line_index = -1;
 	obj->height = 70;
 	obj->step_height = 50;
 	obj->size = 22;
@@ -657,8 +696,8 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		ObjectInfo* object_info = Info_GetObjectInfo(obj->type, obj->sub_type);
 		AnimInfo* anim_info = &object_info->anim_info;
 
+		//SETUP SPRITE
 		obj->sprite.img = &assets->object_textures;
-
 		obj->sprite.anim_speed_scale = object_info->anim_speed;
 		obj->sprite.frame_count = anim_info->frame_count;
 		obj->sprite.looping = anim_info->looping;
@@ -666,15 +705,13 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.frame_offset_y = anim_info->y_offset;
 		obj->sprite.offset_x = object_info->sprite_offset_x;
 		obj->sprite.offset_y = object_info->sprite_offset_y;
-		obj->sprite.offset_z = 20;
-		obj->height = 64;
-	
-		//obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
-
-		if (obj->sprite.frame_count > 0)
-		{
-			obj->sprite.playing = true;
-		}
+		obj->sprite.offset_z = object_info->sprite_offset_z;
+		obj->sprite.scale_x = object_info->sprite_scale;
+		obj->sprite.scale_y = object_info->sprite_scale;
+		obj->sprite.playing = true;
+		
+		obj->size = object_info->size;
+		obj->height = 32;
 
 		if (type == OT__PICKUP)
 		{
@@ -722,7 +759,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		{
 			if (obj->sprite.frame_count > 0)
 			{
-				obj->sprite.frame = rand() % obj->sprite.frame_count;
+				obj->sprite.frame = rand() % obj->sprite.frame_count - 1;
 			}
 		}
 		else if (sub_type == SUB__PARTICLE_WALL_HIT)
@@ -763,7 +800,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 		if (obj->sprite.frame_count > 0)
 		{
-			obj->sprite.frame = rand() % obj->sprite.frame_count;
+			obj->sprite.frame = rand() & (obj->sprite.frame_count - 1);
 		}
 
 		obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
@@ -815,6 +852,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		Move_SetPosition(obj, x, y, obj->size);
 		Move_ZMove(obj, zmove);
 	}
+
+	obj->sprite.x = obj->x;
+	obj->sprite.y = obj->y;
+	obj->sprite.z = obj->z;
 
 	return obj;
 }

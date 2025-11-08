@@ -2,15 +2,25 @@
 
 #include "u_math.h"
 
-#define MAX_TRACE_ITEMS 100000
+#define MAX_TRACE_ITEMS 10000
+#define MAX_TRACE_SORT_ITEMS 10000
 #define MAX_SPECIAL_LINES 1000
 #define TRACE_EPSILON 0.125
+
+typedef struct
+{
+	float frac;
+	int index;
+} TraceSortItem;
 
 typedef struct
 {
 	int result_items[MAX_TRACE_ITEMS];
 	int special_line_indices[MAX_SPECIAL_LINES];
 	int num_hit_special_lines;
+
+	TraceSortItem sort_items[MAX_TRACE_SORT_ITEMS];
+	int num_sort_items;
 } TraceCore;
 
 static TraceCore s_traceCore;
@@ -29,6 +39,24 @@ static void Trace_SetupTraceLine(Line* trace_line, float start_x, float start_y,
 	trace_line->dx = trace_line->x1 - trace_line->x0;
 	trace_line->dy = trace_line->y1 - trace_line->y0;
 	trace_line->dot = trace_line->dx * trace_line->dx + trace_line->dy * trace_line->dy;
+}
+
+static void Trace_ResetSortItems()
+{
+	s_traceCore.num_sort_items = 0;
+}
+
+static void Trace_AddTraceSortItem(float frac, int index)
+{
+	if (s_traceCore.num_sort_items >= MAX_TRACE_SORT_ITEMS)
+	{
+		return;
+	}
+	
+	TraceSortItem* sitem = &s_traceCore.sort_items[s_traceCore.num_sort_items++];
+
+	sitem->frac = frac;
+	sitem->index = index;
 }
 
 static bool Trace_LineIntersectLine(Map* map, Line* trace_line, Line* line, float* r_hitX, float* r_hitY, float* r_frac)
@@ -119,6 +147,8 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 		//Is a line
 		if (index < 0)
 		{
+			obj->collision_hit = index;
+
 			index = -(index + 1);
 
 			Line* line = &map->line_segs[index];
@@ -142,9 +172,9 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = &map->sectors[line->back_sector];
 
-			if (!Check_CanObjectFitInSector(obj, frontsector, backsector))
+			if (Check_CanObjectFitInSector(obj, frontsector, backsector))
 			{
-				return false;
+				//continue;
 			}
 
 			float open_low = max(frontsector->floor, backsector->floor);
@@ -189,8 +219,8 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 
 				if (!Object_HandleObjectCollision(obj, trace_obj))
 				{
-					trace_obj->col_object = obj;
-					obj->col_object = trace_obj;
+					trace_obj->collision_hit = obj->id;
+					obj->collision_hit = trace_obj->id;
 					return false;
 				}
 				
@@ -268,8 +298,8 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 				continue;
 			}
 
-			int s1 = Line_PointSide(&vel_line, line->x0, line->y0);
-			int s2 = Line_PointSide(&vel_line, line->x1, line->y1);
+			int s1 = Line_PointSide(line, vel_line.x0, vel_line.y0);
+			int s2 = Line_PointSide(line, vel_line.x1, vel_line.y1);
 
 			if (s1 == s2)
 			{
@@ -285,9 +315,9 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 
 			if (!backsector)
 			{
-				if (Line_PointSide(line, start_x, start_y) == 0)
+				if (Line_PointSide(line, obj->x, obj->y))
 				{
-					//continue;
+					continue;
 				}
 			}
 
@@ -308,29 +338,15 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 	return min_hit;
 }
 
-int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac)
+int Trace_AttackLine(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float range, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac)
 {
 	Map* map = Map_GetMap();
 	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, Register_TraceItem);
 
-	float min_frac = 1.001;
-	int min_hit = TRACE_NO_HIT;
-	float min_hit_x = end_x;
-	float min_hit_y = end_y;
-	float min_hit_z = z;
-
-	float min_obj_frac = 1.001;
-	int min_obj_hit = TRACE_NO_HIT;
-	float min_obj_hit_x = end_x;
-	float min_obj_hit_y = end_y;
-	float min_obj_hit_z = z;
+	Trace_ResetSortItems();
 
 	Line trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
-
-	float attack_range = 10000;
-	float top_pitch = Math_DegToRad(35.0);
-	float bottom_pitch = -Math_DegToRad(35.0);
 
 	for (int i = 0; i < num_traces; i++)
 	{
@@ -350,15 +366,6 @@ int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end
 				backsector = &map->sectors[line->back_sector];
 			}
 
-			float frac = 0;
-			float hit_x = 0;
-			float hit_y = 0;
-
-			if (!Trace_LineIntersectLine(map, &trace_line, line, &hit_x, &hit_y, &frac))
-			{
-				continue;
-			}
-
 			if (backsector)
 			{
 				float open_low = max(frontsector->floor, backsector->floor);
@@ -375,15 +382,23 @@ int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end
 				}
 			}
 
-			if (frac < min_frac)
+			if (frontsector->is_sky && z > frontsector->ceil)
 			{
-				min_frac = frac;
-				min_hit = index;
-				min_hit_x = hit_x;
-				min_hit_y = hit_y;
-				min_hit_z = z;
+				continue;
+			}
+			else if (backsector && backsector->is_sky && z > backsector->ceil)
+			{
+				continue;
 			}
 
+			float frac = 0;
+
+			if (!Trace_LineIntersectLine(map, &trace_line, line, NULL, NULL, &frac))
+			{
+				continue;
+			}
+
+			Trace_AddTraceSortItem(frac, index);
 		}
 		else
 		{
@@ -404,104 +419,152 @@ int Trace_Line(Object* obj, float start_x, float start_y, float end_x, float end
 			Math_SizeToBbox(trace_obj->x, trace_obj->y, trace_obj->size, bbox);
 
 			float frac = 0;
-			float hit_x = 0;
-			float hit_y = 0;
 
-			if (!Math_TraceLineVsBox2(start_x, start_y, end_x, end_y, bbox, &hit_x, &hit_y, &frac))
+			if (!Math_TraceLineVsBox2(start_x, start_y, end_x, end_y, bbox, NULL, NULL, &frac))
 			{
 				continue;
 			}
 
-			float obj_dist = attack_range * min_obj_frac;
-			if (obj_dist == 0) obj_dist = 0.001;
-			float obj_bottom_pitch = (trace_obj->z - z) / obj_dist;
-			float obj_top_pitch = ((trace_obj->z + 64) - z) / obj_dist;
-
-
-			if (frac < min_obj_frac)
-			{
-				min_obj_frac = frac;
-				min_obj_hit = index;
-				min_obj_hit_x = hit_x;
-				min_obj_hit_y = hit_y;
-				min_obj_hit_z = trace_obj->z + trace_obj->height * 0.5;
-			}
+			Trace_AddTraceSortItem(frac, index);
 		}
 	}
 
-	if (min_obj_hit != TRACE_NO_HIT)
-	{
-		if (min_hit != TRACE_NO_HIT && min_hit < 0)
-		{
-			Line* line = &map->line_segs[-(min_hit + 1)];
+	float min_frac = 1.001;
+	int min_hit = TRACE_NO_HIT;
 
-			Sector* frontsector = &map->sectors[line->front_sector];
+	float top_pitch = -Math_DegToRad(45);
+	float bottom_pitch = Math_DegToRad(45);
+
+	for (int i = 0; i < s_traceCore.num_sort_items; i++)
+	{
+		float min_dist = 1.001;
+		bool go_further = true;
+
+		TraceSortItem* min_sort_item = NULL;
+
+		for (int k = 0; k < s_traceCore.num_sort_items; k++)
+		{
+			TraceSortItem* sort_item = &s_traceCore.sort_items[k];
+
+			if (sort_item->frac < min_dist)
+			{
+				min_dist = sort_item->frac;
+				min_sort_item = sort_item;
+			}
+		}
+
+		if (!min_sort_item)
+		{
+			break;
+		}
+		
+		int index = min_sort_item->index;
+		float frac = min_sort_item->frac;
+
+		if (index < 0)
+		{
+			int line_index = -(index + 1);
+			Line* line = &map->line_segs[line_index];
+
+			Sector* frontsector = Map_GetSector(line->front_sector);
 			Sector* backsector = NULL;
 
 			if (line->back_sector >= 0)
 			{
-				backsector = &map->sectors[line->back_sector];
-			}
-
-			if (backsector)
-			{
-				Object* trace_obj = Map_GetObject(min_obj_hit);
-
-				//if backsector
-				//check if line is below the view pitch
+				backsector = Map_GetSector(line->back_sector);
 				float open_low = max(frontsector->floor, backsector->floor);
 				float open_high = min(frontsector->ceil, backsector->ceil);
 				float open_range = open_high - open_low;
 
-				float line_dist = attack_range * min_frac + 0.0001;
-				float obj_dist = attack_range * min_obj_frac + 0.0001;
-	
-				float line_pitch_low = (open_low - z) / line_dist;
-				float line_pitch_high = (open_high - z) / line_dist;
-
-				float obj_bottom_pitch = (trace_obj->z - z) / obj_dist;
-				float obj_top_pitch = ((trace_obj->z + trace_obj->height) - z) / obj_dist;
-
-				if (obj_bottom_pitch < line_pitch_high && line_pitch_high < Math_DegToRad(35.0))
+				//closed window
+				if (open_range <= 0 || open_low >= open_high)
 				{
-					min_hit = min_obj_hit;
-					min_frac = min_obj_frac;
-					min_hit_x = min_obj_hit_x;
-					min_hit_y = min_obj_hit_y;
-					min_hit_z = min_obj_hit_z;
+					go_further = false;
 				}
-				else if (obj_top_pitch > line_pitch_low && line_pitch_low > Math_DegToRad(35.0))
+				else
 				{
-					min_hit = min_obj_hit;
-					min_frac = min_obj_frac;
-					min_hit_x = min_obj_hit_x;
-					min_hit_y = min_obj_hit_y;
-					min_hit_z = min_obj_hit_z;
+					float line_dist = range * frac;
+
+					if (frontsector->floor != backsector->floor)
+					{
+						float line_pitch_low = -Math_XY_Angle(line_dist, open_low - z);
+
+						if (line_pitch_low < bottom_pitch)
+						{
+							bottom_pitch = line_pitch_low;
+						}
+					}
+					if (frontsector->ceil != backsector->ceil)
+					{
+						float line_pitch_high = -Math_XY_Angle(line_dist, open_high - z);
+
+						if (line_pitch_high > top_pitch)
+						{
+							top_pitch = line_pitch_high;
+						}
+					}
+					
+					if (top_pitch >= bottom_pitch)
+					{
+						go_further = false;
+					}
 				}
 				
 			}
 			else
 			{
-				//no backsector
-				//just check if obj is closer
-				if (min_obj_frac < min_frac)
-				{
-					min_hit = min_obj_hit;
-					min_frac = min_obj_frac;
-					min_hit_x = min_obj_hit_x;
-					min_hit_y = min_obj_hit_y;
-					min_hit_z = min_obj_hit_z;
-				}
+				go_further = false;
 			}
 		}
 		else
 		{
-			//no line was hit at all, so the object is the closest
-			min_hit = min_obj_hit;
-			min_frac = min_obj_frac;
-			min_hit_x = min_obj_hit_x;
-			min_hit_y = min_obj_hit_y;
-			min_hit_z = min_obj_hit_z;
+			Object* trace_obj = Map_GetObject(index);
+
+			float obj_dist = range * frac;
+
+			float obj_bottom_pitch = -Math_XY_Angle(obj_dist, trace_obj->z - z);
+			float obj_top_pitch = -Math_XY_Angle(obj_dist, (trace_obj->z + trace_obj->height) - z);
+
+			if (obj_top_pitch < bottom_pitch && obj_bottom_pitch > top_pitch)
+			{
+				min_frac = frac;
+				min_hit = index;
+				break;
+			}
+		}
+
+		min_sort_item->frac = FLT_MAX;
+
+		if (frac < min_frac)
+		{
+			min_frac = frac;
+			min_hit = index;
+		}
+
+		if (!go_further)
+		{
+			break;
+		}
+	}
+	
+	float min_hit_x = end_x;
+	float min_hit_y = end_y;
+	float min_hit_z = z;
+
+	if (min_hit != TRACE_NO_HIT)
+	{
+		min_hit_x = trace_line.x0 + trace_line.dx * min_frac;
+		min_hit_y = trace_line.y0 + trace_line.dy * min_frac;
+
+		if (min_hit >= 0)
+		{
+			Object* trace_obj = Map_GetObject(min_hit);
+
+			min_hit_z = trace_obj->z + trace_obj->height * 0.5;
+		}
+		else
+		{
+			min_hit_z = z;
 		}
 	}
 
@@ -526,20 +589,10 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 	Map* map = Map_GetMap();
 	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, Register_TraceItem);
 
-	float min_line_frac = 1.001;
-	int min_line_hit = TRACE_NO_HIT;
-
-	float min_target_frac = 1.001;
-	int min_target_hit = TRACE_NO_HIT;
-
 	Line trace_line;
-	trace_line.x0 = start_x;
-	trace_line.y0 = start_y;
-	trace_line.x1 = end_x;
-	trace_line.y1 = end_y;
-	trace_line.dx = trace_line.x1 - trace_line.x0;
-	trace_line.dy = trace_line.y1 - trace_line.y0;
-	trace_line.dot = trace_line.dx * trace_line.dx + trace_line.dy * trace_line.dy;
+	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
+
+	Trace_ResetSortItems();
 
 	for (int i = 0; i < num_traces; i++)
 	{
@@ -559,15 +612,6 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 				backsector = &map->sectors[line->back_sector];
 			}
 
-			float frac = 0;
-			float hit_x = 0;
-			float hit_y = 0;
-
-			if (!Trace_LineIntersectLine(map, &trace_line, line, &hit_x, &hit_y, &frac))
-			{
-				continue;
-			}
-
 			if (backsector)
 			{
 				float open_low = max(frontsector->floor, backsector->floor);
@@ -583,13 +627,15 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 					}
 				}
 			}
+			
+			float frac = 0;
 
-			if (frac < min_line_frac)
+			if (!Trace_LineIntersectLine(map, &trace_line, line, NULL, NULL, &frac))
 			{
-				min_line_frac = frac;
-				min_line_hit = index;
+				continue;
 			}
 
+			Trace_AddTraceSortItem(frac, index);
 		}
 		else
 		{
@@ -606,58 +652,75 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 				{
 					return false;
 				}
-
-				min_target_frac = frac;
-				min_target_hit = index;
-			}
-			
+				Trace_AddTraceSortItem(frac, index);
+			}	
 		}
 	}
 
-	if (min_target_hit != TRACE_NO_HIT && min_target_hit == target->id)
+	for (int i = 0; i < s_traceCore.num_sort_items; i++)
 	{
-		if (min_line_hit != TRACE_NO_HIT && min_line_hit < 0)
-		{
-			Line* line = &map->line_segs[-(min_line_hit + 1)];
+		float min_dist = 1.001;
 
-			Sector* frontsector = &map->sectors[line->front_sector];
+		TraceSortItem* min_sort_item = NULL;
+
+		for (int k = 0; k < s_traceCore.num_sort_items; k++)
+		{
+			TraceSortItem* sort_item = &s_traceCore.sort_items[k];
+
+			if (sort_item->frac < min_dist)
+			{
+				min_dist = sort_item->frac;
+				min_sort_item = sort_item;
+			}
+		}
+
+		if (!min_sort_item)
+		{
+			break;
+		}
+
+		int index = min_sort_item->index;
+		float frac = min_sort_item->frac;
+
+		if (index < 0)
+		{
+			int line_index = -(index + 1);
+			Line* line = &map->line_segs[line_index];
+
+			Sector* frontsector = Map_GetSector(line->front_sector);
 			Sector* backsector = NULL;
 
 			if (line->back_sector >= 0)
 			{
-				backsector = &map->sectors[line->back_sector];
-			}
-
-			if (backsector)
-			{
-				Object* trace_obj = Map_GetObject(min_target_hit);
-
-				//if backsector
+				backsector = Map_GetSector(line->back_sector);
 				float open_low = max(frontsector->floor, backsector->floor);
 				float open_high = min(frontsector->ceil, backsector->ceil);
 				float open_range = open_high - open_low;
 
-				if (open_range > 0)
+				//closed window
+				if (open_range <= 0)
 				{
-					return true;
+					return false;
 				}
 			}
 			else
 			{
-				//no backsector
-				//just check if obj is closer
-				if (min_target_frac < min_line_frac)
-				{
-					return true;
-				}
+				return false;
 			}
 		}
 		else
 		{
-			//no line was hit at all, so the object is the closest
-			return true;
+			Object* trace_obj = Map_GetObject(index);
+
+			if (trace_obj == target)
+			{
+				return true;
+			}
 		}
+
+		min_sort_item->frac = FLT_MAX;
 	}
+
 
 	return false;
 }
@@ -694,32 +757,28 @@ int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y
 			continue;
 		}
 
-		//check if non special line intercepts the trace
-		if (line->special <= 0)
+		Sector* frontsector = &map->sectors[line->front_sector];
+		Sector* backsector = NULL;
+
+		if (line->back_sector >= 0)
 		{
-			Sector* frontsector = &map->sectors[line->front_sector];
-			Sector* backsector = NULL;
+			backsector = &map->sectors[line->back_sector];
+		}
 
-			if (line->back_sector >= 0)
+		if (backsector)
+		{
+			float open_low = max(frontsector->floor, backsector->floor);
+			float open_high = min(frontsector->ceil, backsector->ceil);
+			float open_range = open_high - open_low;
+
+			//the trace will not hit floor and ceil
+			if (open_range > 0 && open_low < z && open_high > z)
 			{
-				backsector = &map->sectors[line->back_sector];
-			}
-
-			if (backsector)
-			{
-				float open_low = max(frontsector->floor, backsector->floor);
-				float open_high = min(frontsector->ceil, backsector->ceil);
-				float open_range = open_high - open_low;
-
-				//the trace will not hit floor and ceil
-				if (open_range > 0 && open_low < z && open_high > z)
-				{
-					continue;
-				}
+				continue;
 			}
 		}
 
-		if (frac < min_frac)
+		if (frac <= min_frac)
 		{
 			min_frac = frac;
 			min_hit = index;
@@ -746,8 +805,7 @@ int Trace_AreaObjects(Object* obj, float x, float y, float size)
 	float bbox[2][2];
 	Math_SizeToBbox(x, y, size, bbox);
 
-	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(Map_GetSpatialTree(), bbox, MAX_TRACE_ITEMS, Register_TraceItem);
 
 	int num_collisions = 0;
 
@@ -797,13 +855,6 @@ int Trace_SectorObjects(Sector* sector)
 			continue;
 		}
 
-		Object* trace_obj = Map_GetObject(index);
-
-		if (trace_obj->hp <= 0)
-		{
-			continue;
-		}
-		
 		s_traceCore.result_items[num_collisions++] = index;
 	}
 

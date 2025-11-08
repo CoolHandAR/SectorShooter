@@ -5,6 +5,11 @@
 
 static void Event_ActivateCrusherObject(Sector* sector)
 {
+	if(sector->sector_object >= 0)
+	{
+		return;
+	}
+
 	float sector_center_x = 0;
 	float sector_center_y = 0;
 	Math_GetBoxCenter(sector->bbox, &sector_center_x, &sector_center_y);
@@ -22,7 +27,7 @@ static void Event_ActivateCrusherObject(Sector* sector)
 
 static void Event_ActivateCrushersByTag(int tag)
 {
-	if (tag == 0)
+	if (tag <= 0)
 	{
 		return;
 	}
@@ -173,15 +178,85 @@ static void Event_HandleSpecialUseLines(Line* line, int side)
 	}
 	}
 }
+static void Event_HandleSpecialWalkoverLines(Line* line, int side)
+{
+	Sector* frontsector = Map_GetSector(line->front_sector);
+	Sector* backsector = NULL;
 
+	if (line->back_sector >= 0)
+	{
+		backsector = Map_GetSector(line->back_sector);
+	}
+
+	switch (line->special)
+	{
+	case SPECIAL__TRIGGER_CRUSHER:
+	{
+		Event_ActivateCrushersByTag(line->sector_tag);
+		break;
+	}
+	default:
+	{
+		break;
+	}
+	}
+}
 void Event_TriggerSpecialLine(Object* obj, int side, Line* line, EventLineTriggerType trigger_type)
 {
 	if (trigger_type == EVENT_TRIGGER__LINE_USE)
 	{
 		Event_HandleSpecialUseLines(line, side);
 	}
-	
+	else if (trigger_type == EVENT_TRIGGER__LINE_WALK_OVER)
+	{
+		Event_HandleSpecialWalkoverLines(line, side);
+	}
 
 	
 
+}
+
+void Event_CreateExistingSectorObject(int type, int sub_type, int state, float stop_timer, int sector_index)
+{
+	if (sector_index < 0)
+	{
+		return;
+	}
+
+	Sector* sector = Map_GetSector(sector_index);
+
+	if (!sector || sector->sector_object >= 0)
+	{
+		return;
+	}
+
+	switch (type)
+	{
+	case OT__CRUSHER:
+	{
+		Event_ActivateCrusherObject(sector);
+		break;
+	}
+	case OT__LIFT:
+	{
+		Event_ActivateLiftObject(sector);
+		break;
+	}
+	case OT__DOOR:
+	{
+		Event_ActivateDoorObject(sector, false);
+		break;
+	}
+	default:
+		break;
+	}
+
+	if (sector->sector_object < 0)
+	{
+		return;
+	}
+	Object* obj = Map_GetObject(sector->sector_object);
+
+	obj->state = state;
+	obj->stuck_timer = stop_timer;
 }

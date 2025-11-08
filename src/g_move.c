@@ -170,7 +170,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 	}
 	int bump_count = 0;
 
-	for (bump_count = 0; bump_count < 1; bump_count++)
+	for (bump_count = 0; bump_count < 3; bump_count++)
 	{	
 		if (p_moveX == 0 && p_moveY == 0)
 		{
@@ -240,7 +240,30 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 
 		if (hit == TRACE_NO_HIT || best_frac >= 1)
 		{
-			Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size);
+			if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
+			{	
+				if (fabs(p_moveX) > fabs(p_moveY))
+				{
+					if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y, obj->size))
+					{
+						if (Move_SetPosition(obj, obj->x, obj->y + p_moveY, obj->size))
+						{
+							continue;
+						}
+					}
+				}
+				else
+				{
+					if (!Move_SetPosition(obj, obj->x, obj->y + p_moveY, obj->size))
+					{
+						if (Move_SetPosition(obj, obj->x + p_moveX, obj->y, obj->size))
+						{
+							continue;
+						}
+					}
+				}
+			
+			}
 
 			return true;
 		}
@@ -257,7 +280,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 		p_moveX = clip_dx;
 		p_moveY = clip_dy;
 
-		if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
+		if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
 		{
 			return true;
 		}
@@ -283,6 +306,11 @@ float Move_GetLineDot(float x, float y, Line* line)
 	den = den / line->dot;
 
 	return den;
+}
+
+void Move_Accelerate(Object* obj, float p_moveX, float p_moveY, float p_moveZ)
+{
+
 }
 
 void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_line)
@@ -561,22 +589,23 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 	bool moved = false;
 
 	float max_speed = obj->speed * delta;
-	float friction = 1.0 - (2 * delta);
-	float stop_speed = 2 * delta;
+	float friction = 1.0 - (4 * delta);
+	float stop_speed = 4 * delta;
 	//apply friction
 	if (obj->type == OT__PLAYER)
 	{
-		obj->vel_x += p_moveX * max_speed;
-		obj->vel_y += p_moveY * max_speed;
+		//p_moveX *= 24;
+		///p_moveY *= 24;
+
+		obj->vel_x += p_moveX *delta;
+		obj->vel_y += p_moveY *delta;
 
 		obj->vel_x *= friction;
 		obj->vel_y *= friction;
 
-		if (fabs(obj->vel_x) < stop_speed && fabs(obj->vel_y) < stop_speed)
-		{
-			//obj->vel_x = 0;
-			//obj->vel_y = 0;
-		}
+		
+		obj->vel_x = p_moveX * max_speed;
+		obj->vel_y = p_moveY * max_speed;
 	}
 	else
 	{
@@ -640,12 +669,14 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 		float remainder = sector->ceil - sector->floor;
 		
 		p_moveFloor = remainder;
+		p_moveCeil = 0;
 	}
-	if (sector->ceil + p_moveCeil < sector->floor)
+	else if (sector->ceil + p_moveCeil < sector->floor)
 	{
 		float remainder = sector->floor - sector->ceil;
 
 		p_moveCeil = remainder;
+		p_moveFloor = 0;
 	}
 
 	//no movement
@@ -685,6 +716,11 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 		}
 
 		Move_SetPosition(obj, obj->x, obj->y, obj->size);
+
+		if (obj->hp <= 0)
+		{
+			continue;
+		}
 
 		//obj will be not be crushed
 		if (next_ceil - next_floor >= obj->height)

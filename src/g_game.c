@@ -5,6 +5,8 @@
 #include "sound.h"
 #include <stdio.h>
 
+#define START_LEVEL 5
+
 static Game game;
 static GameAssets assets;
 
@@ -24,15 +26,8 @@ bool Game_Init()
 	
 	Game_SetState(GS__MENU);
 
-	//load the first map
-	//if(!Game_ChangeLevel(0))
-	//{
-		//printf("ERROR:: Failed to load map !\n");
-		//return false;
-	//}
 	game.level_index = -1;
 	VisualMap_Init();
-
 
 	//Sound_SetAsMusic(SOUND__MUSIC1);
 
@@ -50,15 +45,11 @@ bool Game_LoadAssets()
 {
 	memset(&assets, 0, sizeof(assets));
 
-	if (!Load_DoomIWAD("DOOM.WAD"))
+	if (!Load_DoomIWAD("DOOM.wad"))
 	{
 		return false;
 	}
 
-	if (!Image_CreateFromPath(&assets.wall_textures, "assets/textures/walls.png"))
-	{
-		return false;
-	}
 	if (!Image_CreateFromPath(&assets.object_textures, "assets/textures/object_sheet.png"))
 	{
 		return false;
@@ -107,13 +98,14 @@ bool Game_LoadAssets()
 	{
 		return false;
 	}
-	if (!Image_CreateFromPath(&assets.missing_texture, "assets/textures/missing_texture.png"))
+	if (!Image_CreateFromPath(&assets.missing_texture.img, "assets/textures/missing_texture.png"))
 	{
 		return false;
 	}
 
-	assets.wall_textures.h_frames = 7;
-	assets.wall_textures.v_frames = 1;
+	assets.missing_texture.width_mask = assets.missing_texture.img.width - 1;
+	assets.missing_texture.height_mask = assets.missing_texture.img.height - 1;
+	strcpy(assets.missing_texture.name, "MISS");
 
 	assets.object_textures.h_frames = 4;
 	assets.object_textures.v_frames = 8;
@@ -146,9 +138,8 @@ bool Game_LoadAssets()
 	assets.particle_textures.v_frames = 2;
 
 	assets.decal_textures.h_frames = 5;
-	assets.decal_textures.v_frames = 1;
+	assets.decal_textures.v_frames = 2;
 
-	Image_GenerateFrameInfo(&assets.wall_textures);
 	Image_GenerateFrameInfo(&assets.object_textures);
 	Image_GenerateFrameInfo(&assets.shotgun_texture);
 	Image_GenerateFrameInfo(&assets.imp_texture);
@@ -161,14 +152,11 @@ bool Game_LoadAssets()
 	Image_GenerateFrameInfo(&assets.pistol_texture);
 	Image_GenerateFrameInfo(&assets.devastator_texture);
 
-	Image_GenerateMipmaps(&assets.wall_textures);
-
 	return true;
 }
 
 void Game_DestructAssets()
 {
-	Image_Destruct(&assets.wall_textures);
 	Image_Destruct(&assets.object_textures);
 	Image_Destruct(&assets.shotgun_texture);
 	Image_Destruct(&assets.imp_texture);
@@ -231,7 +219,7 @@ void Game_LogicUpdate(double delta)
 		//no map loaded? load the first map
 		if (game.level_index < 0)
 		{
-			Game_ChangeLevel(1);
+			Game_ChangeLevel(START_LEVEL);
 			break;
 		}
 
@@ -271,7 +259,7 @@ void Game_SmoothUpdate(double lerp, double delta)
 		//no map loaded? load the first map
 		if (game.level_index < 0)
 		{
-			Game_ChangeLevel(1);
+			Game_ChangeLevel(START_LEVEL);
 			break;
 		}
 
@@ -492,29 +480,19 @@ void Game_SetStatusMessage(char msg[MAX_STATUS_MESSAGE])
 
 void Game_Reset(bool to_start)
 {
-	//stall render threads
-	Render_FinishAndStall();
-
 	game.total_secrets = 0;
 	game.total_monsters = 0;
 	game.secrets_found = 0;
 	game.monsters_killed = 0;
 
-	int index = 0;
+	int index = game.level_index;
 
-	if (!to_start)
+	if (to_start)
 	{
 		index = 0;
 	}
 
-	const char* level = LEVELS[index];
-
-	Map_Load(level);
-
-	Player_Init(false);
-
-	//resume
-	Render_Resume();
+	Game_ChangeLevel(index);
 }
 
 void Game_SecretFound()
@@ -539,6 +517,7 @@ Texture* Game_FindTextureByName(const char p_name[8])
 		return NULL;
 	}
 
+	//look for flat textures
 	for (int i = 0; i < assets.num_flat_textures; i++)
 	{
 		Texture* texture = &assets.flat_textures[i];
@@ -560,6 +539,7 @@ Texture* Game_FindTextureByName(const char p_name[8])
 		}
 	}
 
-	return NULL;
+	//return pink and black stripe texture
+	return &assets.missing_texture;
 }
 
