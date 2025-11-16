@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <windows.h>
 #include <assert.h>
+#include "u_math.h"
 
 #define MAX_IMAGE_MIPMAPS 8
 #define DEPTH_CLEAR 9999999
@@ -251,6 +252,23 @@ typedef struct
 
 typedef struct
 {
+	unsigned char* data;
+	int width;
+	int height;
+} Lightmap;
+
+inline unsigned char* Lightmap_Get(Lightmap* lightmap, int x, int y)
+{
+	x = Math_Clampl(x, 0, lightmap->width - 1);
+	y = Math_Clampl(y, 0, lightmap->height - 1);
+
+	return &lightmap->data[x + y * lightmap->width];
+}
+inline unsigned char* Lightmap_SampleLinear(Lightmap* lightmap, int x, int y);
+
+
+typedef struct
+{
 	float x, y, z;
 	float offset_x, offset_y, offset_z;
 	float scale_x, scale_y;
@@ -358,6 +376,7 @@ typedef struct
 	short* ytop;
 	short* ybottom;
 
+	Lightmap* lightmap;
 	struct Texture* texture;
 	float viewheight;
 	int light;
@@ -474,7 +493,7 @@ void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y,
 void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
-void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask);
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask, Lightmap* lm);
 void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
 void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);

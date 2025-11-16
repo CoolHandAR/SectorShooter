@@ -546,7 +546,7 @@ int BVH_Tree_GetData(BVH_Tree* const p_tree, BVH_ID p_bvhID)
 	return node->data_index;
 }
 
-int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCount, BVH_RegisterFun p_registerFun)
+int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCount, int* p_hits)
 {
 	if (p_tree->root == BVH_NODE_NULL_INDEX)
 	{
@@ -591,8 +591,7 @@ int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCoun
 		//Is the node leaf?
 		if (node->left == BVH_NODE_NULL_INDEX)
 		{
-			//call the register function and continue
-			(*p_registerFun)(node->data_index, node_index, hit_count);
+			p_hits[hit_count] = node->data_index;
 
 			hit_count++;
 		}
@@ -613,7 +612,7 @@ int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCoun
 	return hit_count;
 }
 
-int BVH_Tree_Cull_Trace(BVH_Tree* const p_tree, float p_startX, float p_startY, float p_endX, float p_endY, int p_maxHitCount, BVH_RegisterFun p_registerFun)
+int BVH_Tree_Cull_Trace(BVH_Tree* const p_tree, float p_startX, float p_startY, float p_endX, float p_endY, int p_maxHitCount, int* p_hits)
 {
 	if (p_tree->root == BVH_NODE_NULL_INDEX)
 	{
@@ -653,8 +652,7 @@ int BVH_Tree_Cull_Trace(BVH_Tree* const p_tree, float p_startX, float p_startY, 
 		//Is the node leaf?
 		if (node->left == BVH_NODE_NULL_INDEX)
 		{
-			//call the register function and continue
-			(*p_registerFun)(node->data_index, node_index, hit_count);
+			p_hits[hit_count] = node->data_index;
 
 			hit_count++;
 		}

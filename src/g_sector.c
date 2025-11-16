@@ -48,7 +48,7 @@ void Sector_CreateLightStrober(Sector* sector, SubType light_type)
 
 float Sector_FindHighestNeighbourCeilling(Sector* sector)
 {
-	int num_lines = Trace_SectorLines(sector);
+	int num_lines = Trace_SectorLines(sector, false);
 	int* hits = Trace_GetHitObjects();
 
 	float highest_ceil = 0;
@@ -75,7 +75,7 @@ float Sector_FindHighestNeighbourCeilling(Sector* sector)
 
 float Sector_FindLowestNeighbourFloor(Sector* sector)
 {
-	int num_lines = Trace_SectorLines(sector);
+	int num_lines = Trace_SectorLines(sector, false);
 	int* hits = Trace_GetHitObjects();
 
 	float lowest_floor = sector->floor;

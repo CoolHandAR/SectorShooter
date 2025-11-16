@@ -13,7 +13,7 @@
 #define TRACE_NO_HIT INT_MAX
 
 #define NULL_INDEX -1
-#define MAX_OBJECTS 1024
+#define MAX_OBJECTS 5024
 
 #define SECTOR_SLEEP 0
 #define SECTOR_OPEN 1
@@ -28,6 +28,8 @@
 #define MAX_MAP_NAME 32
 #define MAX_STATUS_MESSAGE 32 
 #define STATUS_TIME 5
+#define LIGHTMAP_SIZE 128
+#define LIGHTMAP_LUXEL_SIZE 16.0
 
 static const char SAVEFOLDER[] = { "\\saves" };
 
@@ -346,6 +348,19 @@ typedef struct
 } Sidedef;
 typedef struct
 {
+	float x0, x1;
+	float y0, y1;
+
+	float dx, dy;
+	float dot;
+
+	int front_sector;
+	int back_sector;
+
+	Lightmap lightmap;
+} Linedef;
+typedef struct
+{
 	bool skip_draw;
 
 	float x0, x1;
@@ -366,11 +381,13 @@ typedef struct
 	int special;
 	int sector_tag;
 	int flags;
+	int side;
 
 	float width_scale;
 	float bbox[2][2];
 
 	Sidedef* sidedef;
+	Linedef* linedef;
 } Line;
 
 typedef struct
@@ -387,6 +404,9 @@ typedef struct
 
 	Texture* floor_texture;
 	Texture* ceil_texture;
+
+	Lightmap floor_lightmap;
+	Lightmap ceil_lightmap;
 
 	int sector_tag;
 	int special;
@@ -408,6 +428,7 @@ typedef struct
 
 	int index;
 	bool is_sky;
+
 } Sector;
 
 typedef struct
@@ -419,6 +440,11 @@ typedef struct
 
 	Sector* sector;
 } Subsector;
+
+typedef struct
+{
+	unsigned char light;
+} Lightblock;
 
 typedef struct
 {
@@ -438,6 +464,9 @@ typedef struct
 
 	int num_sidedefs;
 	Sidedef* sidedefs;
+
+	int num_linedefs;
+	Linedef* linedefs;
 
 	int reject_size;
 	unsigned char* reject_matrix;
@@ -461,6 +490,9 @@ typedef struct
 
 	float world_bounds[2][2];
 	float world_size[2];
+	float world_height;
+	float world_min_height;
+	float world_max_height;
 
 	char name[MAX_MAP_NAME];
 } Map;
@@ -471,6 +503,7 @@ bool Map_LoadFromIndex(int index);
 bool Map_Load(const char* filename);
 Object* Map_GetObject(ObjectID id);
 Object* Map_FindObjectByUniqueID(int unique_id);
+Object* Map_GetNextObjectByType(int* r_iterIndex, int type);
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot);
 void Map_UpdateObjects(float delta);
 void Map_SmoothUpdate(double lerp, double delta);
@@ -581,8 +614,9 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target);
 int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y, float z);
 int Trace_AreaObjects(Object* obj, float x, float y, float size);
 int Trace_SectorObjects(Sector* sector);
-int Trace_SectorLines(Sector* sector);
+int Trace_SectorLines(Sector* sector, bool front_only);
 int Trace_SectorAll(Sector* sector);
+int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
 
 //Object stuff
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
@@ -677,4 +711,8 @@ float Line_InterceptLine(Line* line1, Line* line2);
 float LineSide_InterceptLine(Line* line1, Line* line2);
 bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float *r_interY);
 bool LineSide_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY);
+
+//LIGHT COMPILING STUFF
+void Lightmap_Create(Map* map);
+void Lightblocks_Create(Map* map);
 #endif

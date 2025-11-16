@@ -35,7 +35,7 @@ int BVH_Tree_GetData(BVH_Tree* const p_tree, BVH_ID p_bvhID);
 typedef void (*BVH_RegisterFun)(int _data_index, BVH_ID _index, int _hit_count);
 
 
-int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCount, BVH_RegisterFun p_registerFun);
-int BVH_Tree_Cull_Trace(BVH_Tree* const p_tree, float p_startX, float p_startY, float p_endX, float p_endY, int p_maxHitCount, BVH_RegisterFun p_registerFun);
+int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCount, int* p_hits);
+int BVH_Tree_Cull_Trace(BVH_Tree* const p_tree, float p_startX, float p_startY, float p_endX, float p_endY, int p_maxHitCount, int* p_hits);
 
 #endif

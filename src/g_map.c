@@ -206,6 +206,21 @@ Object* Map_FindObjectByUniqueID(int unique_id)
 	return NULL;
 }
 
+Object* Map_GetNextObjectByType(int* r_iterIndex, int type)
+{
+	while (*r_iterIndex < s_map.num_objects)
+	{
+		Object* obj = Map_GetObject((*r_iterIndex)++);
+		
+		if (obj->type == type)
+		{
+			return obj;
+		}
+	}
+
+	return NULL;
+}
+
 void Map_GetSpawnPoint(int* r_x, int* r_y, int* r_z, int* r_sector, float* r_rot)
 {
 	if (r_x)
@@ -397,6 +412,11 @@ void Map_DeleteObject(Object* obj)
 
 Subsector* Map_FindSubsector(float p_x, float p_y)
 {
+	if (s_map.num_nodes <= 0 || s_map.num_sub_sectors == 1)
+	{
+		return &s_map.sub_sectors[0];
+	}
+
 	int nodenum = s_map.num_nodes - 1;
 
 	while (!(nodenum & MF__NODE_SUBSECTOR))
@@ -469,6 +489,7 @@ BVH_Tree* Map_GetSpatialTree()
 
 void Map_Destruct()
 {
+	if (s_map.linedefs) free(s_map.linedefs);
 	if (s_map.line_segs) free(s_map.line_segs);
 	if (s_map.bsp_nodes) free(s_map.bsp_nodes);
 	if (s_map.sectors) free(s_map.sectors);

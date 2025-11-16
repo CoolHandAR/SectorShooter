@@ -506,6 +506,7 @@ AlphaSpan* FrameInfo_GetAlphaSpan(FrameInfo* frame_info, int x)
 	return &frame_info->alpha_spans[x];
 }
 
+
 void Image_Copy(Image* dest, Image* src)
 {
 	assert(dest->numChannels == src->numChannels);

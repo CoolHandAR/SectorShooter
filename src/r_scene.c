@@ -425,7 +425,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 					mask = top_texture->height_mask;
 				}
 
-				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, top_texture, x, c_yceil, c_back_yceil, depth, tx, ty_pos, ty_step, wall_light, mask);
+				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, top_texture, x, c_yceil, c_back_yceil, depth, tx, ty_pos, ty_step, wall_light, mask, &line->linedef->lightmap);
 			}
 
 			if (bot_texture)
@@ -442,10 +442,10 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 					ty_pos = (fabs(c_back_yfloor - back_yfloor)) * ty_step;
 					ty_pos += texheight - (sector->base_ceil - sector->base_floor) * 0.5;
 				}
-
+				
 				ty_pos += sidedef->y_offset;
 				
-				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, bot_texture->height_mask);
+				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, bot_texture->height_mask, &line->linedef->lightmap);
 			}
 			
 			if (!args->is_both_sky)
@@ -479,7 +479,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 				ty_pos -= texheight;
 			}		
 
-			Video_DrawWallCollumn(image, args->draw_args->depth_buffer, mid_texture, x, c_yceil, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, mid_height_mask);
+			Video_DrawWallCollumn(image, args->draw_args->depth_buffer, mid_texture, x, c_yceil, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, mid_height_mask, &line->linedef->lightmap);
 		}
 
 		x_pos++;
@@ -717,6 +717,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	DrawPlane* floor_plane = &args->render_data->floor_plane;
 	DrawPlane* ceil_plane = &args->render_data->ceil_plane;
 
+	floor_plane->lightmap = &sector->floor_lightmap;
 	floor_plane->light = sector->light_level;
 	floor_plane->visible = false;
 	floor_plane->texture = sector->floor_texture;
@@ -725,6 +726,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	floor_plane->ytop = args->floor_plane_ytop;
 	floor_plane->ybottom = args->floor_plane_ybottom;
 
+	ceil_plane->lightmap = &sector->ceil_lightmap;
 	ceil_plane->light = sector->light_level;
 	ceil_plane->visible = false;
 	ceil_plane->texture = sector->ceil_texture;

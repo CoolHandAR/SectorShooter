@@ -298,12 +298,13 @@ typedef enum
 {
     THING__SMALL_HP = 2011,
     THING__BIG_HP = 2012,
+    THING__LAMP = 2028,
     THING__ROCKETS = 2046,
     THING__AMMO = 2048,
     THING__IMP = 3001,
     THING__PINKY = 3002,
     THING__BARON = 3003,
-
+    
 } thingtypes;
 
 static void* MallocLump(FILE* file, filelump_t* lumps, int lump_start, int lump_num, int size, int* r_num)
@@ -451,6 +452,8 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         maplinedef_t* mldef = &mlinedefs[linedef_index];
         int side = ms->side;
         
+        os->side = side;
+        
         os->side_x0 = (int)vertices[mldef->v2].x >> DOOM_VERTEX_SHIFT;
         os->side_y0 = (int)vertices[mldef->v2].y >> DOOM_VERTEX_SHIFT;
 
@@ -463,7 +466,7 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         os->front_sector = msides[mldef->sidenum[side]].sector;
 
         os->sidedef = &map->sidedefs[mldef->sidenum[side]];
-
+        os->linedef = &map->linedefs[linedef_index];
 
         if (mldef->flags & ML_TWOSIDED)
         {
@@ -622,6 +625,45 @@ static void Load_Sidedefs(mapsidedef_t* msidedefs, int num, Map* map)
         os->top_texture = Game_FindTextureByName(ms->toptexture);
     }
 }
+static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertices, mapsidedef_t* msides, Map* map)
+{
+    if (num <= 0) return;
+
+    map->linedefs = calloc(num, sizeof(Linedef));
+
+    if (!map->linedefs)
+    {
+        return;
+    }
+
+    map->num_linedefs = num;
+
+    for (int i = 0; i < num; i++)
+    {
+        maplinedef_t* ms = &mlinedefs[i];
+        Linedef* os = &map->linedefs[i];
+
+        os->x0 = (int)vertices[ms->v2].x >> DOOM_VERTEX_SHIFT;
+        os->y0 = (int)vertices[ms->v2].y >> DOOM_VERTEX_SHIFT;
+
+        os->x1 = (int)vertices[ms->v1].x >> DOOM_VERTEX_SHIFT;
+        os->y1 = (int)vertices[ms->v1].y >> DOOM_VERTEX_SHIFT;
+
+        os->dx = os->x1 - os->x0;
+        os->dy = os->y1 - os->y0;
+
+        os->front_sector = msides[ms->sidenum[0]].sector;
+
+        if (ms->flags & ML_TWOSIDED)
+        {
+            os->back_sector = msides[ms->sidenum[1]].sector;
+        }
+        else
+        {
+            os->back_sector = -1;
+        }
+    }
+}
 
 static void Load_PostProcessMap(Map* map)
 {
@@ -657,6 +699,8 @@ static void Load_PostProcessMap(Map* map)
         }
     }
 
+    float min_height = FLT_MAX;
+    float max_height = -FLT_MAX;
 
     for (int i = 0; i < map->num_sectors; i++)
     {
@@ -683,6 +727,9 @@ static void Load_PostProcessMap(Map* map)
                 }
             }
         }
+
+        min_height = min(min_height, min(sector->ceil, sector->floor));
+        max_height = max(max_height, max(sector->ceil, sector->floor));
     }
 
 
@@ -761,6 +808,10 @@ static void Load_PostProcessMap(Map* map)
     {
         map->world_size[k] = map->world_bounds[1][k] - map->world_bounds[0][k];
     }
+
+    map->world_height = max_height - min_height;
+    map->world_min_height = min_height;
+    map->world_max_height = max_height;
 }
 
 static void Load_SetupSectorSpecials(Map* map)
@@ -865,6 +916,12 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             sub_type = SUB__MOB_PINKY;
             break;
         }
+        case THING__LAMP:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_LAMP;
+            break;
+        }
         default:
             break;
         }
@@ -886,6 +943,15 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         map->player_spawn_point_x = (int)player_thing->x >> DOOM_VERTEX_SHIFT;
         map->player_spawn_point_y = (int)player_thing->y >> DOOM_VERTEX_SHIFT;
         map->player_spawn_rot = Math_DegToRad(player_thing->angle);
+    }
+    else
+    {
+        float center_x = 0, center_y = 0;
+        Math_GetBoxCenter(map->world_bounds, &center_x, &center_y);
+
+        map->player_spawn_point_x = center_x;
+        map->player_spawn_point_y = center_y;
+        map->player_spawn_rot = 0;
     }
 }
 
@@ -935,12 +1001,6 @@ bool Load_Doommap(const char* filename, Map* map)
     fseek(file, header.infotableofs, SEEK_SET);
     fread(file_infos, sizeof(filelump_t) * header.numlumps, 1, file);
     
-    for (int i = 0; i < header.numlumps; i++)
-    {
-        filelump_t* l = &file_infos[i];
-        float x = 0;
-    }
-
     int num_sectors = 0;
     int num_vertices = 0;
     int num_subsectors = 0;
@@ -966,6 +1026,7 @@ bool Load_Doommap(const char* filename, Map* map)
     Load_SubSectors(subsector_lump, num_subsectors, map);
     Load_Nodes(node_lump, num_nodes, map);
     Load_Sidedefs(sidedef_lump, num_sidedefs, map);
+    Load_Linedefs(linedef_lump, num_linedefs, vertex_lump, sidedef_lump, map);
     Load_LineSegs(seg_lump, num_segs, vertex_lump, sidedef_lump, linedef_lump, map);
 
     //load rejectblock
@@ -984,6 +1045,9 @@ bool Load_Doommap(const char* filename, Map* map)
 
     //also save map name
     strncpy(map->name, filename, strlen(filename));
+
+    Lightmap_Create(map);
+    Lightblocks_Create(map);
 
     if (sector_lump) free(sector_lump);
     if (subsector_lump) free(subsector_lump);

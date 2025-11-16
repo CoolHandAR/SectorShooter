@@ -789,7 +789,7 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 			unsigned char* tex_data = Image_Get(sprite->img, tx, ty);
 
-			if (tex_data[3] > 128 && depth < args->depth_buffer[dest_index])
+			//if (tex_data[3] > 128 && depth < args->depth_buffer[dest_index])
 			{
 				args->depth_buffer[dest_index] = depth;
 
@@ -1137,20 +1137,35 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	}
 }
 
-void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask)
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask, Lightmap* lm)
 {
+	int lx = 0;
+	if (lm)
+	{
+		float flx = (float)tx / LIGHTMAP_LUXEL_SIZE;
+		lx = Math_Clamp(flx, 0, lm->width - 1);
+	}
+
 	tx &= texture->width_mask;
 
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
-	if (light > 0)
+	if (light >= 0)
 	{
 		for (int y = y1; y < y2; y++)
 		{
 			int ty = (int)ty_pos & height_mask;
 
 			unsigned char* data = Image_Get(&texture->img, tx, ty);
+
+			if (lm)
+			{
+				int ly = Math_Clamp((ty_pos / LIGHTMAP_LUXEL_SIZE), 0, lm->height -1);
+
+				light = lm->data[lx + ly * lm->width];
+			}
+		//	light = 255;
 
 			size_t i = index * 4;
 
@@ -1285,9 +1300,30 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 
 	int light = Math_Clampl(plane->light - (distance * DEPTH_SHADING_SCALE), 0, 255);
 
+	Sector* sector = args->sector;
+
+	float sector_size_x = sector->bbox[1][0] - sector->bbox[0][0];
+	float sector_size_y = sector->bbox[1][1] - sector->bbox[0][1];
+
+	float sector_center = (sector->bbox[0][0] * 2) + sector_size_x * 2;
+
+	//sector_size_x /= 16.0;
+
 	for (int x = x1; x <= x2; x++)
 	{
-		unsigned char* data = Image_GetFast(&texture->img, (int)y_pos & 63, (int)x_pos & 63);
+		if (plane->lightmap)
+		{
+			int lx = ((x_pos - (sector->bbox[1][0] * 2)) / LIGHTMAP_LUXEL_SIZE) + plane->lightmap->width;
+			int ly = ((y_pos + (sector->bbox[1][1] * 2)) / LIGHTMAP_LUXEL_SIZE) + 1;
+
+			lx = Math_Clamp(lx, 0, plane->lightmap->width - 1);
+			ly = Math_Clamp(ly, 0, plane->lightmap->height - 1);
+
+			light = plane->lightmap->data[lx + ly * plane->lightmap->width];
+		}
+		//light = 255;
+
+		unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
 
 		index = ((size_t)x + (size_t)y * (size_t)image->width);
 		size_t i = index * 4;

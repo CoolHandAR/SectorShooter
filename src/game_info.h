@@ -305,7 +305,8 @@ static const char* LEVELS[] =
 	"E1M2.WAD",
 	"E1M3.WAD",
 	"M13.WAD",
-	"ourmap00.WAD"
+	"ourmap00.WAD",
+	"ourmap01.WAD"
 };
 
 //SPECIAL ENUMS

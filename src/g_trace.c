@@ -25,11 +25,6 @@ typedef struct
 
 static TraceCore s_traceCore;
 
-static void Register_TraceItem(int _data_index, BVH_ID _index, int _hit_count)
-{
-	s_traceCore.result_items[_hit_count] = _data_index;
-}
-
 static void Trace_SetupTraceLine(Line* trace_line, float start_x, float start_y, float end_x, float end_y)
 {
 	trace_line->x0 = start_x;
@@ -135,7 +130,7 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 	float bbox[2][2];
 	Math_SizeToBbox(x, y, size, bbox);
 
-	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, bbox, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	float min_obj_frac = 1.001;
 	int min_obj_hit = TRACE_NO_HIT;
@@ -264,7 +259,7 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 
 	int min_hit = TRACE_NO_HIT;
 
-	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, bbox, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	for (int i = 0; i < num_traces; i++)
 	{
@@ -341,7 +336,7 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 int Trace_AttackLine(Object* obj, float start_x, float start_y, float end_x, float end_y, float z, float range, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac)
 {
 	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	Trace_ResetSortItems();
 
@@ -587,7 +582,7 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 	float end_y = target->y;
 
 	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	Line trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
@@ -737,7 +732,7 @@ int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
 
 	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Trace(Map_GetSpatialTree(), start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Trace(Map_GetSpatialTree(), start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	for (int i = 0; i < num_traces; i++)
 	{
@@ -805,7 +800,7 @@ int Trace_AreaObjects(Object* obj, float x, float y, float size)
 	float bbox[2][2];
 	Math_SizeToBbox(x, y, size, bbox);
 
-	int num_traces = BVH_Tree_Cull_Box(Map_GetSpatialTree(), bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(Map_GetSpatialTree(), bbox, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	int num_collisions = 0;
 
@@ -841,7 +836,7 @@ int Trace_AreaObjects(Object* obj, float x, float y, float size)
 int Trace_SectorObjects(Sector* sector)
 {
 	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, sector->bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, sector->bbox, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	int num_collisions = 0;
 
@@ -861,10 +856,10 @@ int Trace_SectorObjects(Sector* sector)
 	return num_collisions;
 }
 
-int Trace_SectorLines(Sector* sector)
+int Trace_SectorLines(Sector* sector, bool front_only)
 {
 	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, sector->bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(&map->spatial_tree, sector->bbox, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	int num_collisions = 0;
 
@@ -881,9 +876,20 @@ int Trace_SectorLines(Sector* sector)
 		int line_index = -(index + 1);
 		Line* line = &map->line_segs[line_index];
 
-		if (line->back_sector == sector->index || line->front_sector == sector->index)
+
+		if (front_only)
 		{
-			s_traceCore.result_items[num_collisions++] = line_index;
+			if (line->front_sector == sector->index)
+			{
+				s_traceCore.result_items[num_collisions++] = line_index;
+			}
+		}
+		else
+		{
+			if (line->back_sector == sector->index || line->front_sector == sector->index)
+			{
+				s_traceCore.result_items[num_collisions++] = line_index;
+			}
 		}
 	}
 
@@ -892,7 +898,7 @@ int Trace_SectorLines(Sector* sector)
 
 int Trace_SectorAll(Sector* sector)
 {
-	int num_traces = BVH_Tree_Cull_Box(Map_GetSpatialTree(), sector->bbox, MAX_TRACE_ITEMS, Register_TraceItem);
+	int num_traces = BVH_Tree_Cull_Box(Map_GetSpatialTree(), sector->bbox, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
 	int num_collisions = 0;
 
@@ -924,4 +930,100 @@ int Trace_SectorAll(Sector* sector)
 	}
 
 	return num_collisions;
+}
+int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac)
+{
+	Map* map = Map_GetMap();
+	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, s_traceCore.result_items);
+
+	Line trace_line;
+	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
+
+	float dz = end_z - start_z;
+
+	float min_frac = 1.001;
+	int min_hit = TRACE_NO_HIT;
+	float min_hit_x = FLT_MAX;
+	float min_hit_y = FLT_MAX;
+	float min_hit_z = FLT_MAX;
+
+	for (int i = 0; i < num_traces; i++)
+	{
+		int index = s_traceCore.result_items[i];
+
+		//ignore objects
+		if (index >= 0)
+		{
+			continue;
+		}
+
+		int line_index = -(index + 1);
+		Line* line = &map->line_segs[line_index];
+
+		Sector* frontsector = &map->sectors[line->front_sector];
+		Sector* backsector = NULL;
+
+		if (line->back_sector >= 0)
+		{
+			backsector = &map->sectors[line->back_sector];
+		}
+
+		float hit_x = 0;
+		float hit_y = 0;
+		float frac = 1;
+
+		int s1 = Line_PointSide(line, trace_line.x0, trace_line.y0);
+		int s2 = Line_PointSide(line, trace_line.x1, trace_line.y1);
+
+		if (s1 == s2)
+		{
+			continue;
+		}
+
+		frac = Line_InterceptLine(&trace_line, line);
+
+		if (frac < 0.0 || frac > 1.0)
+		{
+			continue;
+		}
+
+		if (!Trace_LineIntersectLine(map, &trace_line, line, &hit_x, &hit_y, &frac))
+		{
+			continue;
+		}
+
+		float z = start_z + dz * frac;
+
+		if (backsector)
+		{
+			float open_low = max(frontsector->floor, backsector->floor);
+			float open_high = min(frontsector->ceil, backsector->ceil);
+			float open_range = open_high - open_low;
+
+			if (open_range > 0 && open_low < open_high)
+			{
+				//the trace will not hit floor and ceil
+				if (open_low < z && open_high > z)
+				{
+					continue;
+				}
+			}
+		}
+
+		if (frac < min_frac)
+		{
+			min_frac = frac;
+			min_hit_x = hit_x;
+			min_hit_y = hit_y;
+			min_hit_z = z;
+			min_hit = line_index;
+		}
+	}
+
+	if (r_frac) *r_frac = min_frac;
+	if (r_hitX) *r_hitX = min_hit_x;
+	if (r_hitY) *r_hitY = min_hit_y;
+	if (r_hitZ) *r_hitZ = min_hit_z;
+
+	return min_hit;
 }
