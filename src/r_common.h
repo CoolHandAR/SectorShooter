@@ -252,20 +252,74 @@ typedef struct
 
 typedef struct
 {
-	unsigned char* data;
+	Vec4_u8* data;
 	int width;
 	int height;
 } Lightmap;
 
-inline unsigned char* Lightmap_Get(Lightmap* lightmap, int x, int y)
+inline Vec4_u8* Lightmap_Get(Lightmap* lightmap, int x, int y)
 {
 	x = Math_Clampl(x, 0, lightmap->width - 1);
 	y = Math_Clampl(y, 0, lightmap->height - 1);
 
 	return &lightmap->data[x + y * lightmap->width];
 }
-inline unsigned char* Lightmap_SampleLinear(Lightmap* lightmap, int x, int y);
+inline Vec4_u8* Lightmap_GetFast(Lightmap* lightmap, int x, int y)
+{
+	return &lightmap->data[x + y * lightmap->width];
+}
+inline unsigned char Lightmap_SampleLinear(Lightmap* lightmap, float x, float y)
+{
+	//unsigned char s0 = *Lightmap_Get(lightmap, x, y);
+	//unsigned char s1 = *Lightmap_Get(lightmap, x + 1, y);
+	//unsigned char s2 = *Lightmap_Get(lightmap, x, y + 1);
+	//unsigned char s3 = *Lightmap_Get(lightmap, x + 1, y + 1);
 
+	//float x_frac = x - (int)x;
+	//float y_frac = y - (int)y;
+
+	//unsigned char lerp0 = Math_lerp(s0, s1, x_frac);
+	//unsigned char lerp1 = Math_lerp(s2, s3, x_frac);
+	//unsigned char lerp2 = Math_lerp(lerp0, lerp1, y_frac);
+
+	//return lerp2;
+
+	return 0;
+}
+inline Vec4_u8 Lightmap_SampleWallLinearPoints(Lightmap* lightmap, float x, float y, float next_x, float x_frac, int* r_lerp0, int* r_lerp1)
+{
+	//only designed for wall collumn drawing
+	y = Math_Clampl(y, 0, lightmap->height - 1);
+	int next_y = y + 1;
+
+	if (next_y >= lightmap->height) next_y = lightmap->height - 1;
+
+	Vec4_u8 s0 = *Lightmap_GetFast(lightmap, x, y);
+	Vec4_u8 s1 = *Lightmap_GetFast(lightmap, next_x, y);
+	Vec4_u8 s2 = *Lightmap_GetFast(lightmap, x, next_y);
+	Vec4_u8 s3 = *Lightmap_GetFast(lightmap, next_x, next_y);
+
+	*r_lerp0 = Math_lerp(s0.a, s1.a, x_frac);
+	*r_lerp1 = Math_lerp(s2.a, s3.a, x_frac);
+
+	return s0;
+}
+inline void Lightmap_SamplePlaneLinearPoints(Lightmap* lightmap, float x, float y, Vec4_u8* r_s0, Vec4_u8* r_s1, Vec4_u8 *r_s2, Vec4_u8* r_s3)
+{
+	//only designed for plane strip drawing
+	x = Math_Clampl(x, 0, lightmap->width - 1);
+	y = Math_Clampl(y, 0, lightmap->height - 1);
+	int next_x = x + 1;
+	int next_y = y + 1;
+
+	if (next_x >= lightmap->width) next_x = lightmap->width - 1;
+	if (next_y >= lightmap->height) next_y = lightmap->height - 1;
+
+	*r_s0 = *Lightmap_GetFast(lightmap, x, y);
+	*r_s1 = *Lightmap_GetFast(lightmap, next_x, y);
+	*r_s2 = *Lightmap_GetFast(lightmap, x, next_y);
+	*r_s3 = *Lightmap_GetFast(lightmap, next_x, next_y);
+}
 
 typedef struct
 {
@@ -278,7 +332,7 @@ typedef struct
 
 	//modifiers
 	float transparency;
-	float light;
+	Vec3_u8 light;
 
 	//animation stuff
 	float _anim_frame_progress;
@@ -327,7 +381,7 @@ typedef struct
 
 	float transparency;
 
-	short light;
+	Vec3_u8 light;
 
 	int decal_line_index;
 
@@ -493,7 +547,7 @@ void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y,
 void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
-void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask, Lightmap* lm);
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, int light, int height_mask, Lightmap* lm);
 void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
 void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);

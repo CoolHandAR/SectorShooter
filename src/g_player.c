@@ -963,16 +963,14 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 	//draw gun
 	if (player.obj->hp > 0)
 	{
-		int l = 255;
-
-		if (l > 255) l = 255;
+		Vec3_u8 light = player.obj->sprite.light;
 
 		Sprite sprite = player.gun_sprites[player.gun];
 
+		sprite.light = light;
+
 		float old_x = sprite.x;
 		float old_y = sprite.y;
-
-		sprite.light = (float)l / 255.0f;
 
 		sprite.x += player.gun_offset_x;
 		sprite.y += player.gun_offset_y;

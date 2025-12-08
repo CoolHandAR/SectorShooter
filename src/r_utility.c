@@ -130,17 +130,13 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	int sprite_rect_width = (h_frames > 0) ? sprite->img->width / h_frames : sprite->img->width;
 	int sprite_rect_height = (v_frames > 0) ? sprite->img->height / v_frames : sprite->img->height;
 
-	int sprite_light = sprite->light * 255;
-	sprite_light += sector_light;
+	Vec3_u8 light = sprite->light;
 
-	if (sprite_light < 0)
-	{
-		sprite_light = 0;
-	}
-	else if (sprite_light > 255)
-	{
-		sprite_light = 255;
-	}
+#ifdef DISABLE_LIGHTMAPS
+	light.r = sector_light;
+	light.g = sector_light;
+	light.b = sector_light;
+#endif
 
 	//Convert to draw sprite
 	DrawSprite* draw_sprite = &data->draw_sprites[data->num_draw_sprites++];
@@ -157,7 +153,7 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	draw_sprite->frame_offset_y = sprite_offset_y;
 	draw_sprite->sprite_rect_width = sprite_rect_width;
 	draw_sprite->sprite_rect_height = sprite_rect_height;
-	draw_sprite->light = sprite_light;
+	draw_sprite->light = light;
 	draw_sprite->flip_h = sprite->flip_h;
 	draw_sprite->flip_v = sprite->flip_v;
 	draw_sprite->decal_line_index = (is_decal) ? sprite->decal_line_index : -1;

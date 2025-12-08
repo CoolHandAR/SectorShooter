@@ -355,6 +355,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 	for (int x = first; x < last; x++)
 	{
 		int tx = (u0 * (x_pos2 * tz2) + u1 * (x_pos * tz1)) / (x_pos2 * tz2 + x_pos * tz1);
+		int lx = tx;
 
 		tx += sidedef->x_offset;
 
@@ -414,6 +415,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 			if(top_texture && !args->is_both_sky)
 			{
 				float ty_pos = fabs(c_yceil - yceil) * ty_step;
+				float ly_pos = ty_pos;
 
 				ty_pos += sidedef->y_offset;
 
@@ -425,27 +427,30 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 					mask = top_texture->height_mask;
 				}
 
-				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, top_texture, x, c_yceil, c_back_yceil, depth, tx, ty_pos, ty_step, wall_light, mask, &line->linedef->lightmap);
+				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, top_texture, x, c_yceil, c_back_yceil, depth, tx, ty_pos, ty_step, lx, ly_pos, wall_light, mask, &line->linedef->lightmap);
 			}
 
 			if (bot_texture)
 			{
 				float ty_pos = 0;
+				float ly_pos = 0;
 
 				if (texheight > args->backsector_floor_height && !dont_peg_bottom)
 				{
 					ty_pos = (fabs(c_back_yfloor - yceil)) * ty_step;
+					ly_pos = ty_pos;
 					ty_pos -= args->backsector_floor_height;
 				}
 				else
 				{
 					ty_pos = (fabs(c_back_yfloor - back_yfloor)) * ty_step;
+					ly_pos = ty_pos;
 					ty_pos += texheight - (sector->base_ceil - sector->base_floor) * 0.5;
 				}
 				
 				ty_pos += sidedef->y_offset;
 				
-				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, bot_texture->height_mask, &line->linedef->lightmap);
+				Video_DrawWallCollumn(image, args->draw_args->depth_buffer, bot_texture, x, c_back_yfloor, c_yfloor, depth, tx, ty_pos, ty_step, lx, ly_pos, wall_light, bot_texture->height_mask, &line->linedef->lightmap);
 			}
 			
 			if (!args->is_both_sky)
@@ -471,6 +476,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 		else
 		{
 			float ty_pos = (fabs(c_yceil - yceil)) * ty_step;
+			float ly_pos = ty_pos;
 
 			ty_pos += sidedef->y_offset;
 
@@ -479,7 +485,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 				ty_pos -= texheight;
 			}		
 
-			Video_DrawWallCollumn(image, args->draw_args->depth_buffer, mid_texture, x, c_yceil, c_yfloor, depth, tx, ty_pos, ty_step, wall_light, mid_height_mask, &line->linedef->lightmap);
+			Video_DrawWallCollumn(image, args->draw_args->depth_buffer, mid_texture, x, c_yceil, c_yfloor, depth, tx, ty_pos, ty_step, lx, ly_pos, wall_light, mid_height_mask, &line->linedef->lightmap);
 		}
 
 		x_pos++;

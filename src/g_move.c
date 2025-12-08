@@ -496,6 +496,9 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 
 		Render_UnlockObjectMutex(true);
 	}
+	
+	//update light
+	Map_CalcBlockLight(obj->x, obj->y, obj->z, &obj->sprite.light);
 
 	//update bvh
 	if (obj->spatial_id >= 0)

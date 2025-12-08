@@ -582,9 +582,6 @@ bool Render_Init(int width, int height, int scale)
 	s_renderCore.hfov = 0.73;
 	s_renderCore.vfov = 0.25;
 
-	DWORD render_thread_id = 0;
-	s_renderCore.main_thread_handle = CreateThread(NULL, 0, Render_MainThreadLoop, NULL, 0, &render_thread_id);
-
 	InitializeConditionVariable(&s_renderCore.start_work_cv);
 	InitializeCriticalSection(&s_renderCore.start_mutex);
 
@@ -596,6 +593,9 @@ bool Render_Init(int width, int height, int scale)
 	InitializeConditionVariable(&s_renderCore.main_thread_cv);
 	s_renderCore.main_thread_active_event = CreateEvent(NULL, TRUE, FALSE, NULL);
 	s_renderCore.main_thread_standby_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+	DWORD render_thread_id = 0;
+	s_renderCore.main_thread_handle = CreateThread(NULL, 0, Render_MainThreadLoop, NULL, 0, &render_thread_id);
 
 	int num_threads = QueryNumLogicalProcessors();
 
@@ -830,14 +830,8 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 	s_renderCore.view_sin = angleSin;
 	s_renderCore.view_angle = angle;
 
-	//clear image to black
-	//Image_Clear(&s_renderCore.framebuffer, 0);
-
 	if (game_state == GS__LEVEL && Game_GetLevelIndex() >= 0)
 	{
-		//clear wall depth buffer
-		//memset(s_renderCore.depth_buffer, (int)DEPTH_CLEAR, sizeof(float) * s_renderCore.w * s_renderCore.h);
-
 		//set work state for all threads
 		Render_SetWorkStateForAllThreads(TWT__DRAW_LEVEL);
 

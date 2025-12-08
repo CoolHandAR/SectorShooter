@@ -931,10 +931,10 @@ int Trace_SectorAll(Sector* sector)
 
 	return num_collisions;
 }
-int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac)
+int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, bool ignore_sky_plane, int* r_hits, int max_hit_count, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac)
 {
 	Map* map = Map_GetMap();
-	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, s_traceCore.result_items);
+	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, max_hit_count, r_hits);
 
 	Line trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
@@ -949,7 +949,7 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 
 	for (int i = 0; i < num_traces; i++)
 	{
-		int index = s_traceCore.result_items[i];
+		int index = r_hits[i];
 
 		//ignore objects
 		if (index >= 0)
@@ -1007,6 +1007,18 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 				{
 					continue;
 				}
+			}
+		}
+
+		if (ignore_sky_plane)
+		{
+			if (frontsector->is_sky && z > frontsector->ceil)
+			{
+				continue;
+			}
+			else if (backsector && backsector->is_sky && z > backsector->ceil)
+			{
+				continue;
 			}
 		}
 

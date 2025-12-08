@@ -10,6 +10,7 @@
 #include "r_common.h"
 #include "sound.h"
 
+//#define DISABLE_LIGHTMAPS
 #define TRACE_NO_HIT INT_MAX
 
 #define NULL_INDEX -1
@@ -30,6 +31,8 @@
 #define STATUS_TIME 5
 #define LIGHTMAP_SIZE 128
 #define LIGHTMAP_LUXEL_SIZE 16.0
+#define LIGHTMAP_INV_LUXEL_SIZE 1.0 / LIGHTMAP_LUXEL_SIZE
+#define LIGHT_GRID_SIZE 64.0
 
 static const char SAVEFOLDER[] = { "\\saves" };
 
@@ -357,6 +360,8 @@ typedef struct
 	int front_sector;
 	int back_sector;
 
+	int index;
+
 	Lightmap lightmap;
 } Linedef;
 typedef struct
@@ -443,8 +448,20 @@ typedef struct
 
 typedef struct
 {
-	unsigned char light;
+	Vec4_u8 light;
 } Lightblock;
+
+typedef struct
+{
+	Lightblock* blocks;
+	float size[3];
+	float inv_size[3];
+	
+	int block_size[3];
+
+	float origin[3];
+	float bounds[3];
+} Lightgrid;
 
 typedef struct
 {
@@ -471,6 +488,8 @@ typedef struct
 	int reject_size;
 	unsigned char* reject_matrix;
 
+	Lightgrid lightgrid;
+
 	int num_objects;
 	Object objects[MAX_OBJECTS];
 
@@ -494,6 +513,10 @@ typedef struct
 	float world_min_height;
 	float world_max_height;
 
+	float sun_angle;
+	float sun_color[3];
+	float sky_color[3];
+
 	char name[MAX_MAP_NAME];
 } Map;
 
@@ -513,13 +536,19 @@ Sector* Map_FindSector(float p_x, float p_y);
 Sector* Map_GetSector(int index);
 Sector* Map_GetNextSectorByTag(int* r_iterIndex, int tag);
 Line* Map_GetLine(int index);
+Linedef* Map_GetLineDef(int index);
 bool Map_CheckSectorReject(int s1, int s2);
 BVH_Tree* Map_GetSpatialTree();
+void Map_SetupLightGrid(int x_blocks, int y_blocks, int z_blocks);
+void Map_UpdateObjectsLight();
+void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest);
 void Map_Destruct();
 
 //Load stuff
 bool Load_Doommap(const char* filename, Map* map);
 bool Load_DoomIWAD(const char* filename);
+bool Load_Lightmap(const char* filename, Map* map);
+bool Save_Lightmap(const char* filename, Map* map);
 
 //Player stuff
 typedef struct
@@ -616,7 +645,7 @@ int Trace_AreaObjects(Object* obj, float x, float y, float size);
 int Trace_SectorObjects(Sector* sector);
 int Trace_SectorLines(Sector* sector, bool front_only);
 int Trace_SectorAll(Sector* sector);
-int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
+int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, bool ignore_sky_plane, int* r_hits, int max_hit_count, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
 
 //Object stuff
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
@@ -712,7 +741,4 @@ float LineSide_InterceptLine(Line* line1, Line* line2);
 bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float *r_interY);
 bool LineSide_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY);
 
-//LIGHT COMPILING STUFF
-void Lightmap_Create(Map* map);
-void Lightblocks_Create(Map* map);
 #endif

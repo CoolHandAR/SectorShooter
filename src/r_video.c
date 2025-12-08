@@ -8,6 +8,8 @@
 #include "u_math.h"
 #include <stdio.h>
 
+//#define WHITE_TEXTURES
+
 static const float PI = 3.14159265359;
 unsigned char LIGHT_LUT[256][256];
 
@@ -25,6 +27,11 @@ static void SWAP_INT(int* a, int* b)
 	*b = temp;
 }
 
+static float Video_FastLerp(float v, float from, float to)
+{
+
+}
+
 void Video_Setup()
 {
 	//setup light lut
@@ -33,8 +40,12 @@ void Video_Setup()
 		for (int k = 0; k < 256; k++)
 		{
 			float light = (float)k / 255.0f;
-			
+
+#ifdef WHITE_TEXTURES
+			int l = (float)255.0 * light;
+#else
 			int l = (float)i * light;
+#endif // WHITE_TEXTURES
 
 			if (l < 0) l = 0;
 			else if (l > 255) l = 255;
@@ -43,6 +54,7 @@ void Video_Setup()
 		}
 	}
 }
+
 
 static int ComputeOutCode(int xmin, int xmax, int ymin, int ymax, float x, float y)
 {
@@ -425,10 +437,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 		return;
 	}
 
-	int light = sprite->light * 255.0;
-
-	if (light < 0) light = 0;
-	else if (light > 255) light = 255;
+	Vec3_u8 light = sprite->light;
 
 	int frame = sprite->frame;
 
@@ -566,7 +575,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 				}
 			}
 
-			unsigned char clr[4] = { LIGHT_LUT[color[0]][light], LIGHT_LUT[color[1]][light], LIGHT_LUT[color[2]][light], 255 };
+			unsigned char clr[4] = { LIGHT_LUT[color[0]][light.r], LIGHT_LUT[color[1]][light.g], LIGHT_LUT[color[2]][light.b], 255 };
 
 			//apply transparency
 			if (transparency > 1)
@@ -702,7 +711,7 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 
-	int light = sprite->light;
+	Vec3_u8 light = sprite->light;
 
 	float tx_pos = 0;
 	float tx_step = 256.0 * ((float)sprite_rect_width / (float)sprite_width) / 256.0;
@@ -763,7 +772,7 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 		float x_pos = fabs(x - draw_start_x);
 		float depth = (x_pos * xl) + transform_y;
-		int depth_light = Math_Clampl(light - (depth * DEPTH_SHADING_SCALE), 0, 255);
+		int depth_light = 0;// Math_Clampl(light - (depth * DEPTH_SHADING_SCALE), 0, 255);
 
 		int min_y = (sprite->flip_v) ? (sprite_rect_height - (span->max)) : span->min;
 		int max_y = (sprite->flip_v) ? (sprite_rect_height - (span->min)) : span->max;
@@ -789,16 +798,16 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 			unsigned char* tex_data = Image_Get(sprite->img, tx, ty);
 
-			//if (tex_data[3] > 128 && depth < args->depth_buffer[dest_index])
+			if (tex_data[3] > 128 && depth < args->depth_buffer[dest_index])
 			{
 				args->depth_buffer[dest_index] = depth;
 
 				size_t i = dest_index * 4;
 
 				//avoid loops, this is faster
-				dest[i + 0] = LIGHT_LUT[tex_data[0]][depth_light];
-				dest[i + 1] = LIGHT_LUT[tex_data[1]][depth_light];
-				dest[i + 2] = LIGHT_LUT[tex_data[2]][depth_light];
+				dest[i + 0] = LIGHT_LUT[tex_data[0]][light.r];
+				dest[i + 1] = LIGHT_LUT[tex_data[1]][light.g];
+				dest[i + 2] = LIGHT_LUT[tex_data[2]][light.b];
 			}
 
 			ty_pos += ty_step;
@@ -1063,7 +1072,7 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 		float depth = (int)(x_pos * depth_step) + tz1;
 		depth *= 0.95;
-		int depth_light = Math_Clampl(sprite->light - (depth * DEPTH_SHADING_SCALE), 0, 255);
+		int depth_light = 255;//Math_Clampl(sprite->light - (depth * DEPTH_SHADING_SCALE), 0, 255);
 
 		float yceil = (int)(x_pos * ceil_step) + top_y1;
 		float yfloor = (int)(x_pos * floor_step) + bottom_y1;
@@ -1137,35 +1146,106 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	}
 }
 
-void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int light, int height_mask, Lightmap* lm)
+
+static void Lightmap_SampleWallLinearPoints2(Lightmap* lightmap, float x, float y, float next_x, float x_frac, Vec4* r_lerp0, Vec4* r_lerp1)
 {
-	int lx = 0;
-	if (lm)
-	{
-		float flx = (float)tx / LIGHTMAP_LUXEL_SIZE;
-		lx = Math_Clamp(flx, 0, lm->width - 1);
-	}
+	//only designed for wall collumn drawing
+	y = Math_Clampl(y, 0, lightmap->height - 1);
+	int next_y = y + 1;
 
-	tx &= texture->width_mask;
+	if (next_y >= lightmap->height) next_y = lightmap->height - 1;
 
+	Vec4_u8 s0 = *Lightmap_GetFast(lightmap, x, y);
+	Vec4_u8 s1 = *Lightmap_GetFast(lightmap, next_x, y);
+	Vec4_u8 s2 = *Lightmap_GetFast(lightmap, x, next_y);
+	Vec4_u8 s3 = *Lightmap_GetFast(lightmap, next_x, next_y);
+
+	r_lerp0->r = Math_lerp(s0.r, s1.r, x_frac);
+	r_lerp0->g = Math_lerp(s0.g, s1.g, x_frac);
+	r_lerp0->b = Math_lerp(s0.b, s1.b, x_frac);
+
+	r_lerp1->r = Math_lerp(s2.r, s3.r, x_frac);
+	r_lerp1->g = Math_lerp(s2.g, s3.g, x_frac);
+	r_lerp1->b = Math_lerp(s2.b, s3.b, x_frac);
+}
+
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, int light, int height_mask, Lightmap* lm)
+{
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
-	if (light >= 0)
+	tx &= texture->width_mask;
+
+	//optimized lightmap only loop
+	if (lm && lm->data)
 	{
+		float flx = Math_Clamp((float)lx * LIGHTMAP_INV_LUXEL_SIZE, 0, lm->width - 1);
+		float flx_frac = flx - (int)flx;
+
+		float next_flx = Math_Clampl(flx + 1, 0, lm->width - 1);
+
+		float fly = (ly_pos * LIGHTMAP_INV_LUXEL_SIZE);
+		int prev_ly = -1;
+
+		float fly_step = ty_step * LIGHTMAP_INV_LUXEL_SIZE;
+
+		Vec4 lerp_light0 = Vec4_Zero();
+		Vec4 lerp_light1 = Vec4_Zero();
+		Vec4 lerp_dx = Vec4_Zero();
+
 		for (int y = y1; y < y2; y++)
 		{
 			int ty = (int)ty_pos & height_mask;
 
 			unsigned char* data = Image_Get(&texture->img, tx, ty);
 
-			if (lm)
-			{
-				int ly = Math_Clamp((ty_pos / LIGHTMAP_LUXEL_SIZE), 0, lm->height -1);
+			int ly = (int)fly;
 
-				light = lm->data[lx + ly * lm->width];
+			//sample 2 points between this and the next luxel
+			if (ly != prev_ly)
+			{
+				Lightmap_SampleWallLinearPoints2(lm, flx, fly, next_flx, flx_frac, &lerp_light0, &lerp_light1);
+
+				lerp_dx.r = lerp_light1.r - lerp_light0.r;
+				lerp_dx.g = lerp_light1.g - lerp_light0.g;
+				lerp_dx.b = lerp_light1.b - lerp_light0.b;
+
+				prev_ly = ly;
 			}
-		//	light = 255;
+
+			float fly_frac = fly - (int)fly;
+
+			//and then lerp them
+			int current_light_r = lerp_light0.r + lerp_dx.r * fly_frac;
+			int current_light_g = lerp_light0.g + lerp_dx.g * fly_frac;
+			int current_light_b = lerp_light0.b + lerp_dx.b * fly_frac;
+
+			//clamp
+			current_light_r = Math_Clampl(current_light_r, 0, 255);
+			current_light_g = Math_Clampl(current_light_g, 0, 255);
+			current_light_b = Math_Clampl(current_light_b, 0, 255);
+
+			size_t i = index * 4;
+
+			//avoid loops
+			dest[i + 0] = LIGHT_LUT[data[0]][current_light_r];
+			dest[i + 1] = LIGHT_LUT[data[1]][current_light_g];
+			dest[i + 2] = LIGHT_LUT[data[2]][current_light_b];
+
+			depth_buffer[index] = depth;
+
+			ty_pos += ty_step;
+			fly += fly_step;
+			index += image->width;
+		}
+	}
+	else if (light > 0)
+	{
+		for (int y = y1; y < y2; y++)
+		{
+			int ty = (int)ty_pos & height_mask;
+
+			unsigned char* data = Image_Get(&texture->img, tx, ty);
 
 			size_t i = index * 4;
 
@@ -1273,6 +1353,7 @@ void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, Texture* textur
 }
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2)
 {
+	//return;
 	Texture* texture = plane->texture;
 
 	float* depth_buffer = args->draw_args->depth_buffer;
@@ -1300,44 +1381,121 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 
 	int light = Math_Clampl(plane->light - (distance * DEPTH_SHADING_SCALE), 0, 255);
 
-	Sector* sector = args->sector;
+	light = plane->light;
 
-	float sector_size_x = sector->bbox[1][0] - sector->bbox[0][0];
-	float sector_size_y = sector->bbox[1][1] - sector->bbox[0][1];
-
-	float sector_center = (sector->bbox[0][0] * 2) + sector_size_x * 2;
-
-	//sector_size_x /= 16.0;
-
-	for (int x = x1; x <= x2; x++)
+	//optimized lightmap only loop
+	if (plane->lightmap && plane->lightmap->data)
 	{
-		if (plane->lightmap)
+		Sector* sector = args->sector;
+
+		float sector_size_x = sector->bbox[1][0] * 2;
+		float sector_size_y = sector->bbox[1][1] * 2;
+
+		Vec4_u8 s0 = Vec4_u8_Zero();
+		Vec4_u8 s1 = Vec4_u8_Zero();
+		Vec4_u8 s2 = Vec4_u8_Zero();
+		Vec4_u8 s3 = Vec4_u8_Zero();
+
+		Vec4 sdx0 = Vec4_Zero();
+		Vec4 sdx1 = Vec4_Zero();
+		
+		float flx_pos = ((x_pos - (sector_size_x)) * LIGHTMAP_INV_LUXEL_SIZE);
+		float flx_step = x_step * LIGHTMAP_INV_LUXEL_SIZE;
+
+		float fly_pos = ((y_pos + (sector_size_y)) * LIGHTMAP_INV_LUXEL_SIZE);
+		float fly_step = y_step * LIGHTMAP_INV_LUXEL_SIZE;
+
+		int prev_lx = -1;
+		int prev_ly = -1;
+
+		for (int x = x1; x <= x2; x++)
 		{
-			int lx = ((x_pos - (sector->bbox[1][0] * 2)) / LIGHTMAP_LUXEL_SIZE) + plane->lightmap->width;
-			int ly = ((y_pos + (sector->bbox[1][1] * 2)) / LIGHTMAP_LUXEL_SIZE) + 1;
+			float flx = flx_pos + plane->lightmap->width;
+			float fly = fly_pos + 1;
 
-			lx = Math_Clamp(lx, 0, plane->lightmap->width - 1);
-			ly = Math_Clamp(ly, 0, plane->lightmap->height - 1);
+			int lx = (int)flx;
+			int ly = (int)fly;
 
-			light = plane->lightmap->data[lx + ly * plane->lightmap->width];
+			float lx_frac = flx - (int)flx;
+			float ly_frac = fly - (int)fly;
+
+			if (lx != prev_lx || ly != prev_ly)
+			{
+				Lightmap_SamplePlaneLinearPoints(plane->lightmap, flx, fly, &s0, &s1, &s2, &s3);
+
+				//hyper optimization lunacy
+				sdx0.r = (s1.r - s0.r);
+				sdx0.g = (s1.g - s0.g);
+				sdx0.b = (s1.b - s0.b);
+				
+				sdx1.r = (s3.r - s2.r);
+				sdx1.g = (s3.g - s2.g);
+				sdx1.b = (s3.b - s2.b);
+
+				prev_lx = lx;
+				prev_ly = ly;
+			}
+
+			Vec4 lerp0;
+			lerp0.r = s0.r + sdx0.r * lx_frac;
+			lerp0.g = s0.g + sdx0.g * lx_frac;
+			lerp0.b = s0.b + sdx0.b * lx_frac;
+
+			Vec4 lerp1;
+			lerp1.r = s2.r + sdx1.r * lx_frac;
+			lerp1.g = s2.g + sdx1.g * lx_frac;
+			lerp1.b = s2.b + sdx1.b * lx_frac;
+
+			int light_r = Math_lerp(lerp0.r, lerp1.r, ly_frac);
+			int light_g = Math_lerp(lerp0.g, lerp1.g, ly_frac);
+			int light_b = Math_lerp(lerp0.b, lerp1.b, ly_frac);
+
+			light_r = Math_Clampl(light_r, 0, 255);
+			light_g = Math_Clampl(light_g, 0, 255);
+			light_b = Math_Clampl(light_b, 0, 255);
+
+			unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
+
+			index = ((size_t)x + (size_t)y * (size_t)image->width);
+			size_t i = index * 4;
+
+			//avoid loops
+			dest[i + 0] = LIGHT_LUT[data[0]][light_r];
+			dest[i + 1] = LIGHT_LUT[data[1]][light_g];
+			dest[i + 2] = LIGHT_LUT[data[2]][light_b];
+
+			depth_buffer[index] = distance;
+
+			x_pos += x_step;
+			y_pos += y_step;
+			flx_pos += flx_step;
+			fly_pos += fly_step;
 		}
-		//light = 255;
-
-		unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
-
-		index = ((size_t)x + (size_t)y * (size_t)image->width);
-		size_t i = index * 4;
-
-		//avoid loops
-		dest[i + 0] = LIGHT_LUT[data[0]][light];
-		dest[i + 1] = LIGHT_LUT[data[1]][light];
-		dest[i + 2] = LIGHT_LUT[data[2]][light];
-
-		depth_buffer[index] = distance;
-
-		x_pos += x_step;
-		y_pos += y_step;
 	}
+	else
+	{
+		for (int x = x1; x <= x2; x++)
+		{
+			unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
+
+			index = ((size_t)x + (size_t)y * (size_t)image->width);
+			size_t i = index * 4;
+
+			//avoid loops
+			dest[i + 0] = LIGHT_LUT[data[0]][light];
+			dest[i + 1] = LIGHT_LUT[data[1]][light];
+			dest[i + 2] = LIGHT_LUT[data[2]][light];
+
+			depth_buffer[index] = distance;
+
+			x_pos += x_step;
+			y_pos += y_step;
+		}
+	}
+	
+
+
+	
 }
 
 void Video_Shade(Image* image, ShaderFun shader_fun, int x0, int y0, int x1, int y1)

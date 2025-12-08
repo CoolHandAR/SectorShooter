@@ -300,7 +300,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		32, //SPRITE OFFSET_Z
+		64, //SPRITE OFFSET_Z
 		32, //SPRITE SCALE
 		32, //SIZE
 	},
@@ -623,15 +623,15 @@ static const LightInfo LIGHT_INFOS[] =
 	//TORCH
 	{
 		SUB__LIGHT_TORCH,
-		32, //radius
-		1.0, //attenuation
+		800, //radius
+		1, //attenuation
 		1 // scale
 	},
 	//LAMP
 	{
 		SUB__LIGHT_LAMP,
-		12, //radius
-		1.5, //attenuation
+		800, //radius
+		1, //attenuation
 		1 // scale
 	}
 };

@@ -1,10 +1,13 @@
 #include "g_common.h"
 
+#include "light.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
 #include "game_info.h"
 #include "u_math.h"
+#include "utility.h"
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -135,7 +138,8 @@ enum
     ML_NODES,		// BSP nodes
     ML_SECTORS,		// Sectors, from editing
     ML_REJECT,		// LUT, sector-sector visibility	
-    ML_BLOCKMAP		// LUT, motion clipping, walls/grid element
+    ML_BLOCKMAP,		// LUT, motion clipping, walls/grid element,
+    ML_LIGHTGRID, //LIGHT GRID
 };
 
 
@@ -304,8 +308,9 @@ typedef enum
     THING__IMP = 3001,
     THING__PINKY = 3002,
     THING__BARON = 3003,
-    
+    THING__SUN = 10003,
 } thingtypes;
+
 
 static void* MallocLump(FILE* file, filelump_t* lumps, int lump_start, int lump_num, int size, int* r_num)
 {
@@ -381,7 +386,13 @@ static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
         {
             os->light_level = 0;
         }
-
+       
+#ifndef DISABLE_LIGHTMAPS
+        if (os->special == 0)
+        {
+            os->light_level = 1;
+        }
+#endif
         os->ceil_texture = Game_FindTextureByName(ms->ceilingpic);
         os->floor_texture = Game_FindTextureByName(ms->floorpic);
 
@@ -662,6 +673,8 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
         {
             os->back_sector = -1;
         }
+
+        os->index = i;
     }
 }
 
@@ -812,6 +825,47 @@ static void Load_PostProcessMap(Map* map)
     map->world_height = max_height - min_height;
     map->world_min_height = min_height;
     map->world_max_height = max_height;
+
+    //calc average sky color
+    Texture* sky_texture = Game_FindTextureByName("SKY1");
+
+    if (sky_texture)
+    {
+        Image* img = &sky_texture->img;
+
+        if (img->data)
+        {
+            float total_color[3] = { 0, 0, 0 };
+            int samples = 0;
+
+            for (int x = 0; x < img->width; x++)
+            {
+                for (int y = 0; y < img->height; y++)
+                {
+                    unsigned char* data = Image_Get(img, x, y);
+
+                    if (!data)
+                    {
+                        continue;
+                    }
+
+                    total_color[0] += data[0];
+                    total_color[1] += data[1];
+                    total_color[2] += data[2];
+
+                    samples++;
+                }
+            }
+
+            if (samples > 0)
+            {
+                map->sky_color[0] = Math_Clampl(total_color[0] / samples, 0, 255);
+                map->sky_color[1] = Math_Clampl(total_color[1] / samples, 0, 255);
+                map->sky_color[2] = Math_Clampl(total_color[2] / samples, 0, 255);
+            }
+           
+        }
+    }
 }
 
 static void Load_SetupSectorSpecials(Map* map)
@@ -875,8 +929,8 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             flags |= OBJ_FLAG__IGNORE_SOUND;
         }
 
-        int type = 0;
-        int sub_type = 0;
+        int type = OT__NONE;
+        int sub_type = SUB__NONE;
 
         switch (mt->type)
         {
@@ -919,7 +973,15 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         case THING__LAMP:
         {
             type = OT__LIGHT;
-            sub_type = SUB__LIGHT_LAMP;
+            sub_type = SUB__LIGHT_TORCH;
+            break;
+        }
+        case THING__SUN:
+        {
+            map->sun_angle = (float)mt->angle;
+            map->sun_color[0] = 255;
+            map->sun_color[1] = 255;
+            map->sun_color[2] = 255;
             break;
         }
         default:
@@ -1046,9 +1108,24 @@ bool Load_Doommap(const char* filename, Map* map)
     //also save map name
     strncpy(map->name, filename, strlen(filename));
 
-    Lightmap_Create(map);
-    Lightblocks_Create(map);
+#ifndef DISABLE_LIGHTMAPS
 
+    //check for lightmaps
+    //if(!Load_Lightmap(filename, map))
+    {
+        //create new lightmaps
+        LightGlobal light_global;
+        LightGlobal_Setup(&light_global);
+
+        Lightmap_Create(&light_global, map);
+       // Lightblocks_Create(&light_global, map);
+
+        LightGlobal_Destruct(&light_global);
+
+        // Save_Lightmap(filename, map);
+    }
+#endif // !DISABLE_LIGHTMAPS
+   
     if (sector_lump) free(sector_lump);
     if (subsector_lump) free(subsector_lump);
     if (seg_lump)free(seg_lump);

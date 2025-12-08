@@ -78,7 +78,7 @@ static void Map_ConnectTriggersToTargets()
 			obj->sprite.offset_y = object_info->sprite_offset_y;
 			obj->sprite.frame_offset_y = object_info->anim_info.y_offset;
 			obj->sprite.frame_offset_x = object_info->anim_info.x_offset;
-			obj->sprite.light = 1;
+			
 		}
 	}
 }
@@ -471,6 +471,18 @@ Line* Map_GetLine(int index)
 	return &s_map.line_segs[index];
 }
 
+Linedef* Map_GetLineDef(int index)
+{
+	assert(index >= 0);
+
+	if (index >= s_map.num_line_segs)
+	{
+		return NULL;
+	}
+
+	return &s_map.linedefs[index];
+}
+
 bool Map_CheckSectorReject(int s1, int s2)
 {
 	if (s_map.reject_size > 0 && s1 >= 0 && s2 >= 0)
@@ -487,8 +499,157 @@ BVH_Tree* Map_GetSpatialTree()
 	return &s_map.spatial_tree;
 }
 
+void Map_SetupLightGrid(int x_blocks, int y_blocks, int z_blocks)
+{
+	Lightgrid* lightgrid = &s_map.lightgrid;
+
+	lightgrid->block_size[0] = x_blocks;
+	lightgrid->block_size[1] = y_blocks;
+	lightgrid->block_size[2] = z_blocks;
+
+	lightgrid->size[0] = LIGHT_GRID_SIZE;
+	lightgrid->size[1] = LIGHT_GRID_SIZE;
+	lightgrid->size[2] = LIGHT_GRID_SIZE;
+
+	lightgrid->inv_size[0] = 1.0 / lightgrid->size[0];
+	lightgrid->inv_size[1] = 1.0 / lightgrid->size[1];
+	lightgrid->inv_size[2] = 1.0 / lightgrid->size[2];
+
+	for (int i = 0; i < 2; i++)
+	{
+		lightgrid->origin[i] = lightgrid->size[i] * ceil(s_map.world_bounds[0][i] / lightgrid->size[i]);
+
+		float maxs = lightgrid->size[i] * floor(s_map.world_bounds[1][i] / lightgrid->size[i]);
+
+		lightgrid->bounds[i] = (maxs - lightgrid->origin[i]) / lightgrid->size[i] + 1;
+	}
+
+	lightgrid->origin[2] = lightgrid->size[2] * ceil(s_map.world_min_height / lightgrid->size[2]);
+	float maxs = lightgrid->size[2] * floor(s_map.world_max_height / lightgrid->size[2]);
+	lightgrid->bounds[2] = (maxs - lightgrid->origin[2]) / lightgrid->size[2] + 1;
+}
+
+void Map_UpdateObjectsLight()
+{
+	for (int i = 0; i < s_map.num_objects; i++)
+	{
+		Object* obj = Map_GetObject(i);
+
+		if (obj->type == OT__NONE || !obj->sprite.img)
+		{
+			continue;
+		}
+
+		Map_CalcBlockLight(obj->x, obj->y, obj->z, &obj->sprite.light);
+	}
+}
+
+void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest)
+{
+	Lightgrid* grid = &s_map.lightgrid;
+
+	if (!grid->blocks)
+	{
+		return;
+	}
+
+	float local_pos[3] = { p_x - grid->origin[0], p_y - grid->origin[1], p_z - grid->origin[2] };
+
+	int pos[3];
+	float frac[3];
+	for (int i = 0; i < 3; i++)
+	{
+		float v = local_pos[i] * grid->inv_size[i];
+
+		pos[i] = floor(v);
+		frac[i] = v - pos[i];
+
+		if (pos[i] < 0)
+		{
+			pos[i] = 0;
+		}
+		else if (pos[i] >= grid->bounds[i])
+		{
+			pos[i] = grid->bounds[i] - 1;
+		}
+	}
+
+	int grid_step[3];
+	grid_step[0] = 1;
+	grid_step[1] =  grid->bounds[0];
+	grid_step[2] = grid->bounds[0] * grid->bounds[1];
+
+	Lightblock* block_data = grid->blocks + pos[0] * grid_step[0] + pos[1] * grid_step[1] + pos[2] * grid_step[2];
+
+	float total_factor = 0;
+	Vec4 total_light = Vec4_Zero();
+
+	for (int i = 0; i < 8; i++)
+	{
+		Lightblock* data = block_data;
+		float factor = 1.0;
+
+		for (int j = 0; j < 3; j++)
+		{
+			if (i & (1 << j))
+			{
+				factor *= frac[j];
+				data += grid_step[j];
+			}
+			else
+			{
+				factor *= (1.0 - frac[j]);
+			}
+		}
+		if (!data)
+		{
+			continue;
+		}
+		total_factor += factor;
+
+		total_light.r += (float)data->light.r * factor;
+		total_light.g += (float)data->light.g * factor;
+		total_light.b += (float)data->light.b * factor;
+		total_light.a += (float)data->light.a * factor;
+	}
+
+	if (total_factor > 0 && total_factor < 0.99)
+	{
+		total_factor = 1.0 / total_factor;
+		Vec4_ScaleScalar(&total_light, total_factor);
+	}
+
+	dest->r = Math_Clampl(total_light.r, 0, 255);
+	dest->g = Math_Clampl(total_light.g, 0, 255);
+	dest->b = Math_Clampl(total_light.b, 0, 255);
+}
+
 void Map_Destruct()
 {
+	for (int i = 0; i < s_map.num_sectors; i++)
+	{
+		Sector* sector = &s_map.sectors[i];
+
+		if (sector->floor_lightmap.data)
+		{
+			free(sector->floor_lightmap.data);
+		}
+		if (sector->ceil_lightmap.data)
+		{
+			free(sector->ceil_lightmap.data);
+		}
+	}
+	for (int i = 0; i < s_map.num_linedefs; i++)
+	{
+		Linedef* linedef = &s_map.linedefs[i];
+
+		if (linedef->lightmap.data)
+		{
+			free(linedef->lightmap.data);
+		}
+	}
+
+
 	if (s_map.linedefs) free(s_map.linedefs);
 	if (s_map.line_segs) free(s_map.line_segs);
 	if (s_map.bsp_nodes) free(s_map.bsp_nodes);
@@ -496,6 +657,7 @@ void Map_Destruct()
 	if (s_map.sub_sectors) free(s_map.sub_sectors);
 	if (s_map.sidedefs) free(s_map.sidedefs);
 	if (s_map.reject_matrix) free(s_map.reject_matrix);
+	if (s_map.lightgrid.blocks) free(s_map.lightgrid.blocks);
 
 	BVH_Tree_Destruct(&s_map.spatial_tree);
 

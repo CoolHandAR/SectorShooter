@@ -812,7 +812,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	{
 		obj->owner = obj;
 		obj->hp = 1;
-		obj->sprite.light = 1;
+		//obj->sprite.light = 1;
 		obj->sprite.img = &assets->missile_textures;
 		obj->size = 5.25;
 

@@ -226,6 +226,12 @@ inline void Math_XY_RotateAngle(float* x, float* y, float angle)
 
 	Math_XY_Rotate(x, y, cos, sin);
 }
+inline void Math_XYZ_Cross(float x1, float y1, float z1, float x2, float y2, float z2, float* r_x, float* r_y, float* r_z)
+{
+	*r_x = y1 * z2 - z1 * y2;
+	*r_y = z1 * x2 - x1 * z2;
+	*r_z = x1 * y2 - y1 * x2;
+}
 inline float Math_XYZ_Dot(float x1, float y1, float z1, float x2, float y2, float z2)
 {
 	return x1 * x2 + y1 * y2 + z1 * z2;
@@ -432,6 +438,12 @@ inline bool Math_BoxInRangeBox(float aabb[2][2], float other[2][2])
 	return (aabb[0][0] < other[1][0] || aabb[1][0] > other[0][0])
 		|| (aabb[0][1] < other[1][1] || aabb[1][1] > other[0][1]);
 }
+inline bool Math_BoxContainsPoint(float aabb[2][2], float point[2])
+{
+	return (point[0] >= aabb[0][0] && point[0] <= aabb[1][0] &&
+		point[1] >= aabb[0][1] && point[1] <= aabb[1][1]);
+}
+
 inline bool Math_BoxIntersectsCircle(float aabb[2][2], float circle_x, float circle_y, float circle_radius)
 {
 	float a = (circle_x < aabb[0][0]) + (circle_x > aabb[1][0]);
@@ -515,5 +527,71 @@ inline bool Math_RayIntersectsPlane(float x, float y, float ray_x, float ray_y, 
 	return true;
 }
 
+typedef struct
+{
+	float r, g, b, a;
+} Vec4;
+
+inline Vec4 Vec4_Zero()
+{
+	Vec4 vec;
+	vec.r = 0;
+	vec.g = 0;
+	vec.b = 0;
+	vec.a = 0;
+
+	return vec;
+}
+
+inline void Vec4_Add(Vec4* a, Vec4 b)
+{
+	a->r += b.r;
+	a->g += b.g;
+	a->b += b.b;
+	a->a += b.a;
+}
+inline void Vec4_DivScalar(Vec4* a, float scalar)
+{
+	a->r /= scalar;
+	a->g /= scalar;
+	a->b /= scalar;
+	a->a /= scalar;
+}
+inline void Vec4_ScaleScalar(Vec4* a, float scalar)
+{
+	a->r *= scalar;
+	a->g *= scalar;
+	a->b *= scalar;
+	a->a *= scalar;
+}
+
+inline void Vec4_Clamp(Vec4* a, float min, float max)
+{
+	a->r = Math_Clamp(a->r, min, max);
+	a->g = Math_Clamp(a->g, min, max);
+	a->b = Math_Clamp(a->b, min, max);
+	a->a = Math_Clamp(a->a, min, max);
+}
+
+typedef struct
+{
+	unsigned char r, g, b, a;
+} Vec4_u8;
+
+inline Vec4_u8 Vec4_u8_Zero()
+{
+	Vec4_u8 vec;
+	vec.r = 0;
+	vec.g = 0;
+	vec.b = 0;
+	vec.a = 0;
+
+	return vec;
+}
+
+typedef struct
+{
+	unsigned char r, g, b;
+} Vec3_u8;
 
 #endif // !UTILITY_MATH
