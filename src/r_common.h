@@ -23,6 +23,8 @@
 #define DEPTH_SHADING_SCALE 0.25
 #define VIEW_FOV 90
 
+#define MAX_LIGHT_VALUE 255 * 6
+
 typedef float DepthValue;
 
 typedef struct
@@ -252,41 +254,28 @@ typedef struct
 
 typedef struct
 {
-	Vec4_u8* data;
+	union
+	{
+		Vec3_u16* data;
+		Vec4* float_data; //hack! used only for lightmapping
+	};
+	
 	int width;
 	int height;
 } Lightmap;
 
-inline Vec4_u8* Lightmap_Get(Lightmap* lightmap, int x, int y)
+inline Vec3_u16* Lightmap_Get(Lightmap* lightmap, int x, int y)
 {
 	x = Math_Clampl(x, 0, lightmap->width - 1);
 	y = Math_Clampl(y, 0, lightmap->height - 1);
 
 	return &lightmap->data[x + y * lightmap->width];
 }
-inline Vec4_u8* Lightmap_GetFast(Lightmap* lightmap, int x, int y)
+inline Vec3_u16* Lightmap_GetFast(Lightmap* lightmap, int x, int y)
 {
 	return &lightmap->data[x + y * lightmap->width];
 }
-inline unsigned char Lightmap_SampleLinear(Lightmap* lightmap, float x, float y)
-{
-	//unsigned char s0 = *Lightmap_Get(lightmap, x, y);
-	//unsigned char s1 = *Lightmap_Get(lightmap, x + 1, y);
-	//unsigned char s2 = *Lightmap_Get(lightmap, x, y + 1);
-	//unsigned char s3 = *Lightmap_Get(lightmap, x + 1, y + 1);
-
-	//float x_frac = x - (int)x;
-	//float y_frac = y - (int)y;
-
-	//unsigned char lerp0 = Math_lerp(s0, s1, x_frac);
-	//unsigned char lerp1 = Math_lerp(s2, s3, x_frac);
-	//unsigned char lerp2 = Math_lerp(lerp0, lerp1, y_frac);
-
-	//return lerp2;
-
-	return 0;
-}
-inline Vec4_u8 Lightmap_SampleWallLinearPoints(Lightmap* lightmap, float x, float y, float next_x, float x_frac, int* r_lerp0, int* r_lerp1)
+static void Lightmap_SampleWallLinearPoints(Lightmap* lightmap, float x, float y, float next_x, float x_frac, Vec4* r_lerp0, Vec4* r_lerp1)
 {
 	//only designed for wall collumn drawing
 	y = Math_Clampl(y, 0, lightmap->height - 1);
@@ -294,17 +283,20 @@ inline Vec4_u8 Lightmap_SampleWallLinearPoints(Lightmap* lightmap, float x, floa
 
 	if (next_y >= lightmap->height) next_y = lightmap->height - 1;
 
-	Vec4_u8 s0 = *Lightmap_GetFast(lightmap, x, y);
-	Vec4_u8 s1 = *Lightmap_GetFast(lightmap, next_x, y);
-	Vec4_u8 s2 = *Lightmap_GetFast(lightmap, x, next_y);
-	Vec4_u8 s3 = *Lightmap_GetFast(lightmap, next_x, next_y);
+	Vec3_u16 s0 = *Lightmap_GetFast(lightmap, x, y);
+	Vec3_u16 s1 = *Lightmap_GetFast(lightmap, next_x, y);
+	Vec3_u16 s2 = *Lightmap_GetFast(lightmap, x, next_y);
+	Vec3_u16 s3 = *Lightmap_GetFast(lightmap, next_x, next_y);
 
-	*r_lerp0 = Math_lerp(s0.a, s1.a, x_frac);
-	*r_lerp1 = Math_lerp(s2.a, s3.a, x_frac);
+	r_lerp0->r = Math_lerp(s0.r, s1.r, x_frac);
+	r_lerp0->g = Math_lerp(s0.g, s1.g, x_frac);
+	r_lerp0->b = Math_lerp(s0.b, s1.b, x_frac);
 
-	return s0;
+	r_lerp1->r = Math_lerp(s2.r, s3.r, x_frac);
+	r_lerp1->g = Math_lerp(s2.g, s3.g, x_frac);
+	r_lerp1->b = Math_lerp(s2.b, s3.b, x_frac);
 }
-inline void Lightmap_SamplePlaneLinearPoints(Lightmap* lightmap, float x, float y, Vec4_u8* r_s0, Vec4_u8* r_s1, Vec4_u8 *r_s2, Vec4_u8* r_s3)
+inline void Lightmap_SamplePlaneLinearPoints(Lightmap* lightmap, float x, float y, Vec3_u16* r_s0, Vec3_u16* r_s1, Vec3_u16*r_s2, Vec3_u16* r_s3)
 {
 	//only designed for plane strip drawing
 	x = Math_Clampl(x, 0, lightmap->width - 1);

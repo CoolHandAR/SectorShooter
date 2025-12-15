@@ -42,11 +42,6 @@ typedef struct
 
 static VisualMap s_visualMap;
 
-static void Register_Result(int _data_index, BVH_ID _index, int _hit_count)
-{
-	s_visualMap.result_traces[_hit_count] = _data_index;
-}
-
 static void VisualMap_ProcessInput(GLFWwindow* window, float delta)
 {
 	if (s_visualMap.input_timer > 0)
@@ -248,7 +243,7 @@ void VisualMap_Draw(Image* image, FontData* font)
 		Image_Clear(image, 0);
 	}
 
-	int num_hits = BVH_Tree_Cull_Box(Map_GetSpatialTree(), bbox, MAX_ITEMS, Register_Result);
+	int num_hits = BVH_Tree_Cull_Box(Map_GetSpatialTree(), bbox, MAX_ITEMS, s_visualMap.result_traces);
 
 	for (int i = 0; i < num_hits; i++)
 	{

@@ -18,7 +18,13 @@
     Math_vxs(Math_vxs(x1,y1, x2,y2), (x1)-(x2), Math_vxs(x3,y3, x4,y4), (x3)-(x4)) / Math_vxs((x1)-(x2), (y1)-(y2), (x3)-(x4), (y3)-(y4)), \
     Math_vxs(Math_vxs(x1,y1, x2,y2), (y1)-(y2), Math_vxs(x3,y3, x4,y4), (y3)-(y4)) / Math_vxs((x1)-(x2), (y1)-(y2), (x3)-(x4), (y3)-(y4)) })
 
+static void Math_SwapFloat(float* a, float* b)
+{
+	float temp = *a;
 
+	*a = *b;
+	*b = temp;
+}
 static inline uint32_t Math_rand()
 {
 	return rand();
@@ -274,6 +280,12 @@ inline float Math_XYZ_Distance(float x1, float y1, float z1, float x2, float y2,
 
 	return sqrtf(dist);
 }
+inline void Math_XYZ_Swap(float* x1, float* y1, float* z1, float* x2, float* y2, float* z2)
+{
+	Math_SwapFloat(x1, x2);
+	Math_SwapFloat(y1, y2);
+	Math_SwapFloat(z1, z2);
+}
 inline bool Math_TraceLineVsBox(float p_x, float p_y, float p_endX, float p_endY, float box_x, float box_y, float size, float* r_interX, float* r_interY, float* r_dist)
 {
 	float minDistance = 0;
@@ -527,6 +539,23 @@ inline bool Math_RayIntersectsPlane(float x, float y, float ray_x, float ray_y, 
 	return true;
 }
 
+inline void Math_GenHemisphereVector(float* r_x, float* r_y, float* r_z)
+{
+	float u = (float)rand() / (float)RAND_MAX;
+	float v = (float)rand() / (float)RAND_MAX;
+
+	float theta = 2.0 * Math_PI * u;
+	float phi = acos(2.0 * v - 1.0);
+	//*r_x = cos(theta) * sin(phi);
+	//*r_y = cos(phi);
+	//*r_z = sin(theta) * sin(phi);
+
+	*r_x = cos(theta) * sin(phi);
+	*r_y = sin(theta) * sin(phi);
+	*r_z = cos(phi);
+}
+
+
 typedef struct
 {
 	float r, g, b, a;
@@ -593,5 +622,25 @@ typedef struct
 {
 	unsigned char r, g, b;
 } Vec3_u8;
+
+typedef struct
+{
+	unsigned short r, g, b;
+} Vec3_u16;
+
+inline Vec3_u16 Vec3_u16_Zero()
+{
+	Vec3_u16 vec;
+	vec.r = 0;
+	vec.g = 0;
+	vec.b = 0;
+
+	return vec;
+}
+
+typedef struct
+{
+	unsigned short r, g, b, a;
+} Vec4_u16;
 
 #endif // !UTILITY_MATH

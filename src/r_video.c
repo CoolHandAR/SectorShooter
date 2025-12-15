@@ -11,7 +11,7 @@
 //#define WHITE_TEXTURES
 
 static const float PI = 3.14159265359;
-unsigned char LIGHT_LUT[256][256];
+unsigned char LIGHT_LUT[256][MAX_LIGHT_VALUE];
 
 const int INSIDE = 0b0000;
 const int LEFT = 0b0001;
@@ -37,7 +37,7 @@ void Video_Setup()
 	//setup light lut
 	for (int i = 0; i < 256; i++)
 	{
-		for (int k = 0; k < 256; k++)
+		for (int k = 0; k < MAX_LIGHT_VALUE; k++)
 		{
 			float light = (float)k / 255.0f;
 
@@ -53,6 +53,8 @@ void Video_Setup()
 			LIGHT_LUT[i][k] = (unsigned char)l;		
 		}
 	}
+
+	float s = 0;
 }
 
 
@@ -1146,29 +1148,6 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	}
 }
 
-
-static void Lightmap_SampleWallLinearPoints2(Lightmap* lightmap, float x, float y, float next_x, float x_frac, Vec4* r_lerp0, Vec4* r_lerp1)
-{
-	//only designed for wall collumn drawing
-	y = Math_Clampl(y, 0, lightmap->height - 1);
-	int next_y = y + 1;
-
-	if (next_y >= lightmap->height) next_y = lightmap->height - 1;
-
-	Vec4_u8 s0 = *Lightmap_GetFast(lightmap, x, y);
-	Vec4_u8 s1 = *Lightmap_GetFast(lightmap, next_x, y);
-	Vec4_u8 s2 = *Lightmap_GetFast(lightmap, x, next_y);
-	Vec4_u8 s3 = *Lightmap_GetFast(lightmap, next_x, next_y);
-
-	r_lerp0->r = Math_lerp(s0.r, s1.r, x_frac);
-	r_lerp0->g = Math_lerp(s0.g, s1.g, x_frac);
-	r_lerp0->b = Math_lerp(s0.b, s1.b, x_frac);
-
-	r_lerp1->r = Math_lerp(s2.r, s3.r, x_frac);
-	r_lerp1->g = Math_lerp(s2.g, s3.g, x_frac);
-	r_lerp1->b = Math_lerp(s2.b, s3.b, x_frac);
-}
-
 void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, int light, int height_mask, Lightmap* lm)
 {
 	unsigned char* dest = image->data;
@@ -1200,25 +1179,36 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 			unsigned char* data = Image_Get(&texture->img, tx, ty);
 
 			int ly = (int)fly;
+			float fly_frac = fly - ly;
 
 			//sample 2 points between this and the next luxel
 			if (ly != prev_ly)
 			{
-				Lightmap_SampleWallLinearPoints2(lm, flx, fly, next_flx, flx_frac, &lerp_light0, &lerp_light1);
+				Lightmap_SampleWallLinearPoints(lm, flx, fly, next_flx, flx_frac, &lerp_light0, &lerp_light1);
 
 				lerp_dx.r = lerp_light1.r - lerp_light0.r;
 				lerp_dx.g = lerp_light1.g - lerp_light0.g;
 				lerp_dx.b = lerp_light1.b - lerp_light0.b;
 
+				lerp_light0.r = lerp_light0.r + lerp_dx.r * fly_frac;
+				lerp_light0.g = lerp_light0.g + lerp_dx.g * fly_frac;
+				lerp_light0.b = lerp_light0.b + lerp_dx.b * fly_frac;
+
+				lerp_dx.r *= fly_step;
+				lerp_dx.g *= fly_step;
+				lerp_dx.b *= fly_step;
+
 				prev_ly = ly;
 			}
 
-			float fly_frac = fly - (int)fly;
+			//light step
+			lerp_light0.r += lerp_dx.r;
+			lerp_light0.g += lerp_dx.g;
+			lerp_light0.b += lerp_dx.b;
 
-			//and then lerp them
-			int current_light_r = lerp_light0.r + lerp_dx.r * fly_frac;
-			int current_light_g = lerp_light0.g + lerp_dx.g * fly_frac;
-			int current_light_b = lerp_light0.b + lerp_dx.b * fly_frac;
+			int current_light_r = lerp_light0.r;
+			int current_light_g = lerp_light0.g;
+			int current_light_b = lerp_light0.b;
 
 			//clamp
 			current_light_r = Math_Clampl(current_light_r, 0, 255);
@@ -1364,6 +1354,11 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 	//setup
 	float distance = fabs(plane->viewheight * args->draw_args->yslope[y]);
 
+	if (isnan(distance))
+	{
+		return;
+	}
+
 	float x_step = distance * args->plane_step_scale_x;
 	float y_step = distance * args->plane_step_scale_y;
 
@@ -1391,10 +1386,13 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 		float sector_size_x = sector->bbox[1][0] * 2;
 		float sector_size_y = sector->bbox[1][1] * 2;
 
-		Vec4_u8 s0 = Vec4_u8_Zero();
-		Vec4_u8 s1 = Vec4_u8_Zero();
-		Vec4_u8 s2 = Vec4_u8_Zero();
-		Vec4_u8 s3 = Vec4_u8_Zero();
+		Vec3_u16 s0 = Vec3_u16_Zero();
+		Vec3_u16 s1 = Vec3_u16_Zero();
+		Vec3_u16 s2 = Vec3_u16_Zero();
+		Vec3_u16 s3 = Vec3_u16_Zero();
+
+		Vec4 lerp0 = Vec4_Zero();
+		Vec4 lerp1 = Vec4_Zero();
 
 		Vec4 sdx0 = Vec4_Zero();
 		Vec4 sdx1 = Vec4_Zero();
@@ -1411,7 +1409,7 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 		for (int x = x1; x <= x2; x++)
 		{
 			float flx = flx_pos + plane->lightmap->width;
-			float fly = fly_pos + 1;
+			float fly = fly_pos;
 
 			int lx = (int)flx;
 			int ly = (int)fly;
@@ -1432,27 +1430,42 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 				sdx1.g = (s3.g - s2.g);
 				sdx1.b = (s3.b - s2.b);
 
+				lerp0.r = s0.r + sdx0.r * lx_frac;
+				lerp0.g = s0.g + sdx0.g * lx_frac;
+				lerp0.b = s0.b + sdx0.b * lx_frac;
+
+				lerp1.r = s2.r + sdx1.r * lx_frac;
+				lerp1.g = s2.g + sdx1.g * lx_frac;
+				lerp1.b = s2.b + sdx1.b * lx_frac;
+
+				//calc step size
+				sdx0.r *= flx_step;
+				sdx0.g *= flx_step;
+				sdx0.b *= flx_step;
+
+				sdx1.r *= flx_step;
+				sdx1.g *= flx_step;
+				sdx1.b *= flx_step;
+
 				prev_lx = lx;
 				prev_ly = ly;
 			}
 
-			Vec4 lerp0;
-			lerp0.r = s0.r + sdx0.r * lx_frac;
-			lerp0.g = s0.g + sdx0.g * lx_frac;
-			lerp0.b = s0.b + sdx0.b * lx_frac;
-
-			Vec4 lerp1;
-			lerp1.r = s2.r + sdx1.r * lx_frac;
-			lerp1.g = s2.g + sdx1.g * lx_frac;
-			lerp1.b = s2.b + sdx1.b * lx_frac;
+			lerp0.r += sdx0.r;
+			lerp0.g += sdx0.g;
+			lerp0.b += sdx0.b;
+					
+			lerp1.r += sdx1.r;
+			lerp1.g += sdx1.g;
+			lerp1.b += sdx1.b;
 
 			int light_r = Math_lerp(lerp0.r, lerp1.r, ly_frac);
 			int light_g = Math_lerp(lerp0.g, lerp1.g, ly_frac);
 			int light_b = Math_lerp(lerp0.b, lerp1.b, ly_frac);
 
-			light_r = Math_Clampl(light_r, 0, 255);
-			light_g = Math_Clampl(light_g, 0, 255);
-			light_b = Math_Clampl(light_b, 0, 255);
+			light_r = max(light_r, 0);
+			light_g = max(light_g, 0);
+			light_b = max(light_b, 0);
 
 			unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
 

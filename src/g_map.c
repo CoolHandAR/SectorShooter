@@ -499,9 +499,22 @@ BVH_Tree* Map_GetSpatialTree()
 	return &s_map.spatial_tree;
 }
 
-void Map_SetupLightGrid(int x_blocks, int y_blocks, int z_blocks)
+void Map_SetupLightGrid()
 {
 	Lightgrid* lightgrid = &s_map.lightgrid;
+
+	memset(lightgrid, 0, sizeof(Lightgrid));
+
+	int x_blocks = ceil(s_map.world_size[0] / LIGHT_GRID_SIZE) + 1;
+	int y_blocks = ceil(s_map.world_size[1] / LIGHT_GRID_SIZE) + 1;
+	int z_blocks = ceil(s_map.world_height / LIGHT_GRID_SIZE) + 1;
+
+	lightgrid->blocks = calloc(x_blocks * y_blocks * z_blocks, sizeof(Lightblock));
+
+	if (!lightgrid->blocks)
+	{
+		return;
+	}
 
 	lightgrid->block_size[0] = x_blocks;
 	lightgrid->block_size[1] = y_blocks;
@@ -568,18 +581,20 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest)
 		{
 			pos[i] = 0;
 		}
-		else if (pos[i] >= grid->bounds[i])
+		else if (pos[i] >= grid->bounds[i] - 1)
 		{
 			pos[i] = grid->bounds[i] - 1;
 		}
 	}
 
+	//((int)lightgrid->bounds[0] * (int)lightgrid->bounds[1] * z) + ((int)lightgrid->bounds[0] * y) + x;
+
 	int grid_step[3];
 	grid_step[0] = 1;
-	grid_step[1] =  grid->bounds[0];
+	grid_step[1] = grid->bounds[0];
 	grid_step[2] = grid->bounds[0] * grid->bounds[1];
 
-	Lightblock* block_data = grid->blocks + pos[0] * grid_step[0] + pos[1] * grid_step[1] + pos[2] * grid_step[2];
+	Lightblock* block_data = &grid->blocks[(grid_step[2] * pos[2]) + (grid_step[1] * pos[1]) + pos[0]];
 
 	float total_factor = 0;
 	Vec4 total_light = Vec4_Zero();

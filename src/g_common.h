@@ -357,6 +357,8 @@ typedef struct
 	float dx, dy;
 	float dot;
 
+	float bbox[2][2];
+
 	int front_sector;
 	int back_sector;
 
@@ -514,6 +516,7 @@ typedef struct
 	float world_max_height;
 
 	float sun_angle;
+	float sun_position[2];
 	float sun_color[3];
 	float sky_color[3];
 
@@ -539,7 +542,7 @@ Line* Map_GetLine(int index);
 Linedef* Map_GetLineDef(int index);
 bool Map_CheckSectorReject(int s1, int s2);
 BVH_Tree* Map_GetSpatialTree();
-void Map_SetupLightGrid(int x_blocks, int y_blocks, int z_blocks);
+void Map_SetupLightGrid();
 void Map_UpdateObjectsLight();
 void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest);
 void Map_Destruct();

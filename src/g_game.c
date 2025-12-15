@@ -5,7 +5,7 @@
 #include "sound.h"
 #include <stdio.h>
 
-#define START_LEVEL 1
+#define START_LEVEL 7
 
 static Game game;
 static GameAssets assets;

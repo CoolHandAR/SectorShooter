@@ -312,9 +312,9 @@ typedef enum
 } thingtypes;
 
 
-static void* MallocLump(FILE* file, filelump_t* lumps, int lump_start, int lump_num, int size, int* r_num)
+static void* MallocLump(FILE* file, wadinfo_t* header, filelump_t* lumps, int lump_start, int lump_num, int size, int* r_num)
 {
-    if (lump_num < 0 || lump_start < 0)
+    if (lump_num + lump_start < 0 || lump_start + lump_num >= header->numlumps)
     {
         return NULL;
     }
@@ -674,6 +674,11 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
             os->back_sector = -1;
         }
 
+        os->bbox[0][0] = min(os->x0, os->x1);
+        os->bbox[0][1] = min(os->y0, os->y1);
+        os->bbox[1][0] = max(os->x0, os->x1);
+        os->bbox[1][1] = max(os->y0, os->y1);
+
         os->index = i;
     }
 }
@@ -978,10 +983,12 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         }
         case THING__SUN:
         {
-            map->sun_angle = (float)mt->angle;
+            map->sun_angle = (float)mt->angle - 180;
             map->sun_color[0] = 255;
             map->sun_color[1] = 255;
             map->sun_color[2] = 255;
+            map->sun_position[0] = object_x;
+            map->sun_position[1] = object_y;
             break;
         }
         default:
@@ -1073,14 +1080,14 @@ bool Load_Doommap(const char* filename, Map* map)
     int num_things = 0;
 
     //load lumps
-    mapsector_t* sector_lump = MallocLump(file, file_infos, lump_start, ML_SECTORS, sizeof(mapsector_t), &num_sectors);
-    mapsubsector_t* subsector_lump = MallocLump(file, file_infos, lump_start, ML_SSECTORS, sizeof(mapsubsector_t), &num_subsectors);
-    mapseg_t* seg_lump = MallocLump(file, file_infos, lump_start, ML_SEGS, sizeof(mapseg_t), &num_segs);
-    mapvertex_t* vertex_lump = MallocLump(file, file_infos, lump_start, ML_VERTEXES, sizeof(mapvertex_t), &num_vertices);
-    mapnode_t* node_lump = MallocLump(file, file_infos, lump_start, ML_NODES, sizeof(mapnode_t), &num_nodes);
-    maplinedef_t* linedef_lump = MallocLump(file, file_infos, lump_start, ML_LINEDEFS, sizeof(maplinedef_t), &num_linedefs);
-    mapsidedef_t* sidedef_lump = MallocLump(file, file_infos, lump_start, ML_SIDEDEFS, sizeof(mapsidedef_t), &num_sidedefs);
-    mapthing_t* thing_lump = MallocLump(file, file_infos, lump_start, ML_THINGS, sizeof(mapthing_t), &num_things);
+    mapsector_t* sector_lump = MallocLump(file, &header, file_infos, lump_start, ML_SECTORS, sizeof(mapsector_t), &num_sectors);
+    mapsubsector_t* subsector_lump = MallocLump(file, &header, file_infos, lump_start, ML_SSECTORS, sizeof(mapsubsector_t), &num_subsectors);
+    mapseg_t* seg_lump = MallocLump(file, &header, file_infos, lump_start, ML_SEGS, sizeof(mapseg_t), &num_segs);
+    mapvertex_t* vertex_lump = MallocLump(file, &header, file_infos, lump_start, ML_VERTEXES, sizeof(mapvertex_t), &num_vertices);
+    mapnode_t* node_lump = MallocLump(file, &header, file_infos, lump_start, ML_NODES, sizeof(mapnode_t), &num_nodes);
+    maplinedef_t* linedef_lump = MallocLump(file, &header, file_infos, lump_start, ML_LINEDEFS, sizeof(maplinedef_t), &num_linedefs);
+    mapsidedef_t* sidedef_lump = MallocLump(file, &header, file_infos, lump_start, ML_SIDEDEFS, sizeof(mapsidedef_t), &num_sidedefs);
+    mapthing_t* thing_lump = MallocLump(file, &header, file_infos, lump_start, ML_THINGS, sizeof(mapthing_t), &num_things);
 
     //setup into our format
     //order is important
@@ -1093,7 +1100,7 @@ bool Load_Doommap(const char* filename, Map* map)
 
     //load rejectblock
     int reject_size = 0;
-    map->reject_matrix = MallocLump(file, file_infos, lump_start, ML_REJECT, sizeof(unsigned char), &reject_size);
+    map->reject_matrix = MallocLump(file, &header, file_infos, lump_start, ML_REJECT, sizeof(unsigned char), &reject_size);
     map->reject_size = reject_size;
 
     //post processing step
@@ -1113,16 +1120,18 @@ bool Load_Doommap(const char* filename, Map* map)
     //check for lightmaps
     //if(!Load_Lightmap(filename, map))
     {
+        Map_SetupLightGrid();
+
         //create new lightmaps
         LightGlobal light_global;
         LightGlobal_Setup(&light_global);
 
         Lightmap_Create(&light_global, map);
-       // Lightblocks_Create(&light_global, map);
+        Lightblocks_Create(&light_global, map);
 
         LightGlobal_Destruct(&light_global);
 
-        // Save_Lightmap(filename, map);
+       /// Save_Lightmap(filename, map);
     }
 #endif // !DISABLE_LIGHTMAPS
    
@@ -1161,10 +1170,10 @@ static void Unpack_Color(unsigned color, unsigned char r_c[4])
     r_c[3] = (color & 0xffu);
 }
 
-static unsigned* Load_Pallete(FILE* file, filelump_t* file_infos, int lump_index)
+static unsigned* Load_Pallete(FILE* file, wadinfo_t* header, filelump_t* file_infos, int lump_index)
 {
     int pallete_size = 0;
-    unsigned char* palette = MallocLump(file, file_infos, 0, lump_index, 1, &pallete_size);
+    unsigned char* palette = MallocLump(file, header, file_infos, 0, lump_index, 1, &pallete_size);
 
     if (!palette)
     {
@@ -1199,7 +1208,7 @@ static unsigned* Load_Pallete(FILE* file, filelump_t* file_infos, int lump_index
     return lut;
 }
 
-static void Load_FlatTextures(FILE* file, filelump_t* file_infos, int flat_start, int flat_end, unsigned* paletteLut)
+static void Load_FlatTextures(FILE* file, wadinfo_t* header, filelump_t* file_infos, int flat_start, int flat_end, unsigned* paletteLut)
 {
     GameAssets* assets = Game_GetAssets();
 
@@ -1216,7 +1225,7 @@ static void Load_FlatTextures(FILE* file, filelump_t* file_infos, int flat_start
     for (int i = 0; i < num_flats; i++)
     {
         int size = 0;
-        unsigned char* flat = MallocLump(file, file_infos, 0, i + flat_start, 1, &size);
+        unsigned char* flat = MallocLump(file, header, file_infos, 0, i + flat_start, 1, &size);
         filelump_t* lump = &file_infos[i + flat_start];
         if (!flat)
         {
@@ -1261,7 +1270,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
 {
     GameAssets* assets = Game_GetAssets();
 
-    char* pnames = MallocLump(file, file_infos, 0, patchnames_index, 1, NULL);
+    char* pnames = MallocLump(file, header, file_infos, 0, patchnames_index, 1, NULL);
     int num_patch_names = *((int*)pnames);
 
     if (!pnames)
@@ -1286,7 +1295,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
         patchlookup[i] = Load_FindLumpNum(name, header, file_infos);
     }
 
-    int* map_texture1 = MallocLump(file, file_infos, 0, texture1_index, 4, NULL);
+    int* map_texture1 = MallocLump(file, header, file_infos, 0, texture1_index, 4, NULL);
     int num_textures1 = (long)*map_texture1;
 
     int* directory = map_texture1 + 1;
@@ -1296,7 +1305,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
 
     if (texture2_index >= 0)
     {
-        map_texture2 = MallocLump(file, file_infos, 0, texture2_index, 4, NULL);
+        map_texture2 = MallocLump(file, header, file_infos, 0, texture2_index, 4, NULL);
         num_textures2 = (long)*map_texture2;
     }
 
@@ -1340,7 +1349,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
         for (int j = 0; j < patchcount; j++, mpatch++)
         {
             size_t tcoll_offset = 0;
-            patch_t* realpatch = MallocLump(file, file_infos, 0, patchlookup[mpatch->patch], sizeof(patch_t), NULL);
+            patch_t* realpatch = MallocLump(file, header, file_infos, 0, patchlookup[mpatch->patch], sizeof(patch_t), NULL);
 
             if (!realpatch)
             {
@@ -1539,9 +1548,9 @@ bool Load_DoomIWAD(const char* filename)
         }
     }
 
-    unsigned* paletteLut = Load_Pallete(file, file_infos, playpal_index);
+    unsigned* paletteLut = Load_Pallete(file, &header, file_infos, playpal_index);
 
-    Load_FlatTextures(file, file_infos, flat_start_index, flat_end_index, paletteLut);
+    Load_FlatTextures(file, &header, file_infos, flat_start_index, flat_end_index, paletteLut);
     Load_PatchyTextures(file, &header, file_infos, patch_name_lump_index, texture1_lump_index, texture2_lump_index, paletteLut);
 
     if (file_infos) free(file_infos);

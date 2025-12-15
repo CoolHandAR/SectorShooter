@@ -227,7 +227,7 @@ static bool Load_ParseLightgrid(LightHeader* header, FILE* file, Map* map)
 		return false;
 	}
 
-	Map_SetupLightGrid(x_blocks, y_blocks, z_blocks);
+	Map_SetupLightGrid();
 
 	//need to do this since objects are loaded first and their initial light needs updating
 	Map_UpdateObjectsLight();
@@ -315,6 +315,8 @@ bool Save_Lightmap(const char* filename, Map* map)
 	char buffer[256];
 	GetProperSuffix(filename, buffer);
 
+	printf("Saving lightmaps at: %s \n", buffer);
+
 	LightHeader header;
 	memset(&header, 0, sizeof(header));
 
@@ -398,8 +400,8 @@ bool Save_Lightmap(const char* filename, Map* map)
 	lightgrid_lump.z_blocks = map->lightgrid.block_size[2];
 
 	lightgrid_lump.offset = Save_Data(file, map->lightgrid.blocks, sizeof(Lightblock) * (lightgrid_lump.x_blocks * lightgrid_lump.y_blocks * lightgrid_lump.z_blocks));
-
-
+	
+	//go back to data
 	fseek(file, 0, SEEK_SET);
 
 	if (!File_Write(file, &header, sizeof(header)))
@@ -411,6 +413,9 @@ bool Save_Lightmap(const char* filename, Map* map)
 
 	Save_Lump(file, &header, LIGHTMAP_LUMP, lightmaps, sizeof(LightmapLump) * num_lightmaps);
 	Save_Lump(file, &header, LIGHTGRID_LUMP, &lightgrid_lump, sizeof(LightgridLump));
+
+	long save_size = ftell(file);
+	printf("Saved lightmaps, size: %.3f kb \n", (float)save_size / 1000.0);
 
 	free(lightmaps);
 	fclose(file);
