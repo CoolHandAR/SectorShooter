@@ -1,5 +1,6 @@
 #pragma once
 #include "g_common.h"
+#include "dynamic_array.h"
 #include <Windows.h>
 
 //LIGHTMAPPER STUFF
@@ -11,17 +12,6 @@ typedef enum
 	LDT__AREA,
 	LDT__MAX
 } LightDefType;
-typedef struct
-{
-	LightDefType type;
-	float deviance;
-	float radius;
-	float attenuation;
-	float direction[3];
-	float position[3];
-	float bbox[2][2];
-	float color[3];
-} LightDef;
 typedef enum
 {
 	LST__NONE,
@@ -34,13 +24,28 @@ typedef enum
 }LightSurfType;
 typedef struct
 {
+	LightDefType type;
+	float deviance;
+	float radius;
+	float attenuation;
+	float direction[3];
+	float position[3];
+	float bbox[2][2];
+	float color[3];
+
+	//for area lights
+	LightSurfType area_surf_type;
+	int area_surf_index;
+} LightDef;
+typedef struct
+{
 	Linedef* linedef;
 	Sector* sector;
 	float normal[3];
 	float hit[3];
 	float frac;
 	Vec4 light_sample;
-	float color_sample[3];
+	Vec4 color_sample;
 	LightSurfType hit_type;
 } LightTraceResult;
 
@@ -84,8 +89,7 @@ typedef struct
 	float* ao_sample_vectors;
 	int num_ao_sample_vectors;
 
-	LightDef* light_list;
-	int num_lights;
+	dynamic_array* light_list;
 
 	LinedefList* linedef_list;
 	int num_linedef_lists;

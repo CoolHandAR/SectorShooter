@@ -812,7 +812,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	{
 		obj->owner = obj;
 		obj->hp = 1;
-		//obj->sprite.light = 1;
+		obj->flags |= OBJ_FLAG__FULL_BRIGHT;
 		obj->sprite.img = &assets->missile_textures;
 		obj->size = 5.25;
 
@@ -851,6 +851,13 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	{
 		Move_SetPosition(obj, x, y, obj->size);
 		Move_ZMove(obj, zmove);
+	}
+
+	if (obj->flags & OBJ_FLAG__FULL_BRIGHT)
+	{
+		obj->sprite.light.r = 255;
+		obj->sprite.light.g = 255;
+		obj->sprite.light.b = 255;
 	}
 
 	obj->sprite.x = obj->x;

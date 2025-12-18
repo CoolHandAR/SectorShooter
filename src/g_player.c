@@ -963,7 +963,7 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 	//draw gun
 	if (player.obj->hp > 0)
 	{
-		Vec3_u8 light = player.obj->sprite.light;
+		Vec3_u16 light = player.obj->sprite.light;
 
 		Sprite sprite = player.gun_sprites[player.gun];
 

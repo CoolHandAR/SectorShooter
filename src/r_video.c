@@ -439,7 +439,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 		return;
 	}
 
-	Vec3_u8 light = sprite->light;
+	Vec3_u16 light = sprite->light;
 
 	int frame = sprite->frame;
 
@@ -713,7 +713,7 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 
-	Vec3_u8 light = sprite->light;
+	Vec3_u16 light = sprite->light;
 
 	float tx_pos = 0;
 	float tx_step = 256.0 * ((float)sprite_rect_width / (float)sprite_width) / 256.0;

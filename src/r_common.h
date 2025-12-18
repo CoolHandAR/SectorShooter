@@ -324,7 +324,7 @@ typedef struct
 
 	//modifiers
 	float transparency;
-	Vec3_u8 light;
+	Vec3_u16 light;
 
 	//animation stuff
 	float _anim_frame_progress;
@@ -373,7 +373,7 @@ typedef struct
 
 	float transparency;
 
-	Vec3_u8 light;
+	Vec3_u16 light;
 
 	int decal_line_index;
 

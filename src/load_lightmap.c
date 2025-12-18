@@ -197,7 +197,7 @@ static bool Load_ParseLightmaps(LightHeader* header, FILE* file, Map* map)
 			continue;
 		}
 
-		lightmap->data = Read_Data(file, Num_LittleLong(lump->offset), (lightmap->width * lightmap->height) * sizeof(Vec4_u8));
+		lightmap->data = Read_Data(file, Num_LittleLong(lump->offset), (lightmap->width * lightmap->height) * sizeof(Vec3_u16));
 	}
 
 	
@@ -221,13 +221,20 @@ static bool Load_ParseLightgrid(LightHeader* header, FILE* file, Map* map)
 
 	free(lightgridlump);
 
-	map->lightgrid.blocks = Read_Data(file, offset, sizeof(Lightblock) * x_blocks * y_blocks * z_blocks);
-	if (!map->lightgrid.blocks)
+	Lightblock* block_data = Read_Data(file, offset, sizeof(Lightblock) * x_blocks * y_blocks * z_blocks);
+	if (!block_data)
 	{
 		return false;
 	}
 
-	Map_SetupLightGrid();
+	Map_SetupLightGrid(block_data);
+
+	//double check
+	Lightgrid* lightgrid = &map->lightgrid;
+	if (lightgrid->block_size[0] != x_blocks || lightgrid->block_size[1] != y_blocks || lightgrid->block_size[2] != z_blocks)
+	{
+		return false;
+	}
 
 	//need to do this since objects are loaded first and their initial light needs updating
 	Map_UpdateObjectsLight();
@@ -364,7 +371,7 @@ bool Save_Lightmap(const char* filename, Map* map)
 		lump->index = Num_LittleLong(i);
 		lump->type = Num_LittleLong(LMT__LINE);
 
-		lump->offset = Save_Data(file, line->lightmap.data, (lump->width * lump->height) * sizeof(Vec4_u8));
+		lump->offset = Save_Data(file, line->lightmap.data, (lump->width * lump->height) * sizeof(Vec3_u16));
 	}
 	for (int i = 0; i < map->num_sectors; i++)
 	{
@@ -379,7 +386,7 @@ bool Save_Lightmap(const char* filename, Map* map)
 			lump->index = Num_LittleLong(i);
 			lump->type = Num_LittleLong(LMT__FLOOR);
 
-			lump->offset = Save_Data(file, sector->floor_lightmap.data, (lump->width * lump->height) * sizeof(Vec4_u8));
+			lump->offset = Save_Data(file, sector->floor_lightmap.data, (lump->width * lump->height) * sizeof(Vec3_u16));
 		}
 		if (sector->ceil_lightmap.data)
 		{
@@ -390,14 +397,14 @@ bool Save_Lightmap(const char* filename, Map* map)
 			lump->index = Num_LittleLong(i);
 			lump->type = Num_LittleLong(LMT__CEIL);
 
-			lump->offset = Save_Data(file, sector->ceil_lightmap.data, (lump->width * lump->height) * sizeof(Vec4_u8));
+			lump->offset = Save_Data(file, sector->ceil_lightmap.data, (lump->width * lump->height) * sizeof(Vec3_u16));
 		}
 		
 	}
 	//save lightgrid data
-	lightgrid_lump.x_blocks = map->lightgrid.block_size[0];
-	lightgrid_lump.y_blocks = map->lightgrid.block_size[1];
-	lightgrid_lump.z_blocks = map->lightgrid.block_size[2];
+	lightgrid_lump.x_blocks = Num_LittleLong(map->lightgrid.block_size[0]);
+	lightgrid_lump.y_blocks = Num_LittleLong(map->lightgrid.block_size[1]);
+	lightgrid_lump.z_blocks = Num_LittleLong(map->lightgrid.block_size[2]);
 
 	lightgrid_lump.offset = Save_Data(file, map->lightgrid.blocks, sizeof(Lightblock) * (lightgrid_lump.x_blocks * lightgrid_lump.y_blocks * lightgrid_lump.z_blocks));
 	

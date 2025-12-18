@@ -4,7 +4,6 @@
 
 void Particle_Update(Object* obj, float delta)
 {
-	return;
 	switch (obj->sub_type)
 	{
 	case SUB__PARTICLE_BLOOD:

@@ -261,6 +261,8 @@ typedef struct
 	float radius;
 	float attenuation;
 	float scale;
+	float deviance;
+	float color[3];
 } LightInfo;
 
 typedef struct
@@ -319,14 +321,14 @@ typedef enum
 	SPECIAL__USE_LIFT = 62,
 
 	SPECIAL__TRIGGER_CRUSHER = 49, 
-	
+	SPECIAL__WALL_AREA_LIGHT = 138
 } SpecialType;
 typedef enum
 {
 	SECTOR_SPECIAL__NONE,
 	SECTOR_SPECIAL__LIGHT_FLICKER = 1,
 	SECTOR_SPECIAL__LIGHT_GLOW = 8,
-
+	SECTOR_SPECIAL__LIGHT_AREA = 21,
 } SectorSpecialType;
 
 #endif

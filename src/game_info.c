@@ -304,6 +304,34 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 	},
+	//BLUE TORCH
+	{
+		SUB__LIGHT_BLUE_TORCH,
+		//ANIM
+		{
+			NULL, 0, 0, 1, 4, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		64, //SPRITE OFFSET_Z
+		32, //SPRITE SCALE
+		32, //SIZE
+	},
+	//GREEN TORCH
+	{
+		SUB__LIGHT_GREEN_TORCH,
+		//ANIM
+		{
+			NULL, 0, 0, 1, 4, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		64, //SPRITE OFFSET_Z
+		32, //SPRITE SCALE
+		32, //SIZE
+	},
 	//LAMP
 	{
 		SUB__LIGHT_LAMP,
@@ -623,20 +651,47 @@ static const LightInfo LIGHT_INFOS[] =
 	//TORCH
 	{
 		SUB__LIGHT_TORCH,
-		800, //radius
+		512, //radius
 		1, //attenuation
-		1 // scale
+		1, // scale
+		24, //deviance
+		255, 255, 255, //color
+	},
+	//BLUE TORCH
+	{
+		SUB__LIGHT_BLUE_TORCH,
+		512, //radius
+		1, //attenuation
+		1, // scale
+		12, //deviance
+		0, 0, 255, //color
+	},
+	//GREEN TORCH
+	{
+		SUB__LIGHT_GREEN_TORCH,
+		512, //radius
+		1, //attenuation
+		1, // scale
+		12, //deviance
+		0, 255, 0, //color
 	},
 	//LAMP
 	{
 		SUB__LIGHT_LAMP,
 		800, //radius
 		1, //attenuation
-		1 // scale
+		1, // scale
+		12, //deviance
+		255, 255, 255, //color
 	}
 };
 
-
+int type;
+float radius;
+float attenuation;
+float scale;
+float deviance;
+float color[3];
 
 GunInfo* Info_GetGunInfo(int type)
 {

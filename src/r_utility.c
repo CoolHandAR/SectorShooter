@@ -130,7 +130,7 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	int sprite_rect_width = (h_frames > 0) ? sprite->img->width / h_frames : sprite->img->width;
 	int sprite_rect_height = (v_frames > 0) ? sprite->img->height / v_frames : sprite->img->height;
 
-	Vec3_u8 light = sprite->light;
+	Vec3_u16 light = sprite->light;
 
 #ifdef DISABLE_LIGHTMAPS
 	light.r = sector_light;

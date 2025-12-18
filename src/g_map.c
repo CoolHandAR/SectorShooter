@@ -499,7 +499,7 @@ BVH_Tree* Map_GetSpatialTree()
 	return &s_map.spatial_tree;
 }
 
-void Map_SetupLightGrid()
+void Map_SetupLightGrid(Lightblock* data)
 {
 	Lightgrid* lightgrid = &s_map.lightgrid;
 
@@ -507,13 +507,20 @@ void Map_SetupLightGrid()
 
 	int x_blocks = ceil(s_map.world_size[0] / LIGHT_GRID_SIZE) + 1;
 	int y_blocks = ceil(s_map.world_size[1] / LIGHT_GRID_SIZE) + 1;
-	int z_blocks = ceil(s_map.world_height / LIGHT_GRID_SIZE) + 1;
+	int z_blocks = ceil(s_map.world_height / LIGHT_GRID_Z_SIZE) + 1;
 
-	lightgrid->blocks = calloc(x_blocks * y_blocks * z_blocks, sizeof(Lightblock));
-
-	if (!lightgrid->blocks)
+	if (data)
 	{
-		return;
+		lightgrid->blocks = data;
+	}
+	else
+	{
+		lightgrid->blocks = calloc(x_blocks * y_blocks * z_blocks, sizeof(Lightblock));
+
+		if (!lightgrid->blocks)
+		{
+			return;
+		}
 	}
 
 	lightgrid->block_size[0] = x_blocks;
@@ -522,7 +529,7 @@ void Map_SetupLightGrid()
 
 	lightgrid->size[0] = LIGHT_GRID_SIZE;
 	lightgrid->size[1] = LIGHT_GRID_SIZE;
-	lightgrid->size[2] = LIGHT_GRID_SIZE;
+	lightgrid->size[2] = LIGHT_GRID_Z_SIZE;
 
 	lightgrid->inv_size[0] = 1.0 / lightgrid->size[0];
 	lightgrid->inv_size[1] = 1.0 / lightgrid->size[1];
@@ -557,7 +564,7 @@ void Map_UpdateObjectsLight()
 	}
 }
 
-void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest)
+void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest)
 {
 	Lightgrid* grid = &s_map.lightgrid;
 
@@ -625,7 +632,6 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest)
 		total_light.r += (float)data->light.r * factor;
 		total_light.g += (float)data->light.g * factor;
 		total_light.b += (float)data->light.b * factor;
-		total_light.a += (float)data->light.a * factor;
 	}
 
 	if (total_factor > 0 && total_factor < 0.99)
@@ -634,9 +640,9 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest)
 		Vec4_ScaleScalar(&total_light, total_factor);
 	}
 
-	dest->r = Math_Clampl(total_light.r, 0, 255);
-	dest->g = Math_Clampl(total_light.g, 0, 255);
-	dest->b = Math_Clampl(total_light.b, 0, 255);
+	dest->r = Math_Clampl(total_light.r, 0, MAX_LIGHT_VALUE - 255);
+	dest->g = Math_Clampl(total_light.g, 0, MAX_LIGHT_VALUE - 255);
+	dest->b = Math_Clampl(total_light.b, 0, MAX_LIGHT_VALUE - 255);
 }
 
 void Map_Destruct()

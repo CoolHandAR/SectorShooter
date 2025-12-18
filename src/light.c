@@ -1,5 +1,5 @@
 #include "g_common.h"
-#include "light.h"
+#include "light.h"calcdir
 
 #include "game_info.h"
 #include "u_math.h"
@@ -7,6 +7,7 @@
 
 //#define ONLY_SUN
 //#define DISABLE_AO
+//#define AO_ONLY
 
 //internals
 #define BOUNCE_EXIT -3
@@ -18,18 +19,18 @@
 
 #define AA_SAMPLES 4
 
-#define NUM_BOUNCES 6
+#define NUM_BOUNCES 8
 #define RADIOSITY_TRACE_DIST 1024 
 #define RADIOSITY_SAMPLES 64
 #define RADIOSITY_RADIUS 512
 #define RADIOSITY_ATTENUATION 1
-#define RADIOSITY_SCALE 0.75
+#define RADIOSITY_SCALE 1
 
 #define DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SCALE 0.01
 
-#define SKY_SCALE 3
+#define SKY_SCALE 1
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88
@@ -37,13 +38,15 @@
 #define AO_NUM_ELEVATION_STEPS 3
 #define AO_NUM_VECTORS ( AO_NUM_ANGLE_STEPS * AO_NUM_ELEVATION_STEPS )
 #define AO_DEPTH 64
-#define AO_GAIN 0.8
-#define AO_SCALE 1.5
+#define AO_GAIN 0.9
+#define AO_SCALE 1.0
 
 #define FLOOR_CEILING_TRACE_BIAS -1.0
 #define FLOOR_CEILING_TRACE_NORMAL_BIAS 0.2
 #define LINE_TRACE_BIAS 0.5
 #define LINE_TRACE_NORMAL_BIAS 2.1
+
+#define AREA_LIGHT_TILE_SIZE 64.0
 
 #define LIGHTMAP_GAMMA 1.0
 #define LIGHTMAP_EXPOSURE 1.0
@@ -315,40 +318,261 @@ static void LightGlobal_GenerateRandomHemishphereVectors(LightGlobal* global)
 		global->random_vectors[(i * 3) + 2] = z;
 	}
 }
+static void LightGlobal_AddSectorAreaLight(LightGlobal* global, Sector* sector)
+{
+	float sector_dx = (sector->bbox[1][0] - sector->bbox[0][0]) * 2.0;
+	float sector_dy = (sector->bbox[1][1] - sector->bbox[0][1]) * 2.0;
+
+	int sector_x_tiles = ceil(sector_dx / AREA_LIGHT_TILE_SIZE);
+	int sector_y_tiles = ceil(sector_dy / AREA_LIGHT_TILE_SIZE);
+
+	float sector_x_step = sector_dx / (sector_x_tiles);
+	float sector_y_step = sector_dy / (sector_y_tiles);
+
+	float position[3] = { sector->bbox[0][0], sector->bbox[0][1], sector->floor };
+
+	int total_floor_lights = (sector_x_tiles * sector_y_tiles);
+
+	float light_color = 0;
+
+	if (total_floor_lights > 0)
+	{
+		light_color = sector->light_level / total_floor_lights;
+	}
+
+	for (int x = 0; x < sector_x_tiles; x++)
+	{
+		position[1] = sector->bbox[1][1];
+
+		for (int y = 0; y < sector_y_tiles; y++)
+		{
+			//for floor and ceil
+			for (int k = 0; k < 2; k++)
+			{
+				LightDef* lightdef = dA_emplaceBack(global->light_list);
+
+				bool is_ceil = k == 1;
+				float light_def_z = (is_ceil) ? sector->base_ceil : sector->base_floor;
+
+				lightdef->color[0] = light_color;
+				lightdef->color[1] = light_color;
+				lightdef->color[2] = light_color;
+				lightdef->attenuation = 1;
+				lightdef->direction[0] = 0;
+				lightdef->direction[1] = 0;
+				lightdef->direction[2] = (is_ceil) ? -1 : 1;
+				lightdef->deviance = 1;
+				lightdef->type = LDT__AREA;
+				lightdef->radius = 512;
+				lightdef->position[0] = position[0] + lightdef->direction[0];
+				lightdef->position[1] = position[1] + lightdef->direction[1];
+				lightdef->position[2] = light_def_z + lightdef->direction[2];
+				lightdef->bbox[0][0] = lightdef->position[0] - lightdef->radius;
+				lightdef->bbox[0][1] = lightdef->position[1] - lightdef->radius;
+
+				lightdef->bbox[1][0] = lightdef->position[0] + lightdef->radius;
+				lightdef->bbox[1][1] = lightdef->position[1] + lightdef->radius;
+
+				lightdef->area_surf_type = (is_ceil) ? LST__CEIL : LST__FLOOR;
+				lightdef->area_surf_index = sector->index;
+
+			}
+
+			position[1] += -sector_y_step;
+		}
+		position[0] += sector_x_step;
+	}
+}
+
+static void LightGlobal_AddLinedefAreaLight(LightGlobal* global, Linedef* line)
+{
+	Sector* frontsector = Map_GetSector(line->front_sector);
+	Sector* backsector = NULL;
+
+	if (line->back_sector >= 0)
+	{
+		backsector = Map_GetSector(line->back_sector);
+	}
+
+	if (backsector)
+	{
+		if (frontsector->floor == backsector->floor && frontsector->ceil == backsector->ceil)
+		{
+			return;
+		}
+	}
+
+	float min_floor = frontsector->floor;
+	float max_ceil = frontsector->ceil;
+
+	if (backsector)
+	{
+		min_floor = min(frontsector->floor, backsector->floor);
+		max_ceil = max(frontsector->ceil, backsector->ceil);
+	}
+
+	float dx = line->x0 - line->x1;
+	float dy = line->y0 - line->y1;
+	float dz = frontsector->base_ceil - frontsector->base_floor;
+
+	float normal[3] = { dy, -dx, 0 };
+
+	Math_XYZ_Normalize(&normal[0], &normal[1], &normal[2]);
+
+	float width_scale = sqrtf(dx * dx + dy * dy);
+	int x_tiles = ceil((width_scale * 2.0) / AREA_LIGHT_TILE_SIZE);
+	int y_tiles = ceil(((frontsector->base_ceil - frontsector->base_floor) / 2.0) / AREA_LIGHT_TILE_SIZE);
+
+	if (x_tiles == 0 && y_tiles == 0)
+	{
+		return;
+	}
+	else if (x_tiles <= 0)
+	{
+		x_tiles = 1;
+	}
+	else if (y_tiles <= 0)
+	{
+		y_tiles = 1;
+	}
+
+	float x_step = (dx / x_tiles);
+	float y_step = (dy / x_tiles);
+	float z_step = -(dz / y_tiles);
+
+	float open_low = frontsector->floor;
+	float open_high = frontsector->ceil;
+	float open_range = open_high - open_low;
+
+	if (backsector)
+	{
+		open_low = max(frontsector->floor, backsector->floor);
+		open_high = min(frontsector->ceil, backsector->ceil);
+		open_range = open_high - open_low;
+	}
+	float position[3] = { line->x1, line->y1, open_high };
+
+	int total_lights = x_tiles * y_tiles;
+
+	float light_color = 0;
+
+	if (total_lights > 0)
+	{
+		light_color = 255 / total_lights;
+	}
+
+	for (int x = 0; x < x_tiles; x++)
+	{
+		position[2] = open_high;
+
+		for (int y = 0; y < y_tiles; y++)
+		{
+			if (backsector)
+			{
+				//skip empty spaces
+				if (position[2] > open_low && open_high < position[2])
+				{
+					position[2] += z_step;
+					continue;
+				}
+			}
+
+			LightDef* lightdef = dA_emplaceBack(global->light_list);
+
+			lightdef->color[0] = light_color;
+			lightdef->color[1] = light_color;
+			lightdef->color[2] = light_color;
+			lightdef->attenuation = 1;
+			lightdef->direction[0] = normal[0];
+			lightdef->direction[1] = normal[1];
+			lightdef->direction[2] = normal[2];
+			lightdef->deviance = 1;
+			lightdef->type = LDT__AREA;
+			lightdef->radius = 512;
+			lightdef->position[0] = position[0] + lightdef->direction[0];
+			lightdef->position[1] = position[1] + lightdef->direction[1];
+			lightdef->position[2] = position[2] + lightdef->direction[2];
+			lightdef->bbox[0][0] = lightdef->position[0] - lightdef->radius;
+			lightdef->bbox[0][1] = lightdef->position[1] - lightdef->radius;
+
+			lightdef->bbox[1][0] = lightdef->position[0] + lightdef->radius;
+			lightdef->bbox[1][1] = lightdef->position[1] + lightdef->radius;
+			
+			lightdef->area_surf_type = LST__WALL;
+			lightdef->area_surf_index = line->index;
+
+			position[2] += z_step;
+		}
+
+		position[0] += x_step;
+		position[1] += y_step;
+	}
+}
+
 static bool LightGlobal_SetupLights(LightGlobal* global, Map* map)
 {
+	global->light_list = dA_INIT(LightDef, 0);
+
 	int light_iter_index = 0;
-	int num_lights = 0;
-	//calc total lights
-	while (Map_GetNextObjectByType(&light_iter_index, OT__LIGHT))
+	Object* light_obj = NULL;
+	//add object lights
+	while (light_obj = Map_GetNextObjectByType(&light_iter_index, OT__LIGHT))
 	{
-		num_lights++;
-	}
+#ifdef ONLY_SUN
+		break;
+#endif // ONLY_SUN
 
-	//add sun light
+		LightInfo* light_info = Info_GetLightInfo(light_obj->sub_type);
+
+		if (!light_info)
+		{
+			continue;
+		}
+
+		LightDef* light_def = dA_emplaceBack(global->light_list);
+
+		light_def->radius = light_info->radius;
+		light_def->attenuation = light_info->attenuation;
+		light_def->deviance = light_info->deviance;
+		light_def->color[0] = light_info->color[0];
+		light_def->color[1] = light_info->color[1];
+		light_def->color[2] = light_info->color[2];
+
+		light_def->position[0] = light_obj->x;
+		light_def->position[1] = light_obj->y;
+		light_def->position[2] = light_obj->z + light_obj->height;
+
+		light_def->bbox[0][0] = light_obj->x - light_info->radius;
+		light_def->bbox[0][1] = light_obj->y - light_info->radius;
+		light_def->bbox[1][0] = light_obj->x + light_info->radius;
+		light_def->bbox[1][1] = light_obj->y + light_info->radius;
+
+		light_def->type = LDT__POINT;
+	}
+	//add sector area lights
+	for (int i = 0; i < map->num_sectors; i++)
+	{
+		Sector* sector = Map_GetSector(i);
+
+		if (sector->special == SECTOR_SPECIAL__LIGHT_AREA)
+		{
+			LightGlobal_AddSectorAreaLight(global, sector);
+		}
+	}
+	//add wall area lights
+	for (int i = 0; i < map->num_linedefs; i++)
+	{
+		Linedef* linedef = Map_GetLineDef(i);
+
+		if (linedef->special == SPECIAL__WALL_AREA_LIGHT)
+		{
+			LightGlobal_AddLinedefAreaLight(global, linedef);
+		}
+	}
+	//add sun light, (always add last)
 	if (map->sun_color[0] + map->sun_color[1] + map->sun_color[2] > 0)
 	{
-		num_lights++;
-	}
-
-	if (num_lights == 0)
-	{
-		return false;
-	}
-
-	global->light_list = calloc(num_lights, sizeof(LightDef));
-
-	if (!global->light_list)
-	{
-		return false;
-	}
-
-	num_lights = 0;
-
-	//add sun light
-	if (map->sun_color[0] + map->sun_color[1] + map->sun_color[2] > 0)
-	{
-		LightDef* sun_def = &global->light_list[num_lights++];
+		LightDef* sun_def = dA_emplaceBack(global->light_list);
 
 		float angle = Math_DegToRad(map->sun_angle);
 
@@ -367,49 +591,42 @@ static bool LightGlobal_SetupLights(LightGlobal* global, Map* map)
 		global->sun_lightdef = sun_def;
 	}
 
-	light_iter_index = 0;
-	Object* light_obj = NULL;
-	//add object lights
-	while (light_obj = Map_GetNextObjectByType(&light_iter_index, OT__LIGHT))
-	{
-#ifdef ONLY_SUN
-		break;
-#endif // ONLY_SUN
-
-		LightInfo* light_info = Info_GetLightInfo(light_obj->sub_type);
-
-		if (!light_info)
-		{
-			continue;
-		}
-
-		LightDef* light_def = &global->light_list[num_lights++];
-
-		light_def->radius = light_info->radius;
-		light_def->attenuation = light_info->attenuation;
-		light_def->deviance = 24;
-		light_def->position[0] = light_obj->x;
-		light_def->position[1] = light_obj->y;
-		light_def->position[2] = light_obj->z + light_obj->height;
-
-		light_def->bbox[0][0] = light_obj->x - light_info->radius;
-		light_def->bbox[0][1] = light_obj->y - light_info->radius;
-		light_def->bbox[1][0] = light_obj->x + light_info->radius;
-		light_def->bbox[1][1] = light_obj->y + light_info->radius;
-
-		light_def->color[0] = rand() & 254;
-		light_def->color[1] = rand() & 254;
-		light_def->color[2] = rand() & 254;
-
-		light_def->type = LDT__POINT;
-	}
-
-	if (num_lights == 0)
+	if (dA_size(global->light_list) == 0)
 	{
 		return false;
 	}
 
-	global->num_lights = num_lights;
+	int num_area_lights = 0;
+	int num_point_lights = 0;
+	int num_sun_lights = 0;
+
+	for (int i = 0; i < dA_size(global->light_list); i++)
+	{
+		LightDef* lightdef = dA_at(global->light_list, i);
+
+		switch (lightdef->type)
+		{
+		case LDT__AREA:
+		{
+			num_area_lights++;
+			break;
+		}
+		case LDT__POINT:
+		{
+			num_point_lights++;
+			break;
+		}
+		case LDT__SUN:
+		{
+			num_sun_lights++;
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	printf("Num Point Lights:%i, Num Area Lights:%i, Num Sun Lights:%i \n", num_point_lights, num_area_lights, num_sun_lights);
 
 	return true;
 }
@@ -713,9 +930,9 @@ void LightGlobal_Destruct(LightGlobal* global)
 	DeleteCriticalSection(&global->start_mutex);
 	CloseHandle(global->start_work_event);
 
+	dA_Destruct(global->light_list);
 	if (global->thread) free(global->thread);
 	if (global->threads) free(global->threads);
-	if (global->light_list) free(global->light_list);
 	if (global->random_vectors) free(global->random_vectors);
 	if (global->deviance_vectors) free(global->deviance_vectors);
 	if (global->ao_sample_vectors) free(global->ao_sample_vectors);
@@ -905,8 +1122,8 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 	//hit wall
 	else
 	{
-		result->normal[0] = linedef->dy;
-		result->normal[1] = -linedef->dx;
+		result->normal[0] = (linedef->y0 - linedef->y1);
+		result->normal[1] = -(linedef->x0 - linedef->x1);
 		result->normal[2] = 0;
 		result->hit_type = LST__WALL;
 
@@ -960,6 +1177,14 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 						if (sidedef->middle_texture)
 						{
 							texture_sample = Image_Get(&sidedef->middle_texture->img, tx & sidedef->middle_texture->width_mask, ty & sidedef->middle_texture->height_mask);
+
+							if (texture_sample)
+							{
+								if (texture_sample[3] < 128)
+								{
+									//return false;
+								}
+							}
 						}
 					}
 				}
@@ -984,9 +1209,10 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 	
 	if (texture_sample)
 	{
-		result->color_sample[0] = texture_sample[0];
-		result->color_sample[1] = texture_sample[1];
-		result->color_sample[2] = texture_sample[2];
+		result->color_sample.r = texture_sample[0];
+		result->color_sample.g = texture_sample[1];
+		result->color_sample.b = texture_sample[2];
+		result->color_sample.a = texture_sample[3];
 	}
 	if (light_sample)
 	{
@@ -1013,14 +1239,17 @@ static Vec4 calc_light(float light_dir[3], float light_color[3], float normal[3]
 		dot = Math_XYZ_Dot(normal[0], normal[1], normal[2], light_dir[0], light_dir[1], light_dir[2]);
 	}
 
-	float diff = max(dot, 0.0);
+	float diff = max(dot, 0);
 
 	Vec4 light = Vec4_Zero();
 
-	light.r = diff * (light_color[0] * attenuation);
-	light.g = diff * (light_color[1] * attenuation);
-	light.b = diff * (light_color[2] * attenuation);
-	light.a = diff * (255.0 * attenuation);
+	if (diff > 0)
+	{
+		light.r = diff * (light_color[0] * attenuation);
+		light.g = diff * (light_color[1] * attenuation);
+		light.b = diff * (light_color[2] * attenuation);
+		light.a = diff * (255.0 * attenuation);
+	}
 
 	return light;
 }
@@ -1042,6 +1271,44 @@ static Vec4 calc_point_light(float light_position[3], float light_color[3], floa
 	
 	return Vec4_Zero();
 }
+static Vec4 calc_area_light(float light_position[3], float light_normal[3], float light_color[3], float light_radius, float light_attenuation, float normal[3], float position[3])
+{	
+	float light_vec[3] = { light_position[0] - position[0], light_position[1] - position[1], light_position[2] - position[2] };
+	float distance = Math_XYZ_Length(light_vec[0], light_vec[1], light_vec[2]);
+
+	float inv_radius = 1.0 / light_radius;
+	float normalized_dist = distance * inv_radius;
+	float atten = pow(max(1.0 - normalized_dist, 0), light_attenuation);
+
+	if (atten > 0)
+	{
+		Math_XYZ_Normalize(&light_vec[0], &light_vec[1], &light_vec[2]);
+
+		float angle = 1;
+
+		if (normal)
+		{
+			angle = Math_XYZ_Dot(normal[0], normal[1], normal[2], light_vec[0], light_vec[1], light_vec[2]);
+		}
+
+		angle *= -Math_XYZ_Dot(light_normal[0], light_normal[1], light_normal[2], light_vec[0], light_vec[1], light_vec[2]);
+
+		if (angle <= 0)
+		{
+			return Vec4_Zero();
+		}
+		Vec4 light = Vec4_Zero();
+
+		light.r = angle * (light_color[0] * atten);
+		light.g = angle * (light_color[1] * atten);
+		light.b = angle * (light_color[2] * atten);
+		light.a = angle * (255.0 * atten);
+
+		return light;
+	}
+
+	return Vec4_Zero();
+}
 
 static float calc_hit_radiosity(float position[3], float normal[3], LightTraceResult* trace)
 {
@@ -1051,6 +1318,13 @@ static float calc_hit_radiosity(float position[3], float normal[3], LightTraceRe
 	}
 
 	float vec[3] = { trace->hit[0] - position[0], trace->hit[1] - position[1], trace->hit[2] - position[2] };
+	float distance = Math_XYZ_Length(vec[0], vec[1], vec[2]);
+
+	if (distance <= 0)
+	{
+		return RADIOSITY_SCALE;
+	}
+
 	Math_XYZ_Normalize(&vec[0], &vec[1], &vec[2]);
 
 	float angle = 1;
@@ -1060,14 +1334,9 @@ static float calc_hit_radiosity(float position[3], float normal[3], LightTraceRe
 		angle = Math_XYZ_Dot(normal[0], normal[1], normal[2], vec[0], vec[1], vec[2]);
 	}
 
+	angle *= -Math_XYZ_Dot(trace->normal[0], trace->normal[1], trace->normal[2], vec[0], vec[1], vec[2]);
+
 	if (angle <= 0)
-	{
-		return angle * RADIOSITY_SCALE;
-	}
-
-	float distance = Math_XYZ_Length(vec[0], vec[1], vec[2]);
-
-	if (distance <= 0)
 	{
 		return 0;
 	}
@@ -1405,7 +1674,7 @@ static float Lightmap_CalcAo(LightGlobal* global, LightTraceThread* thread, Line
 		LightTraceResult trace_result;
 		if (TraceLine(global, thread, &trace_result, start_x, start_y, start_z, end_x, end_y, end_z, true, false))
 		{
-			//if (trace_result.linedef != target_line)
+			if (trace_result.linedef != target_line)
 			{
 				float delta[3];
 				delta[0] = trace_result.hit[0] - start_x;
@@ -1443,9 +1712,17 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 {
 	Map* map = Map_GetMap();
 
-	bool is_sun = light->type == LDT__SUN;
+	int num_samples = 1;
 
-	int num_samples = (is_sun) ? global->num_sun_deviance_vectors : global->num_deviance_vectors;
+	if (light->type == LDT__SUN)
+	{
+		num_samples = global->num_sun_deviance_vectors;
+	}
+	else if(light->type == LDT__POINT)
+	{ 
+		num_samples = global->num_deviance_vectors;
+	}
+
 	Vec4 total_light = Vec4_Zero();
 
 	for (int i = 0; i < num_samples; i++)
@@ -1454,7 +1731,7 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 		float dev_y = 0;
 		float dev_z = 0;
 
-		if (is_sun)
+		if (light->type == LDT__SUN)
 		{
 			dev_x = global->sun_deviance_vectors[(i * 3) + 0];
 			dev_y = global->sun_deviance_vectors[(i * 3) + 1];
@@ -1469,7 +1746,7 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 		
 		float sample_light_pos[3] = { light->position[0] + dev_x, light->position[1] + dev_y, light->position[2] + dev_z };
 
-		if (is_sun)
+		if (light->type == LDT__SUN)
 		{
 			sample_light_pos[0] = dev_x;
 			sample_light_pos[1] = dev_y;
@@ -1479,17 +1756,21 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 		Vec4 light_color = Vec4_Zero();
 
 		//sun light
-		if (is_sun)
+		if (light->type == LDT__SUN)
 		{
 			light_color = calc_light(sample_light_pos, light->color, normal, light->attenuation);
 		}
-		else
+		else if (light->type == LDT__AREA)
+		{
+			light_color = calc_area_light(sample_light_pos, light->direction, light->color, light->radius, light->attenuation, normal, position);
+		}
+		else if(light->type == LDT__POINT)
 		{
 			light_color = calc_point_light(sample_light_pos, light->color, light->radius, light->attenuation, normal, position);
 		}
-
+		float max_light = max(light_color.r, max(light_color.g, light_color.b));
 		//no light contribution at all
-		if (light_color.a <= 0)
+		if (max_light <= 0)
 		{
 			continue;
 		}
@@ -1498,7 +1779,7 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 
 		bool skip_sky_plane = false;
 
-		if (is_sun)
+		if (light->type == LDT__SUN)
 		{
 			dev_z = 2;
 			Math_XYZ_Normalize(&dev_x, &dev_y, &dev_z);
@@ -1514,7 +1795,7 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 			float light_dir[3] = { light_trace_pos[0] - target_pos[0], light_trace_pos[1] - target_pos[1], light_trace_pos[2] - target_pos[2] };
 			Math_XYZ_Normalize(&light_dir[0], &light_dir[1], &light_dir[2]);
 
-			if (is_sun)
+			if (light->type == LDT__SUN)
 			{
 				if (surf_type == LST__WALL)
 				{
@@ -1538,7 +1819,7 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 			}
 		}
 
-		if (is_sun)
+		if (light->type == LDT__SUN)
 		{
 			//trace from point to sun light instead
 			Math_XYZ_Swap(&target_pos[0], &target_pos[1], &target_pos[2], &light_trace_pos[0], &light_trace_pos[1], &light_trace_pos[2]);
@@ -1553,7 +1834,7 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 			//we don't care if we hit the sky
 			if (trace_result.hit_type != LST__SKY)
 			{
-				if (is_sun)
+				if (light->type == LDT__SUN)
 				{
 					//tracing to wall
 					if (target_line)
@@ -1583,17 +1864,10 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 				//tracing to sector ceil or floor
 				else
 				{
-					float tile_box[2][2];
-					//Math_SizeToBbox(target_pos[0], target_pos[1], 0.25, tile_box);
-
 					//we hit a wall
 					if (trace_result.hit_type == LST__WALL)
 					{
-						//check if the tile is under or over the line
-						//if (!Math_BoxIntersectsBox(trace_result.linedef->bbox, tile_box))
-						{
-							continue;
-						}	
+						continue;
 					}
 					else if(trace_result.hit_type == LST__CEIL)
 					{
@@ -1696,18 +1970,19 @@ static Vec4 Lightmap_CalcRadiosity(LightGlobal* global, LightTraceThread* thread
 		}
 		else
 		{
-			if (trace.light_sample.a > 0)
+			float max_light = max(trace.light_sample.r, max(trace.light_sample.g, trace.light_sample.b));
+			if (max_light > 0)
 			{
 				float atten = calc_hit_radiosity(position, normal, &trace);
 				
 				if (atten > 0)
 				{
-					float norm_light_a = trace.light_sample.a / 255.0;
+					float norm_light_a = max_light / 255.0;
 
 					Vec4 trace_light = Vec4_Zero();
-					trace_light.r = (trace.color_sample[0] * norm_light_a) * atten;
-					trace_light.g = (trace.color_sample[1] * norm_light_a) * atten;
-					trace_light.b = (trace.color_sample[2] * norm_light_a) * atten;
+					trace_light.r = (trace.color_sample.r * norm_light_a) * atten;
+					trace_light.g = (trace.color_sample.g * norm_light_a) * atten;
+					trace_light.b = (trace.color_sample.b * norm_light_a) * atten;
 					trace_light.a = (trace.light_sample.a);
 
 					Vec4_Add(&total_light, trace_light);
@@ -1793,6 +2068,15 @@ static void Lightmap_FloorAndCeillingPass(LightGlobal* global, LightTraceThread*
 	float sample_x_offset = (float)half_samples * sample_x_step;
 	float sample_y_offset = (float)half_samples * sample_y_step;
 
+	bool floor_self_light = false;
+	bool ceil_self_light = false;
+
+	if (light)
+	{
+		floor_self_light = (light->type == LDT__AREA && light->area_surf_type == LST__FLOOR && light->area_surf_index == sector->index);
+		ceil_self_light = (light->type == LDT__AREA && light->area_surf_type == LST__CEIL && light->area_surf_index == sector->index);
+	}
+
 	for (int x = 0; x < x_tiles; x++)
 	{
 		position[1] = sector->bbox[1][1];
@@ -1806,36 +2090,50 @@ static void Lightmap_FloorAndCeillingPass(LightGlobal* global, LightTraceThread*
 			//direct light pass
 			if (bounce == 0)
 			{
-				//sample at center
-				Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
-
-				//aa
-				if (num_samples == 4)
+				if (floor_self_light || ceil_self_light)
 				{
-					//left
-					sample_pos[0] = position[0] - sample_x_step;
-					Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
+					Vec4 light_color = Vec4_Zero();
+					light_color.r = light->color[0];
+					light_color.g = light->color[1];
+					light_color.b = light->color[2];
+					light_color.a = 255;
 
-					//right
-					sample_pos[0] = position[0] + sample_x_step;
-					Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
-
-					sample_pos[0] = position[0];
-
-					//top
-					sample_pos[1] = position[1] + sample_y_step;
-					Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
-
-					//bottom
-					sample_pos[1] = position[1] - sample_y_step;
-					Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
-
-					Vec4_DivScalar(&sample_floor_light, num_samples + 1);
-					if (!sector->is_sky) Vec4_DivScalar(&sample_ceil_light, num_samples + 1);
+					Lightmap_Set(floor_lightmap, x_tiles, y_tiles, x, y, light_color);
+					Lightmap_Set(ceil_lightmap, x_tiles, y_tiles, x, y, light_color);
 				}
-	
-				Lightmap_Set(floor_lightmap, x_tiles, y_tiles, x, y, sample_floor_light);
-				Lightmap_Set(ceil_lightmap, x_tiles, y_tiles, x, y, sample_ceil_light);
+				else
+				{
+					//sample at center
+					Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
+
+					//aa
+					if (num_samples == 4)
+					{
+						//left
+						sample_pos[0] = position[0] - sample_x_step;
+						Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
+
+						//right
+						sample_pos[0] = position[0] + sample_x_step;
+						Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
+
+						sample_pos[0] = position[0];
+
+						//top
+						sample_pos[1] = position[1] + sample_y_step;
+						Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
+
+						//bottom
+						sample_pos[1] = position[1] - sample_y_step;
+						Lightmap_SampleFloorAndCeilAtPoint(global, thread, sector, light, sample_pos, &sample_floor_light, &sample_ceil_light);
+
+						Vec4_DivScalar(&sample_floor_light, num_samples + 1);
+						if (!sector->is_sky) Vec4_DivScalar(&sample_ceil_light, num_samples + 1);
+					}
+
+					Lightmap_Set(floor_lightmap, x_tiles, y_tiles, x, y, sample_floor_light);
+					Lightmap_Set(ceil_lightmap, x_tiles, y_tiles, x, y, sample_ceil_light);
+				}
 			}
 			//gi pass
 			else if(bounce > 0)
@@ -1852,6 +2150,16 @@ static void Lightmap_FloorAndCeillingPass(LightGlobal* global, LightTraceThread*
 			//ao pass
 			else if (bounce == BOUNCE_AO)
 			{
+#ifdef AO_ONLY
+				Vec4 grey_light = Vec4_Zero();
+				grey_light.r = 128;
+				grey_light.g = 128;
+				grey_light.b = 128;
+				grey_light.a = 255;
+
+				Lightmap_Set(floor_lightmap, x_tiles, y_tiles, x, y, grey_light);
+				Lightmap_Set(ceil_lightmap, x_tiles, y_tiles, x, y, grey_light);
+#endif // AO_ONLY
 				//floor
 				if (!Lightmap_CheckIfFullDark(floor_lightmap, x, y))
 				{
@@ -1895,7 +2203,7 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 	int num_samples = AA_SAMPLES;
 	int half_samples = num_samples / 2;
 
-	if (bounce == 0 && light->type == LDT__POINT)
+	if (bounce == 0 && (light->type == LDT__POINT || light->type == LDT__AREA))
 	{
 		if (!Math_BoxIntersectsBox(line->bbox, light->bbox))
 		{
@@ -1986,6 +2294,13 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 		sample_z_step = z_step / half_samples;
 	}
 
+	bool self_light = false;
+
+	if (light)
+	{
+		self_light = (light->type == LDT__AREA && light->area_surf_type == LST__WALL && light->area_surf_index == line->index);
+	}
+
 	for (int x = 0; x < x_tiles; x++)
 	{
 		position[2] = open_high;
@@ -2005,38 +2320,52 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 			//direct light pass
 			if (bounce == 0)
 			{
-				float sample_pos[3] = { position[0], position[1], position[2] };
-
-				Vec4 sample_light = Vec4_Zero();
-
-				//sample at center
-				Lightmap_SampleLinePoint(global, thread, line, light, position, normal, &sample_light);
-
-				if (num_samples == 4)
+				if (self_light)
 				{
-					//left
-					sample_pos[0] = position[0] - sample_x_step;
-					sample_pos[1] = position[1] - sample_y_step;
-					Lightmap_SampleLinePoint(global, thread, line, light, sample_pos, normal, &sample_light);
-					//right
-					sample_pos[0] = position[0] + sample_x_step;
-					sample_pos[1] = position[1] + sample_y_step;
-					Lightmap_SampleLinePoint(global, thread, line, light, sample_pos, normal, &sample_light);
+					Vec4 light_color = Vec4_Zero();
 
-					sample_pos[0] = position[0];
-					sample_pos[1] = position[1];
+					light_color.r = light->color[0];
+					light_color.g = light->color[1];
+					light_color.b = light->color[2];
+					light_color.a = 255;
 
-					//top
-					sample_pos[2] = position[2] + sample_z_step;
-					Lightmap_SampleLinePoint(global, thread, line, light, sample_pos, normal, &sample_light);
-					//bottom
-					sample_pos[2] = position[2] - sample_z_step;
-
-					Vec4_DivScalar(&sample_light, num_samples + 1);
-
+					Lightmap_Set(&line->lightmap, x_tiles, y_tiles, x, y, light_color);
 				}
+				else
+				{
+					float sample_pos[3] = { position[0], position[1], position[2] };
 
-				Lightmap_Set(&line->lightmap, x_tiles, y_tiles, x, y, sample_light);
+					Vec4 sample_light = Vec4_Zero();
+
+					//sample at center
+					Lightmap_SampleLinePoint(global, thread, line, light, position, normal, &sample_light);
+
+					if (num_samples == 4)
+					{
+						//left
+						sample_pos[0] = position[0] - sample_x_step;
+						sample_pos[1] = position[1] - sample_y_step;
+						Lightmap_SampleLinePoint(global, thread, line, light, sample_pos, normal, &sample_light);
+						//right
+						sample_pos[0] = position[0] + sample_x_step;
+						sample_pos[1] = position[1] + sample_y_step;
+						Lightmap_SampleLinePoint(global, thread, line, light, sample_pos, normal, &sample_light);
+
+						sample_pos[0] = position[0];
+						sample_pos[1] = position[1];
+
+						//top
+						sample_pos[2] = position[2] + sample_z_step;
+						Lightmap_SampleLinePoint(global, thread, line, light, sample_pos, normal, &sample_light);
+						//bottom
+						sample_pos[2] = position[2] - sample_z_step;
+
+						Vec4_DivScalar(&sample_light, num_samples + 1);
+
+					}
+
+					Lightmap_Set(&line->lightmap, x_tiles, y_tiles, x, y, sample_light);
+				}
 			}
 			//bounce pass
 			else if(bounce > 0)
@@ -2048,6 +2377,16 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 			//ao pass
 			else if (bounce == BOUNCE_AO)
 			{
+#ifdef AO_ONLY
+				Vec4 grey_light = Vec4_Zero();
+				grey_light.r = 128;
+				grey_light.g = 128;
+				grey_light.b = 128;
+				grey_light.a = 255;
+
+				Lightmap_Set(&line->lightmap, x_tiles, y_tiles, x, y, grey_light);
+#endif // AO_ONLY
+
 				if (!Lightmap_CheckIfFullDark(&line->lightmap, x, y))
 				{
 					float ao = Lightmap_CalcAo(global, thread, line, frontsector, position, normal);
@@ -2102,18 +2441,18 @@ void Lightmap_Sector(LightGlobal* global, LightTraceThread* thread, Sector* sect
 	if (bounce == 0)
 	{
 		//for each light
-		for (int i = 0; i < global->num_lights; i++)
+		for (int i = 0; i < dA_size(global->light_list); i++)
 		{
-			LightDef* light = &global->light_list[i];
+			LightDef* light = dA_at(global->light_list, i);
 
-			if (light->type == LDT__POINT)
+			if (light->type == LDT__POINT || light->type == LDT__AREA)
 			{
 				if (!Math_BoxIntersectsBox(light->bbox, sector->bbox))
 				{
 					continue;
 				}
 			}
-	
+			
 			Lightmap_LightPass(global, thread, sector, bounce, sector_dx, sector_dy, sector_x_tiles, sector_y_tiles, sector_x_step, sector_y_step, light);
 		}
 	}
@@ -2154,7 +2493,7 @@ static void Lightmap_DispatchLightmapWork(LightGlobal* global, Map* map, int bou
 
 void Lightmap_Create(LightGlobal* global, Map* map)
 {
-	if (global->num_lights <= 0)
+	if (dA_size(global->light_list) <= 0)
 	{
 		return;
 	}
@@ -2169,6 +2508,7 @@ void Lightmap_Create(LightGlobal* global, Map* map)
 
 	double start = glfwGetTime();
 
+#ifndef AO_ONLY
 	for (int b = 0; b < bounces; b++)
 	{
 		if (b > 0)
@@ -2181,7 +2521,7 @@ void Lightmap_Create(LightGlobal* global, Map* map)
 		//then swap lightmaps to back buffer
 		Lightmap_SwapLightmaps(global, map);
 	}
-
+#endif // !AO_ONLY
 	//AO
 #ifndef DISABLE_AO
 	Lightmap_DispatchLightmapWork(global, map, BOUNCE_AO);
@@ -2200,11 +2540,11 @@ void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightbloc
 	Vec4 total_light = Vec4_Zero();
 	//calc direct light
 	//for each light
-	for (int i = 0; i < global->num_lights; i++)
+	for (int i = 0; i < dA_size(global->light_list); i++)
 	{
-		LightDef* light = &global->light_list[i];
+		LightDef* light = dA_at(global->light_list, i);
 
-		if (light->type == LDT__POINT)
+		if (light->type == LDT__POINT || light->type == LDT__AREA)
 		{
 			if (!Math_BoxContainsPoint(light->bbox, position))
 			{
@@ -2217,21 +2557,20 @@ void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightbloc
 		Vec4_Add(&total_light, result_light);
 	}
 
-	Vec4 radiosity = Lightmap_CalcRadiosity(global, thread, position, NULL, NULL, LST__POINT);
-	Vec4_ScaleScalar(&radiosity, 4);
-	//Vec4_Add(&total_light, radiosity);
+	if (NUM_BOUNCES > 1)
+	{
+		Vec4 radiosity = Lightmap_CalcRadiosity(global, thread, position, NULL, NULL, LST__POINT);
+		Vec4_Add(&total_light, radiosity);
+	}
 
-	//ClampLightVector3(&total_light);
-
-	block->light.r = Math_Clampl(total_light.r, 0, 255);
-	block->light.g = Math_Clampl(total_light.g, 0, 255);
-	block->light.b = Math_Clampl(total_light.b, 0, 255);
-	block->light.a = Math_Clampl(total_light.a, 0, 255);
+	block->light.r = Math_Clampl(total_light.r, 0, MAX_LIGHT_VALUE - 255);
+	block->light.g = Math_Clampl(total_light.g, 0, MAX_LIGHT_VALUE - 255);
+	block->light.b = Math_Clampl(total_light.b, 0, MAX_LIGHT_VALUE - 255);
 }
 
 void Lightblocks_Create(LightGlobal* global, Map* map)
 {
-	if (global->num_lights <= 0)
+	if (dA_size(global->light_list) <= 0)
 	{
 		return;
 	}

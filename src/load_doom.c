@@ -300,6 +300,9 @@ typedef struct
 
 typedef enum
 {
+    THING__BLUE_TORCH = 44,
+    THING__GREEN_TORCH = 45,
+    THING__RED_TORCH = 46,
     THING__SMALL_HP = 2011,
     THING__BIG_HP = 2012,
     THING__LAMP = 2028,
@@ -674,6 +677,7 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
             os->back_sector = -1;
         }
 
+        os->special = ms->special;
         os->bbox[0][0] = min(os->x0, os->x1);
         os->bbox[0][1] = min(os->y0, os->y1);
         os->bbox[1][0] = max(os->x0, os->x1);
@@ -965,8 +969,8 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         }
         case THING__IMP:
         {
-            type = OT__MONSTER;
-            sub_type = SUB__MOB_IMP;
+            //type = OT__MONSTER;
+            //sub_type = SUB__MOB_IMP;
             break;
         }
         case THING__PINKY:
@@ -989,6 +993,24 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             map->sun_color[2] = 255;
             map->sun_position[0] = object_x;
             map->sun_position[1] = object_y;
+            break;
+        }
+        case THING__BLUE_TORCH:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_BLUE_TORCH;
+            break;
+        }
+        case THING__GREEN_TORCH:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_GREEN_TORCH;
+            break;
+        }
+        case THING__RED_TORCH:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_TORCH;
             break;
         }
         default:
@@ -1120,7 +1142,7 @@ bool Load_Doommap(const char* filename, Map* map)
     //check for lightmaps
     //if(!Load_Lightmap(filename, map))
     {
-        Map_SetupLightGrid();
+        Map_SetupLightGrid(NULL);
 
         //create new lightmaps
         LightGlobal light_global;
@@ -1131,7 +1153,7 @@ bool Load_Doommap(const char* filename, Map* map)
 
         LightGlobal_Destruct(&light_global);
 
-       /// Save_Lightmap(filename, map);
+       // Save_Lightmap(filename, map);
     }
 #endif // !DISABLE_LIGHTMAPS
    

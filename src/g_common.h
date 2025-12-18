@@ -33,6 +33,7 @@
 #define LIGHTMAP_LUXEL_SIZE 16.0
 #define LIGHTMAP_INV_LUXEL_SIZE 1.0 / LIGHTMAP_LUXEL_SIZE
 #define LIGHT_GRID_SIZE 64.0
+#define LIGHT_GRID_Z_SIZE 128.0
 
 static const char SAVEFOLDER[] = { "\\saves" };
 
@@ -220,6 +221,8 @@ typedef enum
 
 	//LIGHTS
 	SUB__LIGHT_TORCH,
+	SUB__LIGHT_BLUE_TORCH,
+	SUB__LIGHT_GREEN_TORCH,
 	SUB__LIGHT_LAMP,
 	SUB__LIGHT_MAX,
 
@@ -264,6 +267,7 @@ typedef enum
 
 	OBJ_FLAG__IGNORE_POSITION_CHECK = 1 << 8,
 	OBJ_FLAG__IGNORE_SOUND = 1 << 9,
+	OBJ_FLAG__FULL_BRIGHT = 1 << 10,
 } ObjectFlag;
 
 typedef struct
@@ -363,6 +367,7 @@ typedef struct
 	int back_sector;
 
 	int index;
+	int special;
 
 	Lightmap lightmap;
 } Linedef;
@@ -450,7 +455,7 @@ typedef struct
 
 typedef struct
 {
-	Vec4_u8 light;
+	Vec3_u16 light;
 } Lightblock;
 
 typedef struct
@@ -542,9 +547,9 @@ Line* Map_GetLine(int index);
 Linedef* Map_GetLineDef(int index);
 bool Map_CheckSectorReject(int s1, int s2);
 BVH_Tree* Map_GetSpatialTree();
-void Map_SetupLightGrid();
+void Map_SetupLightGrid(Lightblock* data);
 void Map_UpdateObjectsLight();
-void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u8* dest);
+void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest);
 void Map_Destruct();
 
 //Load stuff

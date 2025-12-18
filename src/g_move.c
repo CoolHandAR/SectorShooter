@@ -498,7 +498,10 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 	}
 	
 	//update light
-	Map_CalcBlockLight(obj->x, obj->y, obj->z + obj->height * 0.5, &obj->sprite.light);
+	if (!(obj->flags & OBJ_FLAG__FULL_BRIGHT))
+	{
+		Map_CalcBlockLight(obj->x, obj->y, obj->z + obj->height * 0.5, &obj->sprite.light);
+	}
 
 	//update bvh
 	if (obj->spatial_id >= 0)
