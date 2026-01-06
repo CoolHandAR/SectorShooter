@@ -337,7 +337,7 @@ bool Object_CheckSight(Object* obj, Object* target)
 	float d = Math_XY_Distance(obj->x, obj->y, target->x, target->y);
 
 	//very close to target
-	if (d <= 100)
+	if (d <= 50)
 	{
 		return true;
 	}
@@ -346,23 +346,12 @@ bool Object_CheckSight(Object* obj, Object* target)
 	float y_point = obj->y - target->y;
 
 	//make sure the object is facing the target
-	//west
-	if (obj->dir_x > 0 && x_point > 0)
-	{
-		return false;
-	}
-	//east
-	else if (obj->dir_x < 0 && x_point < 0)
-	{
-		return false;
-	}
-	//north
-	if (obj->dir_y > 0 && y_point > 0)
-	{
-		return false;
-	}
-	//south
-	else if (obj->dir_y < 0 && y_point < 0)
+	float target_to_obj_angle = Math_XY_Angle(target->x - obj->x, target->y - obj->y);
+	float obj_angle = Math_XY_Angle(obj->dir_x, obj->dir_y);
+
+	int rot = Math_RadToDeg(target_to_obj_angle - obj_angle);
+
+	if (rot < -90 || rot > 90)
 	{
 		return false;
 	}
@@ -717,7 +706,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		{
 			assign_to_spatial_tree = true;
 		}
-
+		else if (object_info->collidable && object_info->size > 0)
+		{
+			assign_to_spatial_tree = true;
+		}
 		break;
 	}
 	case OT__TRIGGER:

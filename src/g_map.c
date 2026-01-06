@@ -485,7 +485,7 @@ Linedef* Map_GetLineDef(int index)
 
 bool Map_CheckSectorReject(int s1, int s2)
 {
-	if (s_map.reject_size > 0 && s1 >= 0 && s2 >= 0)
+	if (s_map.reject_size > 1 && s1 >= 0 && s2 >= 0)
 	{
 		int pnum = s1 * s_map.num_sectors + s2;
 		return !(s_map.reject_matrix[pnum >> 3] & (1 << (pnum & 7)));

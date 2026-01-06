@@ -226,20 +226,9 @@ int Line_PointSide(Line* line, float p_x, float p_y)
 {
 	return PointSide(line->dx, line->dy, line->x0, line->y0, p_x, p_y);
 }
-
-int LineSide_PointSide(Line* line, float p_x, float p_y)
-{
-	return PointSide(line->side_dx, line->side_dy, line->side_x0, line->side_y0, p_x, p_y);
-}
-
 int Line_BoxOnPointSide(Line* line, float p_bbox[2][2])
 {
 	return BoxOnPointSide(line->dx, line->dy, line->x0, line->y0, p_bbox);
-}
-
-int LineSide_BoxOnPointSide(Line* line, float p_bbox[2][2])
-{
-	return BoxOnPointSide(line->side_dx, line->side_dy, line->side_x0, line->side_y0, p_bbox);
 }
 
 float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line)
@@ -250,11 +239,6 @@ float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line)
 float Line_InterceptLine(Line* line1, Line* line2)
 {
 	return Line_Intercept(line1->x0, line1->y0, line1->dx, line1->dy, line2);
-}
-
-float LineSide_InterceptLine(Line* line1, Line* line2)
-{
-	return InterceptLine(line1->x0, line1->y0, line1->dx, line1->dy, line2->side_dx, line2->side_dy, line2->side_x0, line2->side_y0);
 }
 
 bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY)
@@ -269,56 +253,6 @@ bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, f
 
 	float d_dx = line2->x1 - line1->x0;
 	float d_dy = line2->y1 - line1->y0;
-
-	float l0n_x = line1->dx / line1->dot;
-	float l0n_y = line1->dy / line1->dot;
-
-	float c_x = c_dx * l0n_x + c_dy * l0n_y;
-	float c_y = c_dy * l0n_x - c_dx * l0n_y;
-
-	float d_x = d_dx * l0n_x + d_dy * l0n_y;
-	float d_y = d_dy * l0n_x - d_dx * l0n_y;
-
-	if (c_y < (float)-CMP_EPSILON && d_y < (float)-CMP_EPSILON)
-	{
-		return false;
-	}
-	if (c_y > (float)CMP_EPSILON && d_y > (float)CMP_EPSILON)
-	{
-		return false;
-	}
-
-	if (Math_IsEqualApprox(c_y, d_y))
-	{
-		return false;
-	}
-
-	float pos = d_x + (c_x - d_x) * d_y / (d_y - c_y);
-
-	if (pos < 0 || pos > 1)
-	{
-		return false;
-	}
-
-	if (r_frac) *r_frac = pos;
-	if (r_interX) *r_interX = line1->x0 + line1->dx * pos;
-	if (r_interY) *r_interY = line1->y0 + line1->dy * pos;
-
-	return true;
-}
-
-bool LineSide_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY)
-{
-	if (line1->dot <= 0)
-	{
-		return false;
-	}
-
-	float c_dx = line2->side_x0 - line1->x0;
-	float c_dy = line2->side_y0 - line1->y0;
-
-	float d_dx = line2->side_x1 - line1->x0;
-	float d_dy = line2->side_y1 - line1->y0;
 
 	float l0n_x = line1->dx / line1->dot;
 	float l0n_y = line1->dy / line1->dot;

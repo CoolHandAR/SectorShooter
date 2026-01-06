@@ -5,7 +5,7 @@
 #include "sound.h"
 #include <stdio.h>
 
-#define START_LEVEL 1
+#define START_LEVEL 5
 
 static Game game;
 static GameAssets assets;
@@ -45,7 +45,7 @@ bool Game_LoadAssets()
 {
 	memset(&assets, 0, sizeof(assets));
 
-	if (!Load_DoomIWAD("DOOM.wad"))
+	if (!Load_DoomIWAD("OURWAD.wad"))
 	{
 		return false;
 	}
@@ -108,7 +108,7 @@ bool Game_LoadAssets()
 	strcpy(assets.missing_texture.name, "MISS");
 
 	assets.object_textures.h_frames = 4;
-	assets.object_textures.v_frames = 8;
+	assets.object_textures.v_frames = 14;
 
 	assets.shotgun_texture.h_frames = 18;
 	assets.shotgun_texture.v_frames = 1;

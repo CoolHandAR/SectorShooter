@@ -23,14 +23,14 @@
 #define RADIOSITY_TRACE_DIST 1024 
 #define RADIOSITY_SAMPLES 64
 #define RADIOSITY_RADIUS 512
-#define RADIOSITY_ATTENUATION 1
-#define RADIOSITY_SCALE 1
+#define RADIOSITY_ATTENUATION 2
+#define RADIOSITY_SCALE 0.75
 
 #define DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SCALE 0.01
 
-#define SKY_SCALE 1
+#define SKY_SCALE 0.5
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88
@@ -1977,12 +1977,15 @@ static Vec4 Lightmap_CalcRadiosity(LightGlobal* global, LightTraceThread* thread
 				
 				if (atten > 0)
 				{
+					float norm_light_r = trace.light_sample.r / 255.0;
+					float norm_light_g = trace.light_sample.g / 255.0;
+					float norm_light_b = trace.light_sample.b / 255.0;
 					float norm_light_a = max_light / 255.0;
 
 					Vec4 trace_light = Vec4_Zero();
-					trace_light.r = (trace.color_sample.r * norm_light_a) * atten;
-					trace_light.g = (trace.color_sample.g * norm_light_a) * atten;
-					trace_light.b = (trace.color_sample.b * norm_light_a) * atten;
+					trace_light.r = (trace.color_sample.r * norm_light_r) * atten;
+					trace_light.g = (trace.color_sample.g * norm_light_g) * atten;
+					trace_light.b = (trace.color_sample.b * norm_light_b) * atten;
 					trace_light.a = (trace.light_sample.a);
 
 					Vec4_Add(&total_light, trace_light);

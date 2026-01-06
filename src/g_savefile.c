@@ -153,23 +153,23 @@ static bool Save_Lump(FILE* file, SaveHeader* header, int lump_num, const void* 
 
 static bool Save_WorldState(FILE* file, SaveHeader* header, Map* map)
 {
-	LineLump* line_lump = calloc(map->num_line_segs, sizeof(LineLump));
+	LineLump* line_lump = calloc(map->num_linedefs, sizeof(LineLump));
 
 	if (!line_lump)
 	{
 		return false;
 	}
 
-	for (int i = 0; i < map->num_line_segs; i++)
+	for (int i = 0; i < map->num_linedefs; i++)
 	{
-		Line* line = &map->line_segs[i];
+		Linedef* line = &map->linedefs[i];
 		LineLump* lump = &line_lump[i];
 
 		lump->special = Num_LittleLong(line->special);
 		lump->flags = Num_LittleLong(line->flags);
 	}
 
-	if (!Save_Lump(file, header, LINE_LUMP, line_lump, sizeof(LineLump) * map->num_line_segs))
+	if (!Save_Lump(file, header, LINE_LUMP, line_lump, sizeof(LineLump) * map->num_linedefs))
 	{
 		free(line_lump);
 		return false;
@@ -416,14 +416,14 @@ static void Load_ParseWorld(SaveHeader* header, FILE* file, Map* map)
 	LineLump* line_lump = MallocLump(file, header, LINE_LUMP, sizeof(LineLump), &num_lines);
 
 	//probably should not happen, but clamp so it won't crash
-	if (num_lines > map->num_line_segs)
+	if (num_lines > map->num_linedefs)
 	{
-		num_lines = map->num_line_segs;
+		num_lines = map->num_linedefs;
 	}
 
 	for (int i = 0; i < num_lines; i++)
 	{
-		Line* line = &map->line_segs[i];
+		Linedef* line = &map->linedefs[i];
 		LineLump* lump = &line_lump[i];
 
 		line->special = Num_LittleLong(lump->special);

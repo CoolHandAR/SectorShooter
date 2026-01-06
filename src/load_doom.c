@@ -9,6 +9,8 @@
 #include "u_math.h"
 #include "utility.h"
 
+#define NO_MONSTERS
+
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
 
@@ -303,6 +305,10 @@ typedef enum
     THING__BLUE_TORCH = 44,
     THING__GREEN_TORCH = 45,
     THING__RED_TORCH = 46,
+    THING__BLUE_LAMP = 55,
+    THING__GREEN_LAMP = 56,
+    THING__RED_LAMP = 57,
+    THING__SHOTGUN = 2001,
     THING__SMALL_HP = 2011,
     THING__BIG_HP = 2012,
     THING__LAMP = 2028,
@@ -312,6 +318,25 @@ typedef enum
     THING__PINKY = 3002,
     THING__BARON = 3003,
     THING__SUN = 10003,
+    THING__RED_COLLUMN = 10004,
+    THING__BLUE_COLLUMN = 10005,
+    THING__RED_FLAG = 10006,
+    THING__BLUE_FLAG = 10007,
+    THING__CACTUS0 = 10008,
+    THING__CACTUS1 = 10009,
+    THING__CACTUS2 = 10010,
+    THING__DEADTREE0 = 10011,
+    THING__DEADTREE1 = 10012,
+    THING__DEADTREE2 = 10013,
+    THING__DEADTREE3 = 10014,
+    THING__SPINNING_PYARMID = 10015,
+    THING__BUSH0 = 10016,
+    THING__BUSH1 = 10017,
+    THING__BUSH2 = 10018,
+    THING__TREE0 = 10019,
+    THING__TREE1 = 10020,
+    THING__TREE2 = 10021,
+    THING__TREE3 = 10022,
 } thingtypes;
 
 
@@ -408,7 +433,7 @@ static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
 
             if (!strcmp(name, "F_SKY1"))
             {
-                os->ceil_texture = Game_FindTextureByName("SKY1");
+                os->ceil_texture = Game_FindTextureByName("SKY3");
                 os->is_sky = true;
             }
         }
@@ -677,6 +702,7 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
             os->back_sector = -1;
         }
 
+        os->sector_tag = ms->tag;
         os->special = ms->special;
         os->bbox[0][0] = min(os->x0, os->x1);
         os->bbox[0][1] = min(os->y0, os->y1);
@@ -767,9 +793,9 @@ static void Load_PostProcessMap(Map* map)
         index--;
     }
 
-    for (int i = 0; i < map->num_line_segs; i++)
+    for (int i = 0; i < map->num_linedefs; i++)
     {
-        Line* line = &map->line_segs[i];
+        Linedef* line = &map->linedefs[i];
 
         int iter_index = 0;
 
@@ -781,9 +807,9 @@ static void Load_PostProcessMap(Map* map)
             {
                 while (sector = Map_GetNextSectorByTag(&iter_index, line->sector_tag))
                 {
-                    if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE)
+                    if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE || line->special == SPECIAL__TRIGGER_DOOR_NEVER_CLOSE)
                     {
-                        sector->neighbour_sector_value = Sector_FindHighestNeighbourCeilling(sector);
+                        sector->neighbour_sector_value = Sector_FindLowestNeighbourCeilling(sector);
                     }
                     else if (line->special == SPECIAL__USE_LIFT)
                     {
@@ -796,9 +822,9 @@ static void Load_PostProcessMap(Map* map)
                 Sector* frontsector = &map->sectors[line->front_sector];
                 Sector* backsector = &map->sectors[line->back_sector];
 
-                if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE)
+                if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE || line->special == SPECIAL__TRIGGER_DOOR_NEVER_CLOSE)
                 {
-                    backsector->neighbour_sector_value = Sector_FindHighestNeighbourCeilling(backsector);
+                    backsector->neighbour_sector_value = Sector_FindLowestNeighbourCeilling(backsector);
                 }
                 else if (line->special == SPECIAL__USE_LIFT)
                 {
@@ -941,8 +967,16 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         int type = OT__NONE;
         int sub_type = SUB__NONE;
 
+        bool clamp_to_ceil = false;
+
         switch (mt->type)
         {
+        case THING__SHOTGUN:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_SHOTGUN;
+            break;
+        }
         case THING__AMMO:
         {
             type = OT__PICKUP;
@@ -969,8 +1003,8 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         }
         case THING__IMP:
         {
-            //type = OT__MONSTER;
-            //sub_type = SUB__MOB_IMP;
+            type = OT__MONSTER;
+            sub_type = SUB__MOB_IMP;
             break;
         }
         case THING__PINKY:
@@ -989,8 +1023,8 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         {
             map->sun_angle = (float)mt->angle - 180;
             map->sun_color[0] = 255;
-            map->sun_color[1] = 255;
-            map->sun_color[2] = 255;
+            map->sun_color[1] = 204;
+            map->sun_color[2] = 51;
             map->sun_position[0] = object_x;
             map->sun_position[1] = object_y;
             break;
@@ -1013,9 +1047,150 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             sub_type = SUB__LIGHT_TORCH;
             break;
         }
+        case THING__RED_LAMP:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_LAMP;
+            clamp_to_ceil = true;
+            break;
+        }
+        case THING__BLUE_LAMP:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_BLUE_LAMP;
+            clamp_to_ceil = true;
+            break;
+        }
+        case THING__GREEN_LAMP:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_GREEN_LAMP;
+            clamp_to_ceil = true;
+            break;
+        }
+        case THING__RED_COLLUMN:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_RED_COLLUMN;
+            break;
+        }
+        case THING__BLUE_COLLUMN:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_BLUE_COLLUMN;
+            break;
+        }
+        case THING__RED_FLAG:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_RED_FLAG;
+            break;
+        }
+        case THING__BLUE_FLAG:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_BLUE_FLAG;
+            break;
+        }
+        case THING__CACTUS0:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_CACTUS0;
+            break;
+        }
+        case THING__CACTUS1:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_CACTUS1;
+            break;
+        }
+        case THING__CACTUS2:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_CACTUS2;
+            break;
+        }
+        case THING__DEADTREE0:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_DEAD_TREE0;
+            break;
+        }
+        case THING__DEADTREE1:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_DEAD_TREE1;
+            break;
+        }
+        case THING__DEADTREE2:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_DEAD_TREE2;
+            break;
+        }
+        case THING__DEADTREE3:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_DEAD_TREE3;
+            break;
+        }
+        case THING__SPINNING_PYARMID:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_SPINNING_PYRAMID;
+            break;
+        }
+        case THING__BUSH0:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_BUSH0;
+            break;
+        }
+        case THING__BUSH1:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_BUSH1;
+            break;
+        }
+        case THING__BUSH2:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_BUSH2;
+            break;
+        }
+        case THING__TREE0:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_TREE0;
+            break;
+        }
+        case THING__TREE1:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_TREE1;
+            break;
+        }
+        case THING__TREE2:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_TREE2;
+            break;
+        }
+        case THING__TREE3:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_TREE3;
+            break;
+        }
         default:
             break;
         }
+
+#ifdef NO_MONSTERS
+        if (type == OT__MONSTER)
+            type = OT__NONE;
+#endif // NO_MONSTERS
+
 
         if (type != OT__NONE)
         {
@@ -1026,6 +1201,12 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             obj->dir_y = sinf(rad_angle);
 
             obj->flags |= flags;
+
+            if (clamp_to_ceil)
+            {
+                Move_ZMove(obj, 1e5);
+                obj->sprite.z = obj->z;
+            }
         }
     }
 
@@ -1140,7 +1321,7 @@ bool Load_Doommap(const char* filename, Map* map)
 #ifndef DISABLE_LIGHTMAPS
 
     //check for lightmaps
-    //if(!Load_Lightmap(filename, map))
+    if(!Load_Lightmap(filename, map))
     {
         Map_SetupLightGrid(NULL);
 
@@ -1153,7 +1334,7 @@ bool Load_Doommap(const char* filename, Map* map)
 
         LightGlobal_Destruct(&light_global);
 
-       // Save_Lightmap(filename, map);
+        Save_Lightmap(filename, map);
     }
 #endif // !DISABLE_LIGHTMAPS
    

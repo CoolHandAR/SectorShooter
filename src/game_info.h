@@ -253,6 +253,7 @@ typedef struct
 	float sprite_offset_z;
 	float sprite_scale;
 	float size;
+	int collidable;
 } ObjectInfo;
 
 typedef struct
@@ -320,6 +321,8 @@ typedef enum
 	SPECIAL__USE_DOOR_NEVER_CLOSE = 31,
 	SPECIAL__USE_LIFT = 62,
 
+	SPECIAL__TRIGGER_EXIT = 11,
+	SPECIAL__TRIGGER_DOOR_NEVER_CLOSE = 29,
 	SPECIAL__TRIGGER_CRUSHER = 49, 
 	SPECIAL__WALL_AREA_LIGHT = 138
 } SpecialType;

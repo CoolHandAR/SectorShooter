@@ -226,7 +226,7 @@ static void Player_Use()
 
 	Line* special_line = Map_GetLine(-(hit + 1));
 	
-	Event_TriggerSpecialLine(player.obj, 0, special_line, EVENT_TRIGGER__LINE_USE);
+	Event_TriggerSpecialLine(player.obj, 0, special_line->linedef, EVENT_TRIGGER__LINE_USE);
 
 	player.use_timer = USE_TIME;
 }
@@ -629,7 +629,7 @@ void Player_Init(int keep)
 
 	Player_SetupGunSprites();
 
-	Player_GiveAll();
+	//Player_GiveAll();
 
 	if(!keep)
 		Player_SetGun(GUN__PISTOL);
@@ -965,6 +965,17 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 	{
 		Vec3_u16 light = player.obj->sprite.light;
 
+#ifdef DISABLE_LIGHTMAPS
+
+		if (player.obj->sector_index >= 0)
+		{
+			Sector* sector = Map_GetSector(player.obj->sector_index);
+
+			light.r = sector->light_level;
+			light.g = sector->light_level;
+			light.b = sector->light_level;
+		}
+#endif
 		Sprite sprite = player.gun_sprites[player.gun];
 
 		sprite.light = light;

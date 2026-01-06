@@ -73,6 +73,38 @@ float Sector_FindHighestNeighbourCeilling(Sector* sector)
 	return highest_ceil;
 }
 
+float Sector_FindLowestNeighbourCeilling(Sector* sector)
+{
+	int num_lines = Trace_SectorLines(sector, false);
+	int* hits = Trace_GetHitObjects();
+
+	float lowest_ceil = 1e6;
+
+	for (int i = 0; i < num_lines; i++)
+	{
+		Line* line = Map_GetLine(hits[i]);
+
+		Sector* other_sector = Sector_GetLineOtherSector(line, sector);
+
+		if (!other_sector)
+		{
+			continue;
+		}
+
+		if (sector == other_sector)
+		{
+			continue;
+		}
+
+		if (other_sector->ceil < lowest_ceil)
+		{
+			lowest_ceil = other_sector->ceil;
+		}
+	}
+
+	return lowest_ceil;
+}
+
 float Sector_FindLowestNeighbourFloor(Sector* sector)
 {
 	int num_lines = Trace_SectorLines(sector, false);

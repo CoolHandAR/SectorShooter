@@ -525,10 +525,15 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 		for (int i = 0; i < num_special_lines; i++)
 		{
 			int index = line_indices[i];
+			if (index >= map->num_line_segs)
+			{
+				break;
+			}
 			Line* line = &map->line_segs[index];
+			Linedef* linedef = line->linedef;
 
 			//line might have hit twice and it's special could be changed
-			if (line->special == 0)
+			if (linedef->special == 0)
 			{
 				continue;
 			}
@@ -538,7 +543,7 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 
 			if (old_side != new_side)
 			{
-				Event_TriggerSpecialLine(obj, old_side, line, EVENT_TRIGGER__LINE_WALK_OVER);
+				Event_TriggerSpecialLine(obj, old_side, linedef, EVENT_TRIGGER__LINE_WALK_OVER);
 			}
 		}
 	}

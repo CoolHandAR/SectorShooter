@@ -10,7 +10,7 @@
 #include "r_common.h"
 #include "sound.h"
 
-//#define DISABLE_LIGHTMAPS
+#define DISABLE_LIGHTMAPS
 #define TRACE_NO_HIT INT_MAX
 
 #define NULL_INDEX -1
@@ -29,7 +29,6 @@
 #define MAX_MAP_NAME 32
 #define MAX_STATUS_MESSAGE 32 
 #define STATUS_TIME 5
-#define LIGHTMAP_SIZE 128
 #define LIGHTMAP_LUXEL_SIZE 16.0
 #define LIGHTMAP_INV_LUXEL_SIZE 1.0 / LIGHTMAP_LUXEL_SIZE
 #define LIGHT_GRID_SIZE 64.0
@@ -224,6 +223,8 @@ typedef enum
 	SUB__LIGHT_BLUE_TORCH,
 	SUB__LIGHT_GREEN_TORCH,
 	SUB__LIGHT_LAMP,
+	SUB__LIGHT_BLUE_LAMP,
+	SUB__LIGHT_GREEN_LAMP,
 	SUB__LIGHT_MAX,
 
 	//THINGS
@@ -231,6 +232,21 @@ typedef enum
 	SUB__THING_BLUE_COLLUMN,
 	SUB__THING_RED_FLAG,
 	SUB__THING_BLUE_FLAG,
+	SUB__THING_CACTUS0,
+	SUB__THING_CACTUS1,
+	SUB__THING_CACTUS2,
+	SUB__THING_DEAD_TREE0,
+	SUB__THING_DEAD_TREE1,
+	SUB__THING_DEAD_TREE2,
+	SUB__THING_DEAD_TREE3,
+	SUB__THING_SPINNING_PYRAMID,
+	SUB__THING_BUSH0,
+	SUB__THING_BUSH1,
+	SUB__THING_BUSH2,
+	SUB__THING_TREE0,
+	SUB__THING_TREE1,
+	SUB__THING_TREE2,
+	SUB__THING_TREE3,
 	SUB__THING_MAX,
 
 	//LIGHT STROBER
@@ -368,6 +384,8 @@ typedef struct
 
 	int index;
 	int special;
+	int sector_tag;
+	int flags;
 
 	Lightmap lightmap;
 } Linedef;
@@ -680,11 +698,12 @@ typedef enum
 	EVENT_TRIGGER__LINE_SHOOT
 } EventLineTriggerType;
 
-void Event_TriggerSpecialLine(Object* obj, int side, Line* line, EventLineTriggerType trigger_type);
+void Event_TriggerSpecialLine(Object* obj, int side, Linedef* line, EventLineTriggerType trigger_type);
 void Event_CreateExistingSectorObject(int type, int sub_type, int state, float stop_timer, int sector_index);
 
 void Sector_CreateLightStrober(Sector* sector, SubType light_type);
 float Sector_FindHighestNeighbourCeilling(Sector* sector);
+float Sector_FindLowestNeighbourCeilling(Sector* sector);
 float Sector_FindLowestNeighbourFloor(Sector* sector);
 void Sector_RemoveSectorObject(Sector* sector);
 void Crusher_Update(Object* obj, float delta);
@@ -740,13 +759,9 @@ int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y);
 
 //LINE CHECK STUFF
 int Line_PointSide(Line* line, float p_x, float p_y);
-int LineSide_PointSide(Line* line, float p_x, float p_y);
 int Line_BoxOnPointSide(Line* line, float p_bbox[2][2]);
-int LineSide_BoxOnPointSide(Line* line, float p_bbox[2][2]);
 float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line);
 float Line_InterceptLine(Line* line1, Line* line2);
-float LineSide_InterceptLine(Line* line1, Line* line2);
 bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float *r_interY);
-bool LineSide_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY);
 
 #endif

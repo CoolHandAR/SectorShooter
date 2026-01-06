@@ -84,7 +84,7 @@ static void Event_ActivateDoorObject(Sector* sector, bool never_close)
 
 	sector->sector_object = door->id;
 }
-static void Event_ActivateDoorsByTag(int tag)
+static void Event_ActivateDoorsByTag(int tag, bool never_close)
 {
 	if (tag == 0)
 	{
@@ -97,7 +97,7 @@ static void Event_ActivateDoorsByTag(int tag)
 
 	while (sector = Map_GetNextSectorByTag(&iter_index, tag))
 	{
-		Event_ActivateDoorObject(sector, false);
+		Event_ActivateDoorObject(sector, never_close);
 	}
 }
 
@@ -135,7 +135,7 @@ static void Event_ActivateLiftObject(Sector* sector)
 	sector->sector_object = lift->id;
 }
 
-static void Event_HandleSpecialUseLines(Line* line, int side)
+static void Event_HandleSpecialUseLines(Linedef* line, int side)
 {
 	Sector* frontsector = Map_GetSector(line->front_sector);
 	Sector* backsector = NULL;
@@ -178,7 +178,7 @@ static void Event_HandleSpecialUseLines(Line* line, int side)
 	}
 	}
 }
-static void Event_HandleSpecialWalkoverLines(Line* line, int side)
+static void Event_HandleSpecialWalkoverLines(Linedef* line, int side)
 {
 	Sector* frontsector = Map_GetSector(line->front_sector);
 	Sector* backsector = NULL;
@@ -190,9 +190,20 @@ static void Event_HandleSpecialWalkoverLines(Line* line, int side)
 
 	switch (line->special)
 	{
+	case SPECIAL__TRIGGER_DOOR_NEVER_CLOSE:
+	{
+		Event_ActivateDoorsByTag(line->sector_tag, true);
+		line->special = 0;
+		break;
+	}
 	case SPECIAL__TRIGGER_CRUSHER:
 	{
 		Event_ActivateCrushersByTag(line->sector_tag);
+		break;
+	}
+	case SPECIAL__TRIGGER_EXIT:
+	{
+		Game_ChangeLevel(6);
 		break;
 	}
 	default:
@@ -201,7 +212,7 @@ static void Event_HandleSpecialWalkoverLines(Line* line, int side)
 	}
 	}
 }
-void Event_TriggerSpecialLine(Object* obj, int side, Line* line, EventLineTriggerType trigger_type)
+void Event_TriggerSpecialLine(Object* obj, int side, Linedef* line, EventLineTriggerType trigger_type)
 {
 	if (trigger_type == EVENT_TRIGGER__LINE_USE)
 	{

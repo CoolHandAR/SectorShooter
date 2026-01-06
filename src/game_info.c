@@ -303,6 +303,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET_Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//BLUE TORCH
 	{
@@ -317,6 +318,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET_Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//GREEN TORCH
 	{
@@ -331,6 +333,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET_Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//LAMP
 	{
@@ -342,9 +345,40 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		32, //SPRITE OFFSET_Z
+		-32, //SPRITE OFFSET_Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
+	},
+	//BLUE LAMP
+	{
+		SUB__LIGHT_BLUE_LAMP,
+		//ANIM
+		{
+			NULL, 0, 0, 0, 4, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		-32, //SPRITE OFFSET_Z
+		32, //SPRITE SCALE
+		32, //SIZE
+		0, //COLLIDABLE
+	},
+	//GREEN LAMP
+	{
+		SUB__LIGHT_GREEN_LAMP,
+		//ANIM
+		{
+			NULL, 0, 0, 0, 4, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		-32, //SPRITE OFFSET_Z
+		32, //SPRITE SCALE
+		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//SMALL HP
 	{
@@ -359,6 +393,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET_Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//BIG HP
 	{
@@ -373,6 +408,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//RED COLLUMN
 	{
@@ -384,9 +420,10 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		32, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
-		32, //SIZE
+		88, //SPRITE OFFSET Z
+		44, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
 	},
 	//BLUE COLLUMN
 	{
@@ -398,9 +435,10 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
-		32, //SIZE
+		88, //SPRITE OFFSET Z
+		44, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
 	},
 	//RED FLAG
 	{
@@ -415,6 +453,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//BLUE FLAG
 	{
@@ -429,6 +468,232 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
+	},
+	//CACTUS0
+	{
+		SUB__THING_CACTUS0,
+		//ANIM
+		{
+			NULL, 0, 0, 8, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		64, //SPRITE OFFSET Z
+		32, //SPRITE SCALE
+		32, //SIZE
+		0, //COLLIDABLE
+	},
+	//CACTUS1
+	{
+		SUB__THING_CACTUS1,
+		//ANIM
+		{
+			NULL, 0, 1, 8, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		64, //SPRITE OFFSET Z
+		32, //SPRITE SCALE
+		32, //SIZE
+		0, //COLLIDABLE
+	},
+	//CACTUS2
+	{
+		SUB__THING_CACTUS2,
+		//ANIM
+		{
+			NULL, 0, 2, 8, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		64, //SPRITE OFFSET Z
+		32, //SPRITE SCALE
+		32, //SIZE
+		0, //COLLIDABLE
+	},
+	//DEADTREE0
+	{
+		SUB__THING_DEAD_TREE0,
+		//ANIM
+		{
+			NULL, 0, 3, 8, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//DEADTREE1
+	{
+		SUB__THING_DEAD_TREE1,
+		//ANIM
+		{
+			NULL, 0, 0, 9, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//DEADTREE2
+	{
+		SUB__THING_DEAD_TREE2,
+		//ANIM
+		{
+			NULL, 0, 1, 9, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//DEADTREE3
+	{
+		SUB__THING_DEAD_TREE3,
+		//ANIM
+		{
+			NULL, 0, 2, 9, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//SPINNING PYRAMID
+	{
+		SUB__THING_SPINNING_PYRAMID,
+		//ANIM
+		{
+			NULL, 0, 0, 10, 4, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//BUSH0
+	{
+		SUB__THING_BUSH0,
+		//ANIM
+		{
+			NULL, 0, 0, 12, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//BUSH1
+	{
+		SUB__THING_BUSH1,
+		//ANIM
+		{
+			NULL, 0, 1, 12, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//BUSH2
+	{
+		SUB__THING_BUSH2,
+		//ANIM
+		{
+			NULL, 0, 2, 12, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//TREE0
+	{
+		SUB__THING_TREE0,
+		//ANIM
+		{
+			NULL, 0, 3, 12, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//TREE1
+	{
+		SUB__THING_TREE1,
+		//ANIM
+		{
+			NULL, 0, 0, 13, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//TREE2
+	{
+		SUB__THING_TREE2,
+		//ANIM
+		{
+			NULL, 0, 1, 13, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+	},
+	//TREE3
+	{
+		SUB__THING_TREE3,
+		//ANIM
+		{
+			NULL, 0, 2, 13, 0, 0,
+		},
+		0.0, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
 	},
 	//TELEPORTER
 	{
@@ -443,6 +708,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//INVUNERABILITY PICKUP
 	{
@@ -457,6 +723,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//QUAD PICKUP
 	{
@@ -471,6 +738,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//SHOTGUN PICKUP
 	{
@@ -485,6 +753,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//MACHINE PICKUP
 	{
@@ -499,6 +768,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//AMMO PICKUP
 	{
@@ -513,6 +783,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//DEVASTATOR PICKUP
 	{
@@ -527,6 +798,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 	//ROCKET PICKUP
 	{
@@ -541,6 +813,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE OFFSET Z
 		32, //SPRITE SCALE
 		32, //SIZE
+		0, //COLLIDABLE
 	},
 };
 
@@ -608,7 +881,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 			NULL, 0, 0, 0, 3, 0,
 		},
 		0.5, //time
-		10, //sprite scale
+		18, //sprite scale
 	},
 	//WALL HIT
 	{
@@ -678,20 +951,31 @@ static const LightInfo LIGHT_INFOS[] =
 	//LAMP
 	{
 		SUB__LIGHT_LAMP,
-		800, //radius
+		256, //radius
 		1, //attenuation
 		1, // scale
 		12, //deviance
 		255, 255, 255, //color
+	},
+	//BLUE LAMP
+ 	{
+		SUB__LIGHT_BLUE_LAMP,
+		256, //radius
+		1, //attenuation
+		1, // scale
+		12, //deviance
+		0, 0, 255, //color
+	},
+	//GREEN LAMP
+	{
+		SUB__LIGHT_GREEN_LAMP,
+		256, //radius
+		1, //attenuation
+		1, // scale
+		12, //deviance
+		0, 255, 0, //color
 	}
 };
-
-int type;
-float radius;
-float attenuation;
-float scale;
-float deviance;
-float color[3];
 
 GunInfo* Info_GetGunInfo(int type)
 {

@@ -919,7 +919,7 @@ void Monster_WakeAll(Object* waker)
 	{
 		return;
 	}
-
+	return;
 	s_SoundPropogationCheck++;
 	Monster_WakeRecursive(waker, waker->sector_index);
 }

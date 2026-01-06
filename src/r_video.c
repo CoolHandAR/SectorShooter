@@ -637,7 +637,7 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 	float transform_y_tan = local_sprite_x * args->tan_cos + local_sprite_y * args->tan_sin;
 
-	if (transform_x >= -transform_y_tan && transform_x > transform_y_tan) return;
+	//if (transform_x >= -transform_y_tan && transform_x > transform_y_tan) return;
 	if (transform_y_tan == 0) return;
 
 	float fsx1 = image->half_width + transform_x * image->half_width / transform_y_tan;
@@ -774,7 +774,16 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 		float x_pos = fabs(x - draw_start_x);
 		float depth = (x_pos * xl) + transform_y;
-		int depth_light = 0;// Math_Clampl(light - (depth * DEPTH_SHADING_SCALE), 0, 255);
+
+#ifdef DISABLE_LIGHTMAPS
+		int light_r = Math_Clampl(light.r - (depth * DEPTH_SHADING_SCALE), 0, 255);
+		int light_g = Math_Clampl(light.g - (depth * DEPTH_SHADING_SCALE), 0, 255);
+		int light_b = Math_Clampl(light.b - (depth * DEPTH_SHADING_SCALE), 0, 255);
+#else
+		int light_r = light.r;
+		int light_g = light.g;
+		int light_b = light.b;
+#endif // DISABLE_LIGHTMAPS
 
 		int min_y = (sprite->flip_v) ? (sprite_rect_height - (span->max)) : span->min;
 		int max_y = (sprite->flip_v) ? (sprite_rect_height - (span->min)) : span->max;
@@ -800,16 +809,16 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 			unsigned char* tex_data = Image_Get(sprite->img, tx, ty);
 
-			if (tex_data[3] > 128 && depth < args->depth_buffer[dest_index])
+			if (tex_data[3] > 128 && transform_y_tan < args->depth_buffer[dest_index])
 			{
-				args->depth_buffer[dest_index] = depth;
+				args->depth_buffer[dest_index] = transform_y_tan;
 
 				size_t i = dest_index * 4;
 
 				//avoid loops, this is faster
-				dest[i + 0] = LIGHT_LUT[tex_data[0]][light.r];
-				dest[i + 1] = LIGHT_LUT[tex_data[1]][light.g];
-				dest[i + 2] = LIGHT_LUT[tex_data[2]][light.b];
+				dest[i + 0] = LIGHT_LUT[tex_data[0]][light_r];
+				dest[i + 1] = LIGHT_LUT[tex_data[1]][light_g];
+				dest[i + 2] = LIGHT_LUT[tex_data[2]][light_b];
 			}
 
 			ty_pos += ty_step;
@@ -829,7 +838,13 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 
-	Line* decal_line = Map_GetLine(sprite->decal_line_index);
+	Line* line = Map_GetLine(sprite->decal_line_index);
+
+	if (!line)
+	{
+		return;
+	}
+	Linedef* decal_line = line->linedef;
 
 	float half_sprite_width = sprite->sprite_rect_width / 2;
 	float half_sprite_height = sprite->sprite_rect_height / 2;
@@ -854,17 +869,17 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	float line_max_y = max(line_vy1, line_vy2);
 
 	float frac = 0;
-	if (fabs(decal_line->side_dx) > fabs(decal_line->side_dy))
+	if (fabs(decal_line->dx) > fabs(decal_line->dy))
 	{	
-		frac = (sprite->x - decal_line->x0) / decal_line->side_dx;
+		frac = (sprite->x - decal_line->x0) / decal_line->dx;
 	}
-	else if(decal_line->side_dy != 0)
+	else if(decal_line->dy != 0)
 	{
-		frac = (sprite->y - decal_line->y0) / decal_line->side_dy;
+		frac = (sprite->y - decal_line->y0) / decal_line->dy;
 	}
 	
-	float decal_x = decal_line->x0 + frac * decal_line->side_dx;
-	float decal_y = decal_line->y0 + frac * decal_line->side_dy;
+	float decal_x = decal_line->x0 + frac * decal_line->dx;
+	float decal_y = decal_line->y0 + frac * decal_line->dy;
 
 	float vx2 = decal_x - decal_rect_left * line_normal_x - args->view_x;
 	float vy2 = decal_y - decal_rect_left * line_normal_y - args->view_y;
@@ -1374,10 +1389,6 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 	y_pos *= 2;
 	y_step *= 2;
 
-	int light = Math_Clampl(plane->light - (distance * DEPTH_SHADING_SCALE), 0, 255);
-
-	light = plane->light;
-
 	//optimized lightmap only loop
 	if (plane->lightmap && plane->lightmap->data)
 	{
@@ -1487,6 +1498,8 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 	}
 	else
 	{
+		int light = Math_Clampl(plane->light - (distance * DEPTH_SHADING_SCALE), 0, 255);
+
 		for (int x = x1; x <= x2; x++)
 		{
 			unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
