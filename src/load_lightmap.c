@@ -244,6 +244,10 @@ static bool Load_ParseLightgrid(LightHeader* header, FILE* file, Map* map)
 
 bool Load_Lightmap(const char* filename, Map* map)
 {
+#ifdef DONT_FILE_LIGHTMAPS
+	return false;
+#endif // DONT_FILE_LIGHTMAPS
+
 	char buffer[256];
 	GetProperSuffix(filename, buffer);
 
@@ -289,6 +293,10 @@ bool Load_Lightmap(const char* filename, Map* map)
 
 bool Save_Lightmap(const char* filename, Map* map)
 {
+#ifdef DONT_FILE_LIGHTMAPS
+	return false;
+#endif // DONT_FILE_LIGHTMAPS
+
 	int num_lightmaps = 0;
 
 	for (int i = 0; i < map->num_linedefs; i++)

@@ -20,6 +20,16 @@ void Particle_Update(Object* obj, float delta)
 		Move_ZMove(obj, obj->vel_z);
 		break;
 	}
+	case SUB__PARTICLE_BLOOD_EXPLOSION:
+	{
+		//obj->vel_x += obj->dir_x * delta * 16;
+		//obj->vel_y += obj->dir_y * delta * 16;
+		//obj->vel_z += obj->dir_z * delta * 16;
+
+		//Move_SetPosition(obj, obj->x + obj->dir_x * delta * 32, obj->y + obj->dir_y * delta * 32, obj->size);
+		//Move_ZMove(obj, obj->dir_z * delta * 32);
+		break;
+	}
 	default:
 		break;
 	}
@@ -120,7 +130,7 @@ void Missile_Explode(Object* obj)
 	}
 
 	//play sound
-	Sound_EmitWorldTemp(SOUND__FIREBALL_EXPLODE, obj->x, obj->y, obj->z, 0, 0, 0);
+	Sound_EmitWorldTemp(SOUND__FIREBALL_EXPLODE, obj->x, obj->y, obj->z, 0, 0, 0, 1);
 
 	//place scorch decal if we hit a line
 	if (obj->collision_hit < 0)
@@ -134,4 +144,23 @@ void Missile_Explode(Object* obj)
 	obj->flags |= OBJ_FLAG__EXPLODING;
 
 	obj->sprite.playing = true;
+}
+
+void SFX_Update(Object* obj)
+{
+	Object* player = Player_GetObj();
+
+	if (!player)
+	{
+		return;
+	}
+
+	if (Map_CheckSectorReject(obj->sector_index, player->sector_index))
+	{
+		Sound_Play(obj->sound_id);
+	}
+	else
+	{
+		Sound_Stop(obj->sound_id);
+	}
 }

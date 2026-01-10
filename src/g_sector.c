@@ -10,7 +10,7 @@ typedef enum
 	CRUSHER__MOVING_TO_ORIGIN
 } CrusherState;
 
-static Sector* Sector_GetLineOtherSector(Line* line, int sector_index)
+static Sector* Sector_GetLineOtherSector(Linedef* line, int sector_index)
 {
 	if (line->back_sector < 0)
 	{
@@ -55,7 +55,7 @@ float Sector_FindHighestNeighbourCeilling(Sector* sector)
 
 	for (int i = 0; i < num_lines; i++)
 	{
-		Line* line = Map_GetLine(hits[i]);
+		Linedef* line = Map_GetLineDef(hits[i]);
 
 		Sector* other_sector = Sector_GetLineOtherSector(line, sector);
 
@@ -78,11 +78,11 @@ float Sector_FindLowestNeighbourCeilling(Sector* sector)
 	int num_lines = Trace_SectorLines(sector, false);
 	int* hits = Trace_GetHitObjects();
 
-	float lowest_ceil = 1e6;
+	float lowest_ceil = 1e3 * 2.0;
 
 	for (int i = 0; i < num_lines; i++)
 	{
-		Line* line = Map_GetLine(hits[i]);
+		Linedef* line = Map_GetLineDef(hits[i]);
 
 		Sector* other_sector = Sector_GetLineOtherSector(line, sector);
 
@@ -114,7 +114,7 @@ float Sector_FindLowestNeighbourFloor(Sector* sector)
 
 	for (int i = 0; i < num_lines; i++)
 	{
-		Line* line = Map_GetLine(hits[i]);
+		Linedef* line = Map_GetLineDef(hits[i]);
 
 		Sector* other_sector = Sector_GetLineOtherSector(line, sector);
 
@@ -289,7 +289,7 @@ void Door_Update(Object* obj, float delta)
 	if (just_moved)
 	{
 		//play the sound
-		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, obj->z, 0, 0, 0);
+		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, obj->z, 0, 0, 0, 1);
 	}
 }
 
@@ -381,7 +381,7 @@ void Lift_Update(Object* obj, float delta)
 	if (just_moved)
 	{
 		//play the sound
-		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, obj->z, 0, 0, 0);
+		Sound_EmitWorldTemp(SOUND__DOOR_ACTION, obj->x, obj->y, obj->z, 0, 0, 0, 1);
 	}
 }
 

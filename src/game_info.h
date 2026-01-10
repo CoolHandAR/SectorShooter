@@ -135,6 +135,10 @@ typedef enum
 
 	SOUND__MUSIC1,
 
+	SOUND__DESERT_WIND,
+	SOUND__TEMPLE_AMBIENCE,
+	SOUND__JUNGLE_AMBIENCE,
+
 	SOUND__MAX
 } SoundType;
 
@@ -228,7 +232,16 @@ static const char* SOUND_INFO[SOUND__MAX] =
 	"assets/sfx/pickup_ammo.wav",
 
 	//MUSIC1
-	"assets/sfx/music.mp3"
+	"assets/sfx/music.mp3",
+
+	//DESERT WIND
+	"assets/sfx/desert_wind.mp3",
+
+	//TEMPLE AMBIENCE
+	"assets/sfx/temple_ambience.mp3",
+
+	//JUNGLE AMBIENCE
+	"assets/sfx/jungle_ambience.mp3"
 };
 
 
@@ -254,6 +267,7 @@ typedef struct
 	float sprite_scale;
 	float size;
 	int collidable;
+	float height;
 } ObjectInfo;
 
 typedef struct
@@ -282,6 +296,13 @@ typedef struct
 	float sprite_scale;
 } DecalInfo;
 
+typedef struct
+{
+	SoundType sound_type;
+	float volume;
+	float rolloff;
+} SFXInfo;
+
 
 #define PICKUP_SMALLHP_HEAL 20
 #define PICKUP_BIGHP_HEAL 50
@@ -300,6 +321,7 @@ LightInfo* Info_GetLightInfo(int sub_type);
 ParticleInfo* Info_GetParticleInfo(int sub_type);
 DecalInfo* Info_GetDecalInfo(int sub_type);
 MissileInfo* Info_GetMissileInfo(int sub_type);
+SFXInfo* Info_GetSFXInfo(int sub_type);
 
 static const char* LEVELS[] =
 {
@@ -311,6 +333,17 @@ static const char* LEVELS[] =
 	"ourmap00.WAD",
 	"ourmap01.WAD",
 	"ourmap02.WAD"
+};
+static const char* SKIES[] =
+{
+	"SKY3",
+	"SKY3",
+	"SKY3",
+	"SKY3",
+	"SKY3",
+	"SKY4",
+	"SKY3",
+	"SKY3",
 };
 
 //SPECIAL ENUMS

@@ -253,7 +253,7 @@ void VisualMap_Draw(Image* image, FontData* font)
 		if (index < 0)
 		{
 			index = -(index + 1);
-			Line* line = &map->line_segs[index];
+			Linedef* line = &map->linedefs[index];
 
 			if (!(line->flags & MF__LINE_MAPPED) || (line->flags & MF__LINE_DONT_DRAW))
 			{

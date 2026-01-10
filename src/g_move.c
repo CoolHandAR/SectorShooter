@@ -6,7 +6,7 @@
 #define MAX_BUMPS 5
 #define MAX_CLIP_OBJECTS 4
 
-static void Move_CreateClipLine(float p_x, float p_y, float p_moveX, float p_moveY, Line* dest)
+static void Move_CreateClipLine(float p_x, float p_y, float p_moveX, float p_moveY, Linedef* dest)
 {
 	dest->x0 = p_x;
 	dest->y0 = p_y;
@@ -24,7 +24,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 		return false;
 	}
 
-	Line* clip_hits[MAX_CLIP_OBJECTS];
+	Linedef* clip_hits[MAX_CLIP_OBJECTS];
 	int num_clips = 0;
 
 	bool moved = false;
@@ -56,7 +56,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 		float end_x = obj->x + c_dx;
 		float end_y = obj->y + c_dy;
 
-		Line vel_line;
+		Linedef vel_line;
 		Move_CreateClipLine(start_x, start_y, c_dx, c_dy, &vel_line);
 		int hit = Trace_FindSlideHit(obj, start_x, start_y, end_x, end_y, obj->size, &best_frac);
 
@@ -93,7 +93,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 
 		for (int i = 0; i < num_clips; i++)
 		{
-			Line* line0 = clip_hits[i];
+			Linedef* line0 = clip_hits[i];
 
 			float clip_dx = p_moveX;
 			float clip_dy = p_moveY;
@@ -111,7 +111,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 				{
 					continue;
 				}
-				Line* line1 = clip_hits[j];
+				Linedef* line1 = clip_hits[j];
 
 				if (Move_GetLineDot(clip_dx, clip_dy, line1) >= 0.1)
 				{
@@ -132,7 +132,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 						continue;
 					}
 
-					Line* line2 = clip_hits[k];
+					Linedef* line2 = clip_hits[k];
 
 					if (Move_GetLineDot(clip_dx, clip_dy, line2) >= 0.1)
 					{
@@ -155,8 +155,6 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 }
 static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 {
-	//return Move_ClipMove2(obj, p_moveX, p_moveY);
-
 	Map* map = Map_GetMap();
 
 	if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size * 1.5))
@@ -203,7 +201,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 			trail_y = obj->y + obj->size;
 		}
 
-		Line vel_line;
+		Linedef vel_line;
 
 		float best_frac = 1.01;
 		int hit = TRACE_NO_HIT;
@@ -270,7 +268,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 
 
 		int line_index = -(hit + 1);
-		Line* line0 = &map->line_segs[line_index];
+		Linedef* line0 = Map_GetLineDef(line_index);
 
 		float clip_dx = p_moveX;
 		float clip_dy = p_moveY;
@@ -289,7 +287,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 	return true;
 }
 
-float Move_GetLineDot(float x, float y, Line* line)
+float Move_GetLineDot(float x, float y, Linedef* line)
 {
 	if (line->dot == 0)
 	{
@@ -313,7 +311,7 @@ void Move_Accelerate(Object* obj, float p_moveX, float p_moveY, float p_moveZ)
 
 }
 
-void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_line)
+void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Linedef* clip_line)
 {
 	float dx = *r_dx;
 	float dy = *r_dy;
@@ -525,15 +523,14 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 		for (int i = 0; i < num_special_lines; i++)
 		{
 			int index = line_indices[i];
-			if (index >= map->num_line_segs)
+			if (index >= map->num_linedefs)
 			{
 				break;
 			}
-			Line* line = &map->line_segs[index];
-			Linedef* linedef = line->linedef;
-
+			Linedef* line = Map_GetLineDef(index);
+			
 			//line might have hit twice and it's special could be changed
-			if (linedef->special == 0)
+			if (line->special == 0)
 			{
 				continue;
 			}
@@ -543,7 +540,7 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 
 			if (old_side != new_side)
 			{
-				Event_TriggerSpecialLine(obj, old_side, linedef, EVENT_TRIGGER__LINE_WALK_OVER);
+				Event_TriggerSpecialLine(obj, old_side, line, EVENT_TRIGGER__LINE_WALK_OVER);
 			}
 		}
 	}
@@ -599,34 +596,26 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 
 	bool moved = false;
 
-	float max_speed = obj->speed * delta;
-	float friction = 1.0 - (4 * delta);
-	float stop_speed = 4 * delta;
+	float max_speed = obj->speed;
 	//apply friction
 	if (obj->type == OT__PLAYER)
 	{
-		//p_moveX *= 24;
-		///p_moveY *= 24;
+		float accel = PLAYER_ACCEL;
+		obj->vel_x += (p_moveX * accel) * delta;
+		obj->vel_y += (p_moveY * accel) * delta;
 
-		obj->vel_x += p_moveX *delta;
-		obj->vel_y += p_moveY *delta;
-
-		obj->vel_x *= friction;
-		obj->vel_y *= friction;
-
-		
-		obj->vel_x = p_moveX * max_speed;
-		obj->vel_y = p_moveY * max_speed;
+		obj->vel_x *= PLAYER_FRICTION;
+		obj->vel_y *= PLAYER_FRICTION;
 	}
 	else
 	{
-		obj->vel_x = p_moveX * max_speed;
-		obj->vel_y = p_moveY * max_speed;
+		obj->vel_x = p_moveX * obj->speed * delta;
+		obj->vel_y = p_moveY * obj->speed * delta;
 	}
 
 	obj->vel_x = Math_Clamp(obj->vel_x, -max_speed, max_speed);
 	obj->vel_y = Math_Clamp(obj->vel_y, -max_speed, max_speed);
-
+	
 	//nothing to move
 	if (Math_IsZeroApprox(obj->vel_x) && Math_IsZeroApprox(obj->vel_y))
 	{

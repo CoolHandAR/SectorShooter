@@ -408,6 +408,7 @@ typedef struct
 	float ty_pos;
 	float ty_step;
 	struct Texture* texture;
+	struct Lightmap* lightmap;
 } DrawCollumn;
 
 typedef struct
@@ -540,7 +541,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, int light, int height_mask, Lightmap* lm);
-void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
+void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
 void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);
 

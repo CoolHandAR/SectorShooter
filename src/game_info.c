@@ -85,7 +85,7 @@ static const MonsterInfo MONSTER_INFO[] =
 		32, //SPRITE SCALE
 		0, //SPRITE X OFFSET
 		0, //SPRITE Y OFFSET
-		0, //SPRITE Z OFFSET
+		70, //SPRITE Z OFFSET
 	},
 	//PINKY
 	{
@@ -154,18 +154,18 @@ static const MonsterInfo MONSTER_INFO[] =
 			//EXPLODE
 			NULL, 0, 0, 5, 6, 0,
 		},
-		60, //SPAWN HP
-		24, //SPEED,
-		14, //MELEE DAMAGE
-		24, //SIZE,
-		24, //HEIGHT
-		24, //WEIGHT
-		24, //HIT CHANCE
-		24, //HIT TIME
+		100, //SPAWN HP
+		59, //SPEED,
+		35, //MELEE DAMAGE
+		20, //SIZE,
+		123, //HEIGHT
+		50, //WEIGHT
+		70, //HIT CHANCE
+		0, //HIT TIME
 		32, //SPRITE SCALE
 		0, //SPRITE X OFFSET
 		0, //SPRITE Y OFFSET
-		0, //SPRITE Z OFFSET
+		70, //SPRITE Z OFFSET
 	},
 	//BRUISER
 	{
@@ -234,18 +234,18 @@ static const MonsterInfo MONSTER_INFO[] =
 			//EXPLODE
 			NULL, 0, 0, 5, 14, 0,
 		},
-		60, //SPAWN HP
-		24, //SPEED,
-		14, //MELEE DAMAGE
-		24, //SIZE,
-		64, //HEIGHT
-		24, //WEIGHT
-		24, //HIT CHANCE
-		24, //HIT TIME
-		32, //SPRITE SCALE
+		400, //SPAWN HP
+		50, //SPEED,
+		35, //MELEE DAMAGE
+		20, //SIZE,
+		150, //HEIGHT
+		100, //WEIGHT
+		60, //HIT CHANCE
+		1, //HIT TIME
+		80, //SPRITE SCALE
 		0, //SPRITE X OFFSET
 		0, //SPRITE Y OFFSET
-		0, //SPRITE Z OFFSET
+		150, //SPRITE Z OFFSET
 	},
 };
 
@@ -300,10 +300,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET_Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET_Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		100, //HEIGHT
 	},
 	//BLUE TORCH
 	{
@@ -319,6 +320,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		100, //HEIGHT
 	},
 	//GREEN TORCH
 	{
@@ -334,6 +336,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		100, //HEIGHT
 	},
 	//LAMP
 	{
@@ -345,10 +348,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		-32, //SPRITE OFFSET_Z
-		32, //SPRITE SCALE
+		-64, //SPRITE OFFSET_Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		12, //HEIGHT
 	},
 	//BLUE LAMP
 	{
@@ -364,6 +368,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//GREEN LAMP
 	{
@@ -379,6 +384,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//SMALL HP
 	{
@@ -390,10 +396,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.0, //SPRITE OFFSET X
 		0.0, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET_Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET_Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//BIG HP
 	{
@@ -405,10 +412,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.0, //SPRITE OFFSET X
 		0.0, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//RED COLLUMN
 	{
@@ -424,6 +432,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		44, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//BLUE COLLUMN
 	{
@@ -439,6 +448,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		44, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//RED FLAG
 	{
@@ -454,6 +464,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//BLUE FLAG
 	{
@@ -469,6 +480,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//CACTUS0
 	{
@@ -484,6 +496,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//CACTUS1
 	{
@@ -499,6 +512,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//CACTUS2
 	{
@@ -514,6 +528,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//DEADTREE0
 	{
@@ -529,6 +544,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//DEADTREE1
 	{
@@ -544,6 +560,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//DEADTREE2
 	{
@@ -559,6 +576,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//DEADTREE3
 	{
@@ -574,6 +592,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//SPINNING PYRAMID
 	{
@@ -589,6 +608,23 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
+	},
+	//FLAME URN
+	{
+		SUB__LIGHT_FLAME_URN,
+		//ANIM
+		{
+			NULL, 0, 0, 11, 3, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		12, //SIZE
+		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//BUSH0
 	{
@@ -604,6 +640,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//BUSH1
 	{
@@ -615,10 +652,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		128, //SPRITE OFFSET Z
-		64, //SPRITE SCALE
+		256, //SPRITE OFFSET Z
+		128, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		64, //HEIGHT
 	},
 	//BUSH2
 	{
@@ -634,6 +672,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//TREE0
 	{
@@ -645,10 +684,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		128, //SPRITE OFFSET Z
-		64, //SPRITE SCALE
+		256, //SPRITE OFFSET Z
+		128, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//TREE1
 	{
@@ -664,6 +704,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		64, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//TREE2
 	{
@@ -675,10 +716,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		128, //SPRITE OFFSET Z
-		64, //SPRITE SCALE
+		256, //SPRITE OFFSET Z
+		128, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//TREE3
 	{
@@ -690,10 +732,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		128, //SPRITE OFFSET Z
-		64, //SPRITE SCALE
+		256, //SPRITE OFFSET Z
+		128, //SPRITE SCALE
 		12, //SIZE
 		1, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//TELEPORTER
 	{
@@ -709,6 +752,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//INVUNERABILITY PICKUP
 	{
@@ -724,6 +768,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//QUAD PICKUP
 	{
@@ -739,6 +784,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		32, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//SHOTGUN PICKUP
 	{
@@ -750,10 +796,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//MACHINE PICKUP
 	{
@@ -765,10 +812,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//AMMO PICKUP
 	{
@@ -780,10 +828,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//DEVASTATOR PICKUP
 	{
@@ -795,10 +844,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 	//ROCKET PICKUP
 	{
@@ -810,10 +860,11 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.0, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
+		32, //HEIGHT
 	},
 };
 
@@ -892,6 +943,26 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		},
 		0.5, //time
 		10, //sprite scale
+	},
+	//BLOOD EXPLOSION
+	{
+		SUB__PARTICLE_BLOOD_EXPLOSION,
+		//ANIM INFO
+		{
+			NULL, 0, 0, 2, 4, 0,
+		},
+		0.3, //time
+		8, //sprite scale
+	},
+	//FIRE SPARKS
+	{
+		SUB__PARTICLE_FIRE_SPARKS,
+		//ANIM INFO
+		{
+			NULL, 0, 0, 3, 8, 1,
+		},
+		FLT_MAX, //time
+		7, //sprite scale
 	}
 };
 
@@ -925,10 +996,10 @@ static const LightInfo LIGHT_INFOS[] =
 	{
 		SUB__LIGHT_TORCH,
 		512, //radius
-		1, //attenuation
+		1.0, //attenuation
 		1, // scale
 		24, //deviance
-		255, 255, 255, //color
+		255, 190, 88, //color
 	},
 	//BLUE TORCH
 	{
@@ -936,8 +1007,8 @@ static const LightInfo LIGHT_INFOS[] =
 		512, //radius
 		1, //attenuation
 		1, // scale
-		12, //deviance
-		0, 0, 255, //color
+		24, //deviance
+		70, 70, 255, //color
 	},
 	//GREEN TORCH
 	{
@@ -945,35 +1016,66 @@ static const LightInfo LIGHT_INFOS[] =
 		512, //radius
 		1, //attenuation
 		1, // scale
-		12, //deviance
-		0, 255, 0, //color
+		24, //deviance
+		70, 255, 70, //color
 	},
 	//LAMP
 	{
 		SUB__LIGHT_LAMP,
-		256, //radius
-		1, //attenuation
+		450, //radius
+		1.25, //attenuation
 		1, // scale
 		12, //deviance
-		255, 255, 255, //color
+		255, 190, 88, //color
 	},
 	//BLUE LAMP
  	{
 		SUB__LIGHT_BLUE_LAMP,
-		256, //radius
-		1, //attenuation
+		450, //radius
+		1.25, //attenuation
 		1, // scale
 		12, //deviance
-		0, 0, 255, //color
+		70, 70, 255, //color
 	},
 	//GREEN LAMP
 	{
 		SUB__LIGHT_GREEN_LAMP,
-		256, //radius
-		1, //attenuation
+		450, //radius
+		1.25, //attenuation
 		1, // scale
 		12, //deviance
-		0, 255, 0, //color
+		70, 255, 70, //color
+	},
+	//FLAME URN
+	{
+		SUB__LIGHT_FLAME_URN,
+		612, //radius
+		1.5, //attenuation
+		1, // scale
+		12, //deviance
+		255, 120, 10, //color
+	}
+};
+
+static const SFXInfo SFX_INFOS[] =
+{
+	//DESERT WIND
+	{
+		SOUND__DESERT_WIND, //TYPE
+		10.0, //VOLUME
+		1.0, //ROLLOFF
+	},
+	//TEMPLE AMBIENCE
+	{
+		SOUND__TEMPLE_AMBIENCE, //TYPE
+		10.0, //VOLUME
+		1.0, //ROLLOFF
+	},
+	//JUNGLE AMBIENCE
+	{
+		SOUND__JUNGLE_AMBIENCE, //TYPE
+		1.0, //VOLUME
+		0.1, //ROLLOFF
 	}
 };
 
@@ -1106,4 +1208,21 @@ MissileInfo* Info_GetMissileInfo(int sub_type)
 	}
 
 	return &MISSILE_INFO[index];
+}
+
+SFXInfo* Info_GetSFXInfo(int sub_type)
+{
+	int arr_size = sizeof(SFX_INFOS) / sizeof(SFX_INFOS[0]);
+	int index = sub_type - SUB__SFX_DESERT_WIND;
+
+	if (index < 0)
+	{
+		index = 0;
+	}
+	else if (index >= arr_size)
+	{
+		index = arr_size - 1;
+	}
+
+	return &SFX_INFOS[index];
 }

@@ -8,13 +8,14 @@
 #include "main.h"
 #include "u_math.h"
 
+#define TRACE_DIST 1024
 #define HIT_TIME 0.1
 #define USE_TIME 0.7
 #define SAVE_TIME 2
 #define PLAYER_MAX_HP 100
 #define PLAYER_MAX_AMMO 100
 #define PLAYER_OVERHEAL_HP_TICK_TIME 0.25
-#define PLAYER_SPEED 150
+#define PLAYER_SPEED 10
 #define MOUSE_SENS_DIVISOR 1000
 #define MIN_SENS 0.5
 #define MAX_SENS 16
@@ -90,10 +91,10 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 	float inter_y = 0;
 	float inter_z = 0;
 
-	p_dirX *= 1024;
-	p_dirY *= 1024;
+	p_dirX *= TRACE_DIST;
+	p_dirY *= TRACE_DIST;
 
-	int hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX, p_y + p_dirY, player.obj->z + player.obj->height, 1024, &inter_x, &inter_y, &inter_z, &frac);
+	int hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX, p_y + p_dirY, player.obj->z + player.obj->height, TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
 
 	if (hit == TRACE_NO_HIT)
 	{
@@ -133,7 +134,7 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		}
 
 		//way too far away
-		if (dist >= 1000)
+		if (dist >= TRACE_DIST)
 		{
 			return;
 		}
@@ -141,7 +142,7 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		//spawn blood particles
 		if (rand() % 100 > 25)
 		{
-			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD, (inter_x) + (Math_randf() * 0.5), (inter_y) + (Math_randf() * 0.5), inter_z);
+			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD, (inter_x) + (Math_randf() * 0.5), (inter_y) + (Math_randf() * 0.5), inter_z + (Math_randf() * 0.5));
 		}
 
 		if (hit_obj->hp > 0)
@@ -172,8 +173,8 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 	float inter_y = 0;
 	float inter_z = 0;
 
-	p_dirX *= 1024;
-	p_dirY *= 1024;
+	p_dirX *= TRACE_DIST;
+	p_dirY *= TRACE_DIST;
 
 	int hit = TRACE_NO_HIT;
 
@@ -181,7 +182,7 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 	{
 		float offset = (float)i * 0.1;
 
-		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX + offset, p_y + p_dirY + offset, player.obj->z + player.obj->height, 1024, &inter_x, &inter_y, &inter_z, &frac);
+		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX + offset, p_y + p_dirY + offset, player.obj->z + player.obj->height, TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
 
 		if (hit != TRACE_NO_HIT && hit >= 0)
 		{
@@ -224,9 +225,9 @@ static void Player_Use()
 		return;
 	}
 
-	Line* special_line = Map_GetLine(-(hit + 1));
+	Linedef* special_line = Map_GetLineDef(-(hit + 1));
 	
-	Event_TriggerSpecialLine(player.obj, 0, special_line->linedef, EVENT_TRIGGER__LINE_USE);
+	Event_TriggerSpecialLine(player.obj, 0, special_line, EVENT_TRIGGER__LINE_USE);
 
 	player.use_timer = USE_TIME;
 }
@@ -368,7 +369,7 @@ static void Player_ShootGun()
 	Sprite* sprite = &player.gun_sprites[player.gun];
 
 	sprite->playing = true;
-	sprite->frame = 1;
+	sprite->frame = 0;
 	GunInfo* gun_info = player.gun_info;
 	player.gun_timer = gun_info->cooldown;
 
@@ -380,25 +381,25 @@ static void Player_ShootGun()
 	{
 	case GUN__PISTOL:
 	{
-		volume = 0.08;
+		volume = 0.003;
 		sound_index = SOUND__PISTOL_SHOOT;
 		break;
 	}
 	case GUN__SHOTGUN:
 	{
-		volume = 0.15;
+		volume = 0.01;
 		sound_index = SOUND__SHOTGUN_SHOOT;
 		break;
 	}
 	case GUN__MACHINEGUN:
 	{
-		volume = 0.15;
+		volume = 0.009;
 		sound_index = SOUND__MACHINEGUN_SHOOT;
 		break;
 	}
 	case GUN__DEVASTATOR:
 	{
-		volume = 0.2;
+		volume = 0.012;
 		sound_index = SOUND__DEVASTATOR_SHOOT;
 		break;
 	}
@@ -629,7 +630,7 @@ void Player_Init(int keep)
 
 	Player_SetupGunSprites();
 
-	//Player_GiveAll();
+	Player_GiveAll();
 
 	if(!keep)
 		Player_SetGun(GUN__PISTOL);
@@ -660,12 +661,12 @@ void Player_Hurt(float dir_x, float dir_y)
 	if (player.obj->hp <= 0)
 	{
 		player.hurt_timer = 2;
-		Sound_Emit(SOUND__PLAYER_DIE, 0.35);
+		Sound_Emit(SOUND__PLAYER_DIE, 0.035);
 	}
 	else
 	{
 		player.hurt_timer = 0.5;
-		Sound_Emit(SOUND__PLAYER_PAIN, 0.35);
+		Sound_Emit(SOUND__PLAYER_PAIN, 0.035);
 	}
 
 }
@@ -676,7 +677,7 @@ void Player_HandlePickup(Object* obj)
 	{
 	case SUB__PICKUP_SMALLHP:
 	{
-		Sound_Emit(SOUND__PICKUP_HP, 0.25);
+		Sound_Emit(SOUND__PICKUP_HP, 0.025);
 		Game_SetStatusMessage("SMALL HP PACK PICKED UP!");
 
 		player.obj->hp += PICKUP_SMALLHP_HEAL;
@@ -684,7 +685,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_BIGHP:
 	{
-		Sound_Emit(SOUND__PICKUP_HP, 0.25);
+		Sound_Emit(SOUND__PICKUP_HP, 0.025);
 		Game_SetStatusMessage("BIG HP PACK PICKED UP!");
 
 		player.obj->hp += PICKUP_BIGHP_HEAL;
@@ -692,7 +693,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_AMMO:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.35);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
 		Game_SetStatusMessage("AMMO PACK PICKED UP!");
 
 		player.buck_ammo += PICKUP_AMMO_GIVE / 2;
@@ -701,14 +702,14 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_ROCKETS:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.35);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
 
 		player.rocket_ammo += PICKUP_ROCKETS_GIVE;
 		break;
 	}
 	case SUB__PICKUP_SHOTGUN:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.35);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
 
 		bool just_picked = false;
 
@@ -730,7 +731,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_MACHINEGUN:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.35);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
 
 		bool just_picked = false;
 
@@ -752,7 +753,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_DEVASTATOR:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.35);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
 
 		bool just_picked = false;
 
@@ -774,14 +775,14 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_INVUNERABILITY:
 	{
-		Sound_Emit(SOUND__PICKUP_SPECIAL, 0.5);
+		Sound_Emit(SOUND__PICKUP_SPECIAL, 0.05);
 
 		player.godmode_timer = PICKUP_INVUNERABILITY_TIME;
 		break;
 	}
 	case SUB__PICKUP_QUAD_DAMAGE:
 	{
-		Sound_Emit(SOUND__PICKUP_SPECIAL, 0.5);
+		Sound_Emit(SOUND__PICKUP_SPECIAL, 0.05);
 
 		player.quad_timer = PICKUP_QUAD_TIME;
 		break;
@@ -874,6 +875,7 @@ void Player_LerpUpdate(double lerp, double delta)
 		player.gun_offset_x = cosf(player.bob * bob_freq / bob_freq) * bob_amp;
 		player.gun_offset_y = sinf(player.bob * bob_freq) * bob_amp;
 	}
+
 	//smooth view lerp
 	player.view_x = Math_lerpFraction(player.prev_x, player.obj->x, lerp);
 	player.view_y = Math_lerpFraction(player.prev_y, player.obj->y, lerp);

@@ -1,5 +1,5 @@
 #include "g_common.h"
-#include "light.h"calcdir
+#include "light.h"
 
 #include "game_info.h"
 #include "u_math.h"
@@ -31,6 +31,8 @@
 #define SUN_DEVIANCE_SCALE 0.01
 
 #define SKY_SCALE 0.5
+
+#define LIGHTGRID_RADIOSITY_SCALE 5.0
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88
@@ -674,11 +676,11 @@ void LightGlobal_Setup(LightGlobal* global)
 		for (int k = 0; k < num_lines; k++)
 		{
 			int line_index = hits[k];
-			Line* line = Map_GetLine(line_index);
+			Linedef* line = Map_GetLineDef(line_index);
 			Linedef* ldef = NULL;
 			for (int l = 0; l < list->num_lines; l++)
 			{
-				if (list->lines[l] == line->linedef)
+				if (list->lines[l] == line)
 				{
 					ldef = list->lines[l];
 					break;
@@ -686,7 +688,7 @@ void LightGlobal_Setup(LightGlobal* global)
 			}
 			if (!ldef)
 			{
-				list->lines[list->num_lines++] = line->linedef;
+				list->lines[list->num_lines++] = line;
 			}
 		}
 	}
@@ -995,22 +997,21 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 	memset(result, 0, sizeof(LightTraceResult));
 	result->frac = 1;
 	
-	int hit = Trace_FindLine(start_x, start_y, start_z, end_x, end_y, end_z, ignore_sky_plane, thread->hits, 10000, &result->hit[0], &result->hit[1], &result->hit[2], &result->frac);
+	int hit = Trace_FindLine(start_x, start_y, start_z, end_x, end_y, end_z, ignore_sky_plane, thread->hits, LIGHTTRACE_MAX_HITS, &result->hit[0], &result->hit[1], &result->hit[2], &result->frac);
 
 	if (hit == TRACE_NO_HIT)
 	{
 		return false;
 	}
-	//return true;
-	Line* hit_line = Map_GetLine(hit);
+
+	Linedef* hit_line = Map_GetLineDef(hit);
 	
-	if (!hit_line->linedef)
+	if (!hit_line)
 	{
 		return false;
 	}
 
-	Sidedef* sidedef = hit_line->sidedef;
-	Linedef* linedef = hit_line->linedef;
+	Linedef* linedef = hit_line;
 	Sector* frontsector = Map_GetSector(linedef->front_sector);
 	Sector* backsector = NULL;
 	if (linedef->back_sector >= 0)
@@ -1023,7 +1024,7 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 	{
 		if (frontsector->floor == backsector->floor && frontsector->ceil == backsector->ceil)
 		{
-			return false;
+			//return false;
 		}
 	}
 	
@@ -1129,6 +1130,15 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 
 		if (need_color_info)
 		{
+			int side = 0;
+
+			if (hit_line->back_sector >= 0 && hit_line->sides[1] >= 0)
+			{
+				side = Line_PointSide(hit_line, start_x, start_y);
+			}
+			
+			Sidedef* sidedef = Map_GetSideDef(hit_line->sides[side]);
+
 			if (sidedef)
 			{
 				int tx = 0;
@@ -1182,7 +1192,7 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 							{
 								if (texture_sample[3] < 128)
 								{
-									//return false;
+									return false;
 								}
 							}
 						}
@@ -1983,9 +1993,9 @@ static Vec4 Lightmap_CalcRadiosity(LightGlobal* global, LightTraceThread* thread
 					float norm_light_a = max_light / 255.0;
 
 					Vec4 trace_light = Vec4_Zero();
-					trace_light.r = (trace.color_sample.r * norm_light_r) * atten;
-					trace_light.g = (trace.color_sample.g * norm_light_g) * atten;
-					trace_light.b = (trace.color_sample.b * norm_light_b) * atten;
+					trace_light.r = trace.color_sample.r * norm_light_r * atten;
+					trace_light.g = trace.color_sample.g * norm_light_g * atten;
+					trace_light.b = trace.color_sample.b * norm_light_b * atten;
 					trace_light.a = (trace.light_sample.a);
 
 					Vec4_Add(&total_light, trace_light);
@@ -2230,6 +2240,7 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 		}
 	}
 
+
 	float min_floor = frontsector->floor;
 	float max_ceil = frontsector->ceil;
 
@@ -2306,14 +2317,14 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 
 	for (int x = 0; x < x_tiles; x++)
 	{
-		position[2] = open_high;
+		position[2] = frontsector->ceil;
 
 		for (int y = 0; y < y_tiles; y++)
 		{
 			if (backsector)
 			{
 				//skip empty spaces
-				if (position[2] > open_low && open_high < position[2])
+				if (position[2] > open_low && position[2] < open_high)
 				{
 					position[2] += z_step;
 					continue;
@@ -2425,6 +2436,27 @@ static void Lightmap_LightPass(LightGlobal* global, LightTraceThread* thread, Se
 		{
 			continue;
 		}
+
+		//check for invisible lines
+		if (line->back_sector >= 0 && line->sides[1] >= 0)
+		{
+			Sector* backsector = Map_GetSector(line->back_sector);
+
+			if (sector->ceil == backsector->ceil && sector->floor == backsector->floor)
+			{
+				continue;
+			}
+		}
+		else if(line->sides[0] >= 0)
+		{
+			Sidedef* sidedef = Map_GetSideDef(line->sides[0]);
+
+			if (sidedef && !sidedef->middle_texture)
+			{
+				continue;
+			}
+		}
+
 		Lightmap_LinePass(global, thread, line, light, bounce);
 	}
 }
@@ -2563,6 +2595,7 @@ void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightbloc
 	if (NUM_BOUNCES > 1)
 	{
 		Vec4 radiosity = Lightmap_CalcRadiosity(global, thread, position, NULL, NULL, LST__POINT);
+		Vec4_ScaleScalar(&radiosity, LIGHTGRID_RADIOSITY_SCALE);
 		Vec4_Add(&total_light, radiosity);
 	}
 

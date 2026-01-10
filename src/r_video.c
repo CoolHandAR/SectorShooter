@@ -838,13 +838,13 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 
-	Line* line = Map_GetLine(sprite->decal_line_index);
+	Linedef* line = Map_GetLineDef(sprite->decal_line_index);
 
 	if (!line)
 	{
 		return;
 	}
-	Linedef* decal_line = line->linedef;
+	Linedef* decal_line = line;
 
 	float half_sprite_width = sprite->sprite_rect_width / 2;
 	float half_sprite_height = sprite->sprite_rect_height / 2;
@@ -1284,33 +1284,114 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 	}
 }
 
-void Video_DrawWallCollumnDepth(Image* image, Texture* texture, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask)
+void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask)
 {
-	tx &= texture->width_mask;
-
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
 
-	for (int y = y1 + 1; y < y2; y++)
+	//optimized lightmap only loop
+	if (lm && lm->data)
 	{
-		int ty = (int)ty_pos & height_mask;
+		float flx = Math_Clamp((float)tx * LIGHTMAP_INV_LUXEL_SIZE, 0, lm->width - 1);
+		float flx_frac = flx - (int)flx;
 
-		unsigned char* data = Image_Get(&texture->img, tx, ty);
+		float next_flx = Math_Clampl(flx + 1, 0, lm->width - 1);
 
-		if (data[3] > 128 && z <= depth_buffer[index])
+		float fly = (ty_pos * LIGHTMAP_INV_LUXEL_SIZE);
+		int prev_ly = -1;
+
+		float fly_step = ty_step * LIGHTMAP_INV_LUXEL_SIZE;
+
+		Vec4 lerp_light0 = Vec4_Zero();
+		Vec4 lerp_light1 = Vec4_Zero();
+		Vec4 lerp_dx = Vec4_Zero();
+
+		tx &= texture->width_mask;
+
+		for (int y = y1; y < y2; y++)
 		{
-			size_t i = index * 4;
+			int ty = (int)ty_pos & height_mask;
 
-			//avoid loops
-			dest[i + 0] = LIGHT_LUT[data[0]][light];
-			dest[i + 1] = LIGHT_LUT[data[1]][light];
-			dest[i + 2] = LIGHT_LUT[data[2]][light];
+			unsigned char* data = Image_Get(&texture->img, tx, ty);
 
-			depth_buffer[index] = z;
+			int ly = (int)fly;
+			float fly_frac = fly - ly;
+
+			//sample 2 points between this and the next luxel
+			if (ly != prev_ly)
+			{
+				Lightmap_SampleWallLinearPoints(lm, flx, fly, next_flx, flx_frac, &lerp_light0, &lerp_light1);
+
+				lerp_dx.r = lerp_light1.r - lerp_light0.r;
+				lerp_dx.g = lerp_light1.g - lerp_light0.g;
+				lerp_dx.b = lerp_light1.b - lerp_light0.b;
+
+				lerp_light0.r = lerp_light0.r + lerp_dx.r * fly_frac;
+				lerp_light0.g = lerp_light0.g + lerp_dx.g * fly_frac;
+				lerp_light0.b = lerp_light0.b + lerp_dx.b * fly_frac;
+
+				lerp_dx.r *= fly_step;
+				lerp_dx.g *= fly_step;
+				lerp_dx.b *= fly_step;
+
+				prev_ly = ly;
+			}
+
+			//light step
+			lerp_light0.r += lerp_dx.r;
+			lerp_light0.g += lerp_dx.g;
+			lerp_light0.b += lerp_dx.b;
+
+			if (data[3] > 128 && z <= depth_buffer[index])
+			{
+				int current_light_r = lerp_light0.r;
+				int current_light_g = lerp_light0.g;
+				int current_light_b = lerp_light0.b;
+
+				//clamp
+				current_light_r = Math_Clampl(current_light_r, 0, 255);
+				current_light_g = Math_Clampl(current_light_g, 0, 255);
+				current_light_b = Math_Clampl(current_light_b, 0, 255);
+
+				size_t i = index * 4;
+
+				//avoid loops
+				dest[i + 0] = LIGHT_LUT[data[0]][current_light_r];
+				dest[i + 1] = LIGHT_LUT[data[1]][current_light_g];
+				dest[i + 2] = LIGHT_LUT[data[2]][current_light_b];
+
+				depth_buffer[index] = z;
+			}
+
+			ty_pos += ty_step;
+			fly += fly_step;
+			index += image->width;
 		}
+	}
+	else if (light >= 0)
+	{
+		tx &= texture->width_mask;
+		for (int y = y1 + 1; y < y2; y++)
+		{
+			int ty = (int)ty_pos & height_mask;
 
-		ty_pos += ty_step;
-		index += image->width;
+			unsigned char* data = Image_Get(&texture->img, tx, ty);
+
+			if (data[3] > 128 && z <= depth_buffer[index])
+			{
+				size_t i = index * 4;
+
+				//avoid loops
+				dest[i + 0] = LIGHT_LUT[data[0]][light];
+				dest[i + 1] = LIGHT_LUT[data[1]][light];
+				dest[i + 2] = LIGHT_LUT[data[2]][light];
+
+				depth_buffer[index] = z;
+			}
+
+			ty_pos += ty_step;
+			index += image->width;
+		}
 	}
 }
 

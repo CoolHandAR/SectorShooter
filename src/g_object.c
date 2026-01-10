@@ -60,7 +60,7 @@ void Object_HandleTriggers(Object* obj, Object* trigger)
 			{
 			case SUB__TARGET_TELEPORT:
 			{
-				Sound_EmitWorldTemp(SOUND__TELEPORT, trigger->x, trigger->y, trigger->z, 0, 0, 0);
+				Sound_EmitWorldTemp(SOUND__TELEPORT, trigger->x, trigger->y, trigger->z, 0, 0, 0, 1);
 
 				Move_Teleport(obj, target->x, target->y);
 				break;
@@ -543,6 +543,8 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive)
 		}
 
 		Monster_SetState(obj, MS__DIE);
+
+		Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD_EXPLOSION, obj->x + Math_randf() * 2.0 - 1.0, obj->y + Math_randf() * 2.0 - 1.0, (obj->z + obj->height * 0.5) + Math_randf() * 2.0 - 1.0);
 	}
 	else if (obj->type == OT__PLAYER)
 	{
@@ -602,8 +604,8 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 		dir_z = point_z;
 	}
 	missile->owner = obj;
-	missile->x = (obj->x) + dir_x * 2;
-	missile->y = (obj->y) + dir_y * 2;
+	missile->x = (obj->x) + dir_x * 2.0;
+	missile->y = (obj->y) + dir_y * 2.0;
 	missile->z = (obj->z + 64);
 	missile->dir_x = dir_x;
 	missile->dir_y = dir_y;
@@ -612,9 +614,9 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	missile->step_height = 0;
 	missile->sprite.playing = true;
 
-	missile->sound_id = Sound_EmitWorld(SOUND__FIREBALL_FOLLOW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
+	missile->sound_id = Sound_EmitWorld(SOUND__FIREBALL_FOLLOW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
 
-	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z);
+	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
 
 	Move_SetPosition(missile, missile->x, missile->y, missile->size);
 
@@ -674,7 +676,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		Monster_Spawn(obj);
 		Game_GetGame()->total_monsters++;
 
-		obj->sprite.offset_z = 70;
 		break;
 	}
 	//fallthrough
@@ -700,7 +701,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.playing = true;
 		
 		obj->size = object_info->size;
-		obj->height = 32;
+		obj->height = object_info->height;
 
 		if (type == OT__PICKUP)
 		{
@@ -710,6 +711,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		{
 			assign_to_spatial_tree = true;
 		}
+
 		break;
 	}
 	case OT__TRIGGER:
@@ -757,6 +759,16 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		else if (sub_type == SUB__PARTICLE_WALL_HIT)
 		{
 			obj->sprite.anim_speed_scale = 2;
+			obj->sprite.playing = true;
+		}
+		else if (sub_type == SUB__PARTICLE_BLOOD_EXPLOSION)
+		{
+			obj->sprite.anim_speed_scale = 3.0;
+			obj->sprite.playing = true;
+		}
+		else if (sub_type == SUB__PARTICLE_FIRE_SPARKS)
+		{
+			obj->sprite.anim_speed_scale = 0.5;
 			obj->sprite.playing = true;
 		}
 			 
@@ -825,6 +837,18 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		handle_position = false;
 		break;
 	}
+	case OT__SFX_EMITTER:
+	{
+		SFXInfo* sfx_info = Info_GetSFXInfo(obj->sub_type);
+
+		if (sfx_info)
+		{
+			obj->sound_id = Sound_EmitWorld(sfx_info->sound_type, obj->x, obj->y, obj->z, 0, 0, 0, sfx_info->volume);
+
+			Sound_SetRolloff(obj->sound_id, sfx_info->rolloff);
+		}
+		break;
+	}
 	default:
 		break;
 	}
@@ -843,7 +867,13 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 	{
 		Move_SetPosition(obj, x, y, obj->size);
 		Move_ZMove(obj, zmove);
+
+		if (obj->sound_id >= 0)
+		{
+			Sound_SetTransform(obj->sound_id, obj->x, obj->y, obj->z, 0, 0, 0);
+		}
 	}
+
 
 	if (obj->flags & OBJ_FLAG__FULL_BRIGHT)
 	{

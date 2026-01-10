@@ -80,6 +80,7 @@ static void Event_ActivateDoorObject(Sector* sector, bool never_close)
 	if (never_close)
 	{
 		door->flags |= OBJ_FLAG__DOOR_NEVER_CLOSE;
+		sector->sector_tag = 0; //don't allow other lines to retrigger this
 	}
 
 	sector->sector_object = door->id;

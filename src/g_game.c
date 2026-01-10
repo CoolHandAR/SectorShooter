@@ -5,7 +5,7 @@
 #include "sound.h"
 #include <stdio.h>
 
-#define START_LEVEL 5
+#define START_LEVEL 7
 
 static Game game;
 static GameAssets assets;
@@ -135,7 +135,7 @@ bool Game_LoadAssets()
 	assets.bruiser_texture.v_frames = 7;
 
 	assets.particle_textures.h_frames = 4;
-	assets.particle_textures.v_frames = 2;
+	assets.particle_textures.v_frames = 5;
 
 	assets.decal_textures.h_frames = 5;
 	assets.decal_textures.v_frames = 2;
@@ -394,18 +394,22 @@ bool Game_ChangeLevel(int level_index)
 	}
 	else
 	{
+		//flush sound system
+		Sound_FlushAll();
+
 		const char* level = LEVELS[level_index];
+		const char* sky = SKIES[level_index];
 
 		printf("Setting Level to %s\n", level);
 
-		if (!Map_Load(level))
+		if (!Map_Load(level, sky))
 		{
 			Render_Resume();
 			return false;
 		}
 
 		Map* map = Map_GetMap();
-		printf("Num Lines: %i, Num Sectors %i, Num Objects %i \n", map->num_line_segs, map->num_sectors, map->num_objects);
+		printf("Num Linedefs: %i, Num Sectors %i, Num Objects %i \n", map->num_linedefs, map->num_sectors, map->num_objects);
 
 		Player_Init(false);
 	}

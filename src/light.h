@@ -3,6 +3,8 @@
 #include "dynamic_array.h"
 #include <Windows.h>
 
+#define LIGHTTRACE_MAX_HITS 100000
+
 //LIGHTMAPPER STUFF
 typedef enum
 {
@@ -59,7 +61,7 @@ typedef struct
 typedef struct
 {
 	HANDLE thread_handle;
-	int hits[10000];
+	int hits[LIGHTTRACE_MAX_HITS];
 	struct LightGlobal* globals;
 
 	HANDLE active_event;

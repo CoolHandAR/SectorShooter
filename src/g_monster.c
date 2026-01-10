@@ -7,7 +7,9 @@
 #include <math.h>
 #include <stdlib.h>
 
+#define MONSTER_STEP_HEIGHT 64
 #define MONSTER_MELEE_CHECK 45
+#define MONSTER_ANIM_SPEED_SCALE 0.5
 #define STUCK_TIMER 2
 
 static int s_SoundPropogationCheck = 0;
@@ -194,7 +196,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 
 	if (index >= 0)
 	{
-		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, 0, 0, 0);
+		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, 0, 0, 0, 1);
 	}
 }
 static MonsterAnimState Monster_GetAnimState(Object* obj)
@@ -290,7 +292,7 @@ void Monster_UpdateSpriteAnimation(Object* obj, float delta)
 	s->frame_offset_x = anim_info->x_offset;
 	s->frame_offset_y = anim_info->y_offset;
 	s->looping = anim_info->looping;
-	s->anim_speed_scale = 0.5;
+	s->anim_speed_scale = MONSTER_ANIM_SPEED_SCALE;
 	
 	if (anim_info->action_fun)
 	{
@@ -628,7 +630,7 @@ void Monster_Spawn(Object* obj)
 	obj->size = monster_info->size;
 	obj->speed = monster_info->speed;
 	obj->height = monster_info->height;
-	obj->step_height = 64;
+	obj->step_height = MONSTER_STEP_HEIGHT;
 
 	Monster_SetState(obj, MS__IDLE);
 
@@ -810,12 +812,26 @@ void Monster_Bruiser_FireBall(Object* obj)
 	//play action sound
 	Monster_EmitSound(obj, MSOUND__ATTACK);
 
-	for (int i = -2; i < 2; i++)
+	const float RANDOMNESS = 8.0;
+
+	bool vertical = false;
+
+	if (rand() % 24 == 2)
+	{
+		vertical = true;
+	}
+
+	for (int i = -4; i < 4; i++)
 	{
 		Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
 		
-		missile->dir_x += i * 0.1;
-		missile->dir_y += i * 0.1;
+		missile->dir_x += i * (Math_randf() / RANDOMNESS);
+		missile->dir_y += i * (Math_randf() / RANDOMNESS);
+
+		if (vertical)
+		{
+			missile->dir_z += i * (Math_randf() / RANDOMNESS);
+		}
 
 		missile->owner = obj;
 	}
@@ -885,7 +901,7 @@ static void Monster_WakeRecursive(Object* waker, int sector_index)
 		else
 		{
 			int line_index = -(index + 1);
-			Line* line = Map_GetLine(line_index);
+			Linedef* line = Map_GetLineDef(line_index);
 
 			//nothing to pass through
 			if (line->back_sector < 0)
@@ -935,12 +951,12 @@ void Monster_CheckForPushBack(Object* obj, float delta)
 
 	MonsterInfo* monster_info = Info_GetMonsterInfo(obj->sub_type);
 
-	if (!monster_info)
+	if (!monster_info || monster_info->weight <= 0)
 	{
 		return;
 	}
 	
-	float push_back_speed = delta * (300 / monster_info->weight);
+	float push_back_speed = delta * (500 / monster_info->weight);
 
 	Move_SetPosition(obj, obj->x + (obj->vel_x * push_back_speed), obj->y + (obj->vel_y * push_back_speed), obj->size);
 }

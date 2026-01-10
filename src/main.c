@@ -256,7 +256,7 @@ int main()
 
 	//set defaults
 	Player_SetSensitivity(1);
-	Sound_setMasterVolume(1.0);
+	Sound_setMasterVolume(3.0);
 	//Render_SetRenderScale(WINDOW_SCALE);
 
 	//attempt to load cfg

@@ -200,7 +200,7 @@ float Sound_GetMasterVolume()
 	return sound_core.master_volume;
 }
 
-void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z)
+void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z, float vol)
 {
 	if (type < 0 || type >= SOUND__MAX)
 	{
@@ -227,12 +227,13 @@ void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float
 	
 	Sound_load(sound_file, MA_SOUND_FLAG_NO_PITCH, &snd->snd);
 	
+	ma_sound_set_volume(&snd->snd, vol);
 	ma_sound_set_position(&snd->snd, x, z, y);
 	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
 	ma_sound_start(&snd->snd);
 }
 
-SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z)
+SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z, float vol)
 {
 	if (type < 0 || type >= SOUND__MAX)
 	{
@@ -260,6 +261,7 @@ SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float 
 
 	Sound_load(sound_file, MA_SOUND_FLAG_NO_PITCH, &snd->snd);
 
+	ma_sound_set_volume(&snd->snd, vol);
 	ma_sound_set_looping(&snd->snd, MA_TRUE);
 	ma_sound_set_position(&snd->snd, x, z, y);
 	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
@@ -329,7 +331,6 @@ void Sound_Emit(int type, float volume)
 
 void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, float dir_y, float dir_z)
 {
-
 	Sound* snd = Sound_IDToSound(id);
 
 	if (!snd)
@@ -339,6 +340,30 @@ void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, floa
 
 	ma_sound_set_position(&snd->snd, x, z, y);
 	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
+}
+
+void Sound_SetRolloff(SoundID id, float rolloff)
+{
+	Sound* snd = Sound_IDToSound(id);
+
+	if (!snd)
+	{
+		return;
+	}
+
+	ma_sound_set_rolloff(&snd->snd, rolloff);
+}
+
+void Sound_SetVolume(SoundID id, float vol)
+{
+	Sound* snd = Sound_IDToSound(id);
+
+	if (!snd)
+	{
+		return;
+	}
+
+	ma_sound_set_volume(&snd->snd, vol);
 }
 
 void Sound_Play(SoundID id)
@@ -415,6 +440,28 @@ void Sound_SetAsMusic(int type)
 	ma_sound_start(&sound_core.music_snd);
 }
 
+void Sound_FlushAll()
+{
+	for (int i = 0; i < sound_core.num_sounds; i++)
+	{
+		Sound* snd = &sound_core.sounds[i];
+
+		if (snd->alive)
+		{
+			ma_sound_stop(&snd->snd);
+			ma_sound_uninit(&snd->snd);
+		}
+	}
+
+	memset(sound_core.free_list, 0, sizeof(sound_core.free_list));
+	memset(sound_core.sounds, 0, sizeof(sound_core.sounds));
+
+	
+	sound_core.max_index = 0;
+	sound_core.num_sounds = 0;
+	sound_core.num_free_list = 0;
+}
+
 int Sound_Init()
 {
 	memset(&sound_core, 0, sizeof(sound_core));
@@ -434,5 +481,7 @@ int Sound_Init()
 
 void Sound_Shutdown()
 {
+	Sound_FlushAll();
+
 	ma_engine_uninit(&sound_core.sound_engine);
 }

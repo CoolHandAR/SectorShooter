@@ -25,7 +25,7 @@ typedef struct
 
 static TraceCore s_traceCore;
 
-static void Trace_SetupTraceLine(Line* trace_line, float start_x, float start_y, float end_x, float end_y)
+static void Trace_SetupTraceLine(Linedef* trace_line, float start_x, float start_y, float end_x, float end_y)
 {
 	trace_line->x0 = start_x;
 	trace_line->y0 = start_y;
@@ -54,7 +54,7 @@ static void Trace_AddTraceSortItem(float frac, int index)
 	sitem->index = index;
 }
 
-static bool Trace_LineIntersectLine(Map* map, Line* trace_line, Line* line, float* r_hitX, float* r_hitY, float* r_frac)
+static bool Trace_LineIntersectLine(Map* map, Linedef* trace_line, Linedef* line, float* r_hitX, float* r_hitY, float* r_frac)
 {
 	Sector* frontsector = &map->sectors[line->front_sector];
 	Sector* backsector = NULL;
@@ -146,11 +146,11 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 
 			index = -(index + 1);
 
-			Line* line = &map->line_segs[index];
+			Linedef* line = Map_GetLineDef(index);
 
-			if (Line_BoxOnPointSide(line, bbox) >= 0)
+			//if (Line_BoxOnPointSide(line, bbox) >= 0)
 			{
-				continue;
+				//continue;
 			}
 
 			//we hit the line
@@ -167,7 +167,7 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = &map->sectors[line->back_sector];
 
-			if (Check_CanObjectFitInSector(obj, frontsector, backsector))
+			//if (Check_CanObjectFitInSector(obj, frontsector, backsector))
 			{
 				//continue;
 			}
@@ -254,7 +254,7 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 		bbox[1][1] = start_y + size + 1;
 	}
 
-	Line vel_line;
+	Linedef vel_line;
 	Trace_SetupTraceLine(&vel_line, start_x, start_y, end_x, end_y);
 
 	int min_hit = TRACE_NO_HIT;
@@ -270,7 +270,7 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 		{
 			int line_index = -(index + 1);
 
-			Line* line = &map->line_segs[line_index];
+			Linedef* line = Map_GetLineDef(line_index);
 
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = NULL;
@@ -340,7 +340,7 @@ int Trace_AttackLine(Object* obj, float start_x, float start_y, float end_x, flo
 
 	Trace_ResetSortItems();
 
-	Line trace_line;
+	Linedef trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
 
 	for (int i = 0; i < num_traces; i++)
@@ -351,7 +351,7 @@ int Trace_AttackLine(Object* obj, float start_x, float start_y, float end_x, flo
 		if (index < 0)
 		{
 			int line_index = -(index + 1);
-			Line* line = &map->line_segs[line_index];
+			Linedef* line = Map_GetLineDef(line_index);
 
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = NULL;
@@ -459,7 +459,7 @@ int Trace_AttackLine(Object* obj, float start_x, float start_y, float end_x, flo
 		if (index < 0)
 		{
 			int line_index = -(index + 1);
-			Line* line = &map->line_segs[line_index];
+			Linedef* line = Map_GetLineDef(line_index);
 
 			Sector* frontsector = Map_GetSector(line->front_sector);
 			Sector* backsector = NULL;
@@ -584,7 +584,7 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 	Map* map = Map_GetMap();
 	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, MAX_TRACE_ITEMS, s_traceCore.result_items);
 
-	Line trace_line;
+	Linedef trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
 
 	Trace_ResetSortItems();
@@ -597,7 +597,7 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 		if (index < 0)
 		{
 			int line_index = -(index + 1);
-			Line* line = &map->line_segs[line_index];
+			Linedef* line = Map_GetLineDef(line_index);
 
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = NULL;
@@ -680,7 +680,7 @@ bool Trace_CheckLineToTarget(Object* obj, Object* target)
 		if (index < 0)
 		{
 			int line_index = -(index + 1);
-			Line* line = &map->line_segs[line_index];
+			Linedef* line = Map_GetLineDef(line_index);
 
 			Sector* frontsector = Map_GetSector(line->front_sector);
 			Sector* backsector = NULL;
@@ -728,7 +728,7 @@ int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y
 	float min_hit_y = end_y;
 	float min_hit_z = z;
 
-	Line trace_line;
+	Linedef trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
 
 	Map* map = Map_GetMap();
@@ -744,7 +744,7 @@ int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y
 		}
 
 		int line_index = -(index + 1);
-		Line* line = Map_GetLine(line_index);
+		Linedef* line = Map_GetLineDef(line_index);
 
 		float frac = 0;
 		if (!Trace_LineIntersectLine(map, &trace_line, line, NULL, NULL, &frac))
@@ -783,7 +783,7 @@ int Trace_FindSpecialLine(float start_x, float start_y, float end_x, float end_y
 	if (min_hit != TRACE_NO_HIT)
 	{
 		int line_index = -(min_hit + 1);
-		Line* line = Map_GetLine(line_index);
+		Linedef* line = Map_GetLineDef(line_index);
 
 		//closest line was not special
 		if (line->special <= 0)
@@ -874,7 +874,7 @@ int Trace_SectorLines(Sector* sector, bool front_only)
 		}
 
 		int line_index = -(index + 1);
-		Line* line = &map->line_segs[line_index];
+		Linedef* line = Map_GetLineDef(line_index);
 
 
 		if (front_only)
@@ -910,7 +910,7 @@ int Trace_SectorAll(Sector* sector)
 		if (index < 0)
 		{
 			int line_index = -(index + 1);
-			Line* line = Map_GetLine(line_index);
+			Linedef* line = Map_GetLineDef(line_index);
 
 			if (line->back_sector == sector->index || line->front_sector == sector->index)
 			{
@@ -936,7 +936,7 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 	Map* map = Map_GetMap();
 	int num_traces = BVH_Tree_Cull_Trace(&map->spatial_tree, start_x, start_y, end_x, end_y, max_hit_count, r_hits);
 
-	Line trace_line;
+	Linedef trace_line;
 	Trace_SetupTraceLine(&trace_line, start_x, start_y, end_x, end_y);
 
 	float dz = end_z - start_z;
@@ -958,7 +958,7 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 		}
 
 		int line_index = -(index + 1);
-		Line* line = &map->line_segs[line_index];
+		Linedef* line = Map_GetLineDef(line_index);
 
 		Sector* frontsector = &map->sectors[line->front_sector];
 		Sector* backsector = NULL;

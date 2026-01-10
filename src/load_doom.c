@@ -9,7 +9,7 @@
 #include "u_math.h"
 #include "utility.h"
 
-#define NO_MONSTERS
+//#define NO_MONSTERS
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -316,7 +316,7 @@ typedef enum
     THING__AMMO = 2048,
     THING__IMP = 3001,
     THING__PINKY = 3002,
-    THING__BARON = 3003,
+    THING__BRUISER = 3003,
     THING__SUN = 10003,
     THING__RED_COLLUMN = 10004,
     THING__BLUE_COLLUMN = 10005,
@@ -337,6 +337,12 @@ typedef enum
     THING__TREE1 = 10020,
     THING__TREE2 = 10021,
     THING__TREE3 = 10022,
+    THING__SFX_DESERT_WIND = 10023,
+    THING__SFX_TEMPLE_AMBIENCE = 10024,
+    THING__SFX_JUNGLE_AMBIENCE = 10025,
+    THING__FLAME_URN = 10026,
+    THING__DEVASTATOR = 10027,
+    THING__MACHINE_GUN = 10028
 } thingtypes;
 
 
@@ -373,7 +379,7 @@ static void* MallocLump(FILE* file, wadinfo_t* header, filelump_t* lumps, int lu
     return data;
 }
 
-static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
+static void Load_Sectors(mapsector_t* msectors, int num, Texture* sky_texture, Map* map)
 {
     if (num <= 0) return;
 
@@ -433,7 +439,7 @@ static void Load_Sectors(mapsector_t* msectors, int num, Map* map)
 
             if (!strcmp(name, "F_SKY1"))
             {
-                os->ceil_texture = Game_FindTextureByName("SKY3");
+                os->ceil_texture = sky_texture;
                 os->is_sky = true;
             }
         }
@@ -478,30 +484,30 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
     {
         mapseg_t* ms = &msegs[i];
         Line* os = &map->line_segs[i];
-
-        os->offset = ms->offset;
-        
+  
         os->x0 = (int)vertices[ms->v2].x >> DOOM_VERTEX_SHIFT;
         os->y0 = (int)vertices[ms->v2].y >> DOOM_VERTEX_SHIFT;
 
         os->x1 = (int)vertices[ms->v1].x >> DOOM_VERTEX_SHIFT;
         os->y1 = (int)vertices[ms->v1].y >> DOOM_VERTEX_SHIFT;
 
+        os->offset = ms->offset;
+
         int linedef_index = ms->linedef;
         maplinedef_t* mldef = &mlinedefs[linedef_index];
         int side = ms->side;
         
-        os->side = side;
         
-        os->side_x0 = (int)vertices[mldef->v2].x >> DOOM_VERTEX_SHIFT;
-        os->side_y0 = (int)vertices[mldef->v2].y >> DOOM_VERTEX_SHIFT;
+        float side_x0 = (int)vertices[mldef->v2].x >> DOOM_VERTEX_SHIFT;
+        float side_y0 = (int)vertices[mldef->v2].y >> DOOM_VERTEX_SHIFT;
+        
+        float side_x1 = (int)vertices[mldef->v1].x >> DOOM_VERTEX_SHIFT;
+        float side_y1 = (int)vertices[mldef->v1].y >> DOOM_VERTEX_SHIFT;
 
-        os->side_x1 = (int)vertices[mldef->v1].x >> DOOM_VERTEX_SHIFT;
-        os->side_y1 = (int)vertices[mldef->v1].y >> DOOM_VERTEX_SHIFT;
+        float side_dx = side_x1 - side_x0;
+        float side_dy = side_y1 - side_y0;
 
-        os->side_dx = os->side_x1 - os->side_x0;
-        os->side_dy = os->side_y1 - os->side_y0;
-
+        
         os->front_sector = msides[mldef->sidenum[side]].sector;
 
         os->sidedef = &map->sidedefs[mldef->sidenum[side]];
@@ -516,20 +522,8 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
             os->back_sector = -1;
         }
        
-        os->special = mldef->special;
-        os->sector_tag = mldef->tag;
-        os->flags = mldef->flags;
 
-        os->dx = os->x1 - os->x0;
-        os->dy = os->y1 - os->y0;
-
-        os->width_scale = sqrtf(os->side_dx * os->side_dx + os->side_dy * os->side_dy);
-        os->dot = os->dx * os->dx + os->dy * os->dy;
-
-        os->bbox[0][0] = min(os->x0, os->x1);
-        os->bbox[0][1] = min(os->y0, os->y1);
-        os->bbox[1][0] = max(os->x0, os->x1);
-        os->bbox[1][1] = max(os->y0, os->y1);
+        os->width_scale = sqrtf(side_dx * side_dx + side_dy * side_dy);
 
         Sector* frontsector = &map->sectors[os->front_sector];
         Sector* backsector = NULL;
@@ -538,67 +532,7 @@ static void Load_LineSegs(mapseg_t* msegs, int num, mapvertex_t* vertices, mapsi
         {
             backsector = &map->sectors[os->back_sector];
         }
-
-
-        //check if we need to skip drawing this line
-        if (backsector)
-        {
-            if (backsector->ceil_texture == frontsector->ceil_texture && backsector->floor_texture == frontsector->floor_texture
-                && backsector->base_ceil == frontsector->base_ceil && backsector->base_floor == frontsector->base_floor 
-                && backsector->light_level == frontsector->light_level && os->sidedef->middle_texture == NULL)
-            {
-                os->skip_draw = true;
-            }
-        }
-        else
-        {
-            //no wall texture
-            if (os->sidedef->middle_texture == NULL)
-            {
-                //and no sector floor and ceiling texture
-                if (!frontsector->floor_texture && !frontsector->ceil_texture)
-                {
-                    os->skip_draw = true;
-                }
-            }
-        }
-
     }
-
-    
-    //remove duplicate special lines
-    for (int i = 0; i < num; i++)
-    {
-        Line* line0 = &map->line_segs[i];
-
-        if (line0->special <= 0)
-        {
-            continue;
-        }
-
-        for (int k = 0; k < num; k++)
-        {
-            if (k == i)
-            {
-                continue;
-            }
-            Line* line1 = &map->line_segs[k];
-
-            if (line1->special <= 0)
-            {
-                continue;
-            }
-
-            if (line1->special == line0->special && line1->sector_tag == line0->sector_tag &&
-                (line1->front_sector == line0->back_sector || line1->back_sector == line0->front_sector))
-            {
-                line1->special = 0;
-            }
-            
-        }
-        
-    }
-
 
 }
 
@@ -691,9 +625,14 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
         os->dx = os->x1 - os->x0;
         os->dy = os->y1 - os->y0;
 
+        os->dot = os->dx * os->dx + os->dy * os->dy;
+
+        os->sides[0] = ms->sidenum[0];
+        os->sides[1] = ms->sidenum[1];
+
         os->front_sector = msides[ms->sidenum[0]].sector;
 
-        if (ms->flags & ML_TWOSIDED)
+        if (ms->flags & ML_TWOSIDED && os->sides[1] != -1)
         {
             os->back_sector = msides[ms->sidenum[1]].sector;
         }
@@ -702,6 +641,7 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
             os->back_sector = -1;
         }
 
+        os->flags = ms->flags;
         os->sector_tag = ms->tag;
         os->special = ms->special;
         os->bbox[0][0] = min(os->x0, os->x1);
@@ -713,47 +653,17 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
     }
 }
 
-static void Load_PostProcessMap(Map* map)
+static void Load_PostProcessMap(Texture* sky_texture, Map* map)
 {
     //calculate bounding box of subsector
     //and set ptr to front sector
-    for (int i = 0; i < map->num_sub_sectors; i++)
-    {
-        Subsector* sub = &map->sub_sectors[i];
-
-        if (sub->num_lines == 0)
-        {
-            continue;
-        }
-
-        Line* line = &map->line_segs[sub->line_offset];
-        sub->sector = &map->sectors[line->front_sector];
-
-        for (int k = 0; k < 2; k++)
-        {
-            sub->bbox[0][k] = FLT_MAX;
-            sub->bbox[1][k] = -FLT_MAX;
-        }
-
-        for (int k = 0; k < sub->num_lines; k++)
-        {
-            Line* line = &map->line_segs[sub->line_offset + k];
-
-            for (int j = 0; j < 2; j++)
-            {
-                sub->bbox[0][j] = min(sub->bbox[0][j], line->bbox[0][j]);
-                sub->bbox[1][j] = max(sub->bbox[1][j], line->bbox[1][j]);
-            }
-        }
-    }
-
+   
     float min_height = FLT_MAX;
     float max_height = -FLT_MAX;
 
     for (int i = 0; i < map->num_sectors; i++)
     {
         Sector* sector = &map->sectors[i];
-
         sector->index = i;
 
         for (int k = 0; k < 2; k++)
@@ -766,12 +676,46 @@ static void Load_PostProcessMap(Map* map)
         {
             Subsector* sub = &map->sub_sectors[k];
 
+            Line* line = &map->line_segs[sub->line_offset];
+            sub->sector = &map->sectors[line->front_sector];
+
             if (sub->sector == sector)
             {
+                if (sub->num_lines == 0)
+                {
+                    continue;
+                }
+
+                float sub_box[2][2];
+
+                for (int l = 0; l < 2; l++)
+                {
+                    sub_box[0][l] = FLT_MAX;
+                    sub_box[1][l] = -FLT_MAX;
+                }
+                for (int l = 0; l < sub->num_lines; l++)
+                {
+                    Line* line = &map->line_segs[sub->line_offset + l];
+
+                    float line_box[2][2];
+
+                    line_box[0][0] = min(line->x0, line->x1);
+                    line_box[0][1] = min(line->y0, line->y1);
+                    line_box[1][0] = max(line->x0, line->x1);
+                    line_box[1][1] = max(line->y0, line->y1);
+
+                    for (int j = 0; j < 2; j++)
+                    {
+                        sub_box[0][j] = min(sub_box[0][j], line_box[0][j]);
+                        sub_box[1][j] = max(sub_box[1][j], line_box[1][j]);
+                    }
+                }
+
+
                 for (int j = 0; j < 2; j++)
                 {
-                    sector->bbox[0][j] = min(sector->bbox[0][j], sub->bbox[0][j]);
-                    sector->bbox[1][j] = max(sector->bbox[1][j], sub->bbox[1][j]);
+                    sector->bbox[0][j] = min(sector->bbox[0][j], sub_box[0][j]);
+                    sector->bbox[1][j] = max(sector->bbox[1][j], sub_box[1][j]);
                 }
             }
         }
@@ -780,19 +724,19 @@ static void Load_PostProcessMap(Map* map)
         max_height = max(max_height, max(sector->ceil, sector->floor));
     }
 
-
     //create and setup spatial tree
     map->spatial_tree = BVH_Tree_Create(0.5);
     
     int index = -1;
-    for (int i = 0; i < map->num_line_segs; i++)
+    for (int i = 0; i < map->num_linedefs; i++)
     {
-        Line* line = &map->line_segs[i];
+        Linedef* line = &map->linedefs[i];
         BVH_Tree_Insert(&map->spatial_tree, line->bbox, index);
 
         index--;
     }
 
+    //setup sectors specials
     for (int i = 0; i < map->num_linedefs; i++)
     {
         Linedef* line = &map->linedefs[i];
@@ -841,9 +785,9 @@ static void Load_PostProcessMap(Map* map)
         map->world_bounds[1][k] = -FLT_MAX;
     }
 
-    for (int i = 0; i < map->num_line_segs; i++)
+    for (int i = 0; i < map->num_linedefs; i++)
     {
-        Line* line = &map->line_segs[i];
+        Linedef* line = &map->linedefs[i];
 
         for (int j = 0; j < 2; j++)
         {
@@ -862,8 +806,6 @@ static void Load_PostProcessMap(Map* map)
     map->world_max_height = max_height;
 
     //calc average sky color
-    Texture* sky_texture = Game_FindTextureByName("SKY1");
-
     if (sky_texture)
     {
         Image* img = &sky_texture->img;
@@ -1011,6 +953,12 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         {
             type = OT__MONSTER;
             sub_type = SUB__MOB_PINKY;
+            break;
+        }
+        case THING__BRUISER:
+        {
+            type = OT__MONSTER;
+            sub_type = SUB__MOB_BRUISER;
             break;
         }
         case THING__LAMP:
@@ -1182,6 +1130,42 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             sub_type = SUB__THING_TREE3;
             break;
         }
+        case THING__SFX_DESERT_WIND:
+        {
+            type = OT__SFX_EMITTER;
+            sub_type = SUB__SFX_DESERT_WIND;
+            break;
+        }
+        case THING__SFX_TEMPLE_AMBIENCE:
+        {
+            type = OT__SFX_EMITTER;
+            sub_type = SUB__SFX_TEMPLE_AMBIENCE;
+            break;
+        }
+        case THING__SFX_JUNGLE_AMBIENCE:
+        {
+            type = OT__SFX_EMITTER;
+            sub_type = SUB__SFX_JUNGLE_AMBIENCE;
+            break;
+        }
+        case THING__FLAME_URN:
+        {
+            type = OT__LIGHT;
+            sub_type = SUB__LIGHT_FLAME_URN;
+            break;
+        }
+        case THING__DEVASTATOR:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_DEVASTATOR;
+            break;
+        }
+        case THING__MACHINE_GUN:
+        {
+            type = OT__PICKUP;
+            sub_type = SUB__PICKUP_MACHINEGUN;
+            break;
+        }
         default:
             break;
         }
@@ -1204,7 +1188,7 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
 
             if (clamp_to_ceil)
             {
-                Move_ZMove(obj, 1e5);
+                obj->z = obj->ceil_clamp - obj->height;
                 obj->sprite.z = obj->z;
             }
         }
@@ -1227,6 +1211,11 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
     }
 }
 
+static Texture* Load_FindSkyTexture(const char* skyname)
+{
+    return Game_FindTextureByName(skyname);
+}
+
 static int Load_FindLumpNum(const char* name, wadinfo_t* header, filelump_t* file_infos)
 {
     char name_buff[12];
@@ -1246,7 +1235,7 @@ static int Load_FindLumpNum(const char* name, wadinfo_t* header, filelump_t* fil
     return -1;
 }
 
-bool Load_Doommap(const char* filename, Map* map)
+bool Load_Doommap(const char* filename, const char* skyname, Map* map)
 {
     bool result = true;
 
@@ -1292,9 +1281,12 @@ bool Load_Doommap(const char* filename, Map* map)
     mapsidedef_t* sidedef_lump = MallocLump(file, &header, file_infos, lump_start, ML_SIDEDEFS, sizeof(mapsidedef_t), &num_sidedefs);
     mapthing_t* thing_lump = MallocLump(file, &header, file_infos, lump_start, ML_THINGS, sizeof(mapthing_t), &num_things);
 
+    //find sky texture
+    Texture* sky_texture = Load_FindSkyTexture(skyname);
+
     //setup into our format
     //order is important
-    Load_Sectors(sector_lump, num_sectors, map);
+    Load_Sectors(sector_lump, num_sectors, sky_texture, map);
     Load_SubSectors(subsector_lump, num_subsectors, map);
     Load_Nodes(node_lump, num_nodes, map);
     Load_Sidedefs(sidedef_lump, num_sidedefs, map);
@@ -1307,7 +1299,7 @@ bool Load_Doommap(const char* filename, Map* map)
     map->reject_size = reject_size;
 
     //post processing step
-    Load_PostProcessMap(map);
+    Load_PostProcessMap(sky_texture, map);
 
     //setup sector specials
     Load_SetupSectorSpecials(map);

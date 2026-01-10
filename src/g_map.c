@@ -160,7 +160,7 @@ bool Map_LoadFromIndex(int index)
 		index = 0;
 	}
 
-	if (!Map_Load(LEVELS[index]))
+	if (!Map_Load(LEVELS[index], SKIES[index]))
 	{
 		return false;
 	}
@@ -169,11 +169,11 @@ bool Map_LoadFromIndex(int index)
 	return true;
 }
 
-bool Map_Load(const char* filename)
+bool Map_Load(const char* filename, const char* skyname)
 {
 	Map_Destruct();
 
-	Load_Doommap(filename, &s_map);
+	Load_Doommap(filename, skyname, &s_map);
 
 	return true;
 }
@@ -308,6 +308,11 @@ void Map_UpdateObjects(float delta)
 		case OT__LIFT:
 		{
 			Lift_Update(obj, delta);
+			break;
+		}
+		case OT__SFX_EMITTER:
+		{
+			SFX_Update(obj);
 			break;
 		}
 		default:
@@ -483,6 +488,18 @@ Linedef* Map_GetLineDef(int index)
 	return &s_map.linedefs[index];
 }
 
+Sidedef* Map_GetSideDef(int index)
+{
+	assert(index >= 0);
+
+	if (index >= s_map.num_sidedefs)
+	{
+		return NULL;
+	}
+
+	return &s_map.sidedefs[index];
+}
+
 bool Map_CheckSectorReject(int s1, int s2)
 {
 	if (s_map.reject_size > 1 && s1 >= 0 && s2 >= 0)
@@ -647,6 +664,7 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest)
 
 void Map_Destruct()
 {
+	//delete lightmaps
 	for (int i = 0; i < s_map.num_sectors; i++)
 	{
 		Sector* sector = &s_map.sectors[i];
@@ -670,7 +688,7 @@ void Map_Destruct()
 		}
 	}
 
-
+	//delete map stuff
 	if (s_map.linedefs) free(s_map.linedefs);
 	if (s_map.line_segs) free(s_map.line_segs);
 	if (s_map.bsp_nodes) free(s_map.bsp_nodes);

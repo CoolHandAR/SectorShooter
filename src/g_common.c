@@ -222,26 +222,26 @@ static int BoxOnPointSide(float line_dx, float line_dy, float line_x, float line
 	return (p1 == p2) ? p1 : -1;
 }
 
-int Line_PointSide(Line* line, float p_x, float p_y)
+int Line_PointSide(Linedef* line, float p_x, float p_y)
 {
 	return PointSide(line->dx, line->dy, line->x0, line->y0, p_x, p_y);
 }
-int Line_BoxOnPointSide(Line* line, float p_bbox[2][2])
+int Line_BoxOnPointSide(Linedef* line, float p_bbox[2][2])
 {
 	return BoxOnPointSide(line->dx, line->dy, line->x0, line->y0, p_bbox);
 }
 
-float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line)
+float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Linedef* line)
 {
 	return InterceptLine(p_x, p_y, p_dx, p_dy, line->dx, line->dy, line->x0, line->y0);
 }
 
-float Line_InterceptLine(Line* line1, Line* line2)
+float Line_InterceptLine(Linedef* line1, Linedef* line2)
 {
 	return Line_Intercept(line1->x0, line1->y0, line1->dx, line1->dy, line2);
 }
 
-bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float* r_interY)
+bool Line_SegmentInterceptSegmentLine(Linedef* line1, Linedef* line2, float* r_frac, float* r_interX, float* r_interY)
 {
 	if (line1->dot <= 0)
 	{

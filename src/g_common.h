@@ -10,6 +10,7 @@
 #include "r_common.h"
 #include "sound.h"
 
+#define DONT_FILE_LIGHTMAPS
 #define DISABLE_LIGHTMAPS
 #define TRACE_NO_HIT INT_MAX
 
@@ -23,6 +24,8 @@
 #define GRAVITY_SCALE -500
 #define PLAYER_SIZE 8
 #define PLAYER_STEP_SIZE 50
+#define PLAYER_ACCEL 40
+#define PLAYER_FRICTION 0.8
 
 #define MAX_RENDER_SCALE 3
 
@@ -173,6 +176,7 @@ typedef enum
 	OT__LIGHT_STROBER,
 	OT__PARTICLE,
 	OT__DECAL,
+	OT__SFX_EMITTER,
 	OT__MAX
 } ObjectType;
 
@@ -225,6 +229,7 @@ typedef enum
 	SUB__LIGHT_LAMP,
 	SUB__LIGHT_BLUE_LAMP,
 	SUB__LIGHT_GREEN_LAMP,
+	SUB__LIGHT_FLAME_URN,
 	SUB__LIGHT_MAX,
 
 	//THINGS
@@ -256,11 +261,18 @@ typedef enum
 	//PARTICLES
 	SUB__PARTICLE_BLOOD,
 	SUB__PARTICLE_WALL_HIT,
+	SUB__PARTICLE_BLOOD_EXPLOSION,
+	SUB__PARTICLE_FIRE_SPARKS,
 	SUB__PARTICLE_MAX,
 
 	//DECALS
 	SUB__DECAL_WALL_HIT,
 	SUB__DECAL_SCORCH,
+
+	//SFX EMITTERS
+	SUB__SFX_DESERT_WIND,
+	SUB__SFX_TEMPLE_AMBIENCE,
+	SUB__SFX_JUNGLE_AMBIENCE,
 
 	SUB__MAX
 } SubType;
@@ -387,34 +399,21 @@ typedef struct
 	int sector_tag;
 	int flags;
 
+	int sides[2];
+
 	Lightmap lightmap;
 } Linedef;
 typedef struct
 {
-	bool skip_draw;
-
 	float x0, x1;
 	float y0, y1;
 
-	float dx, dy;
-	float dot;
-
-	float side_x0, side_x1;
-	float side_y0, side_y1;
-
-	float side_dx, side_dy;
-
 	float offset;
+
 	int front_sector;
 	int back_sector;
 	
-	int special;
-	int sector_tag;
-	int flags;
-	int side;
-
 	float width_scale;
-	float bbox[2][2];
 
 	Sidedef* sidedef;
 	Linedef* linedef;
@@ -465,8 +464,6 @@ typedef struct
 {
 	int line_offset;
 	int num_lines;
-
-	float bbox[2][2];
 
 	Sector* sector;
 } Subsector;
@@ -549,7 +546,7 @@ typedef struct
 Map* Map_GetMap();
 Object* Map_NewObject(ObjectType type);
 bool Map_LoadFromIndex(int index);
-bool Map_Load(const char* filename);
+bool Map_Load(const char* filename, const char* skyname);
 Object* Map_GetObject(ObjectID id);
 Object* Map_FindObjectByUniqueID(int unique_id);
 Object* Map_GetNextObjectByType(int* r_iterIndex, int type);
@@ -563,6 +560,7 @@ Sector* Map_GetSector(int index);
 Sector* Map_GetNextSectorByTag(int* r_iterIndex, int tag);
 Line* Map_GetLine(int index);
 Linedef* Map_GetLineDef(int index);
+Sidedef* Map_GetSideDef(int index);
 bool Map_CheckSectorReject(int s1, int s2);
 BVH_Tree* Map_GetSpatialTree();
 void Map_SetupLightGrid(Lightblock* data);
@@ -571,7 +569,7 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest);
 void Map_Destruct();
 
 //Load stuff
-bool Load_Doommap(const char* filename, Map* map);
+bool Load_Doommap(const char* filename, const char* skyname, Map* map);
 bool Load_DoomIWAD(const char* filename);
 bool Load_Lightmap(const char* filename, Map* map);
 bool Save_Lightmap(const char* filename, Map* map);
@@ -690,6 +688,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 int Object_AreaEffect(Object* obj, float radius);
 void Object_ConsumePickup(Object* obj);
 
+//SFX Stuff
+void SFX_Update(Object* obj);
+
+
 //Event Stuff
 typedef enum
 {
@@ -758,10 +760,10 @@ bool Scan_SaveGames(SaveSlot slots[MAX_SAVE_SLOTS]);
 int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y);
 
 //LINE CHECK STUFF
-int Line_PointSide(Line* line, float p_x, float p_y);
-int Line_BoxOnPointSide(Line* line, float p_bbox[2][2]);
-float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Line* line);
-float Line_InterceptLine(Line* line1, Line* line2);
-bool Line_SegmentInterceptSegmentLine(Line* line1, Line* line2, float* r_frac, float* r_interX, float *r_interY);
+int Line_PointSide(Linedef* line, float p_x, float p_y);
+int Line_BoxOnPointSide(Linedef* line, float p_bbox[2][2]);
+float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Linedef* line);
+float Line_InterceptLine(Linedef* line1, Linedef* line2);
+bool Line_SegmentInterceptSegmentLine(Linedef* line1, Linedef* line2, float* r_frac, float* r_interX, float *r_interY);
 
 #endif

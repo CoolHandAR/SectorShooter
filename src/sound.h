@@ -29,12 +29,15 @@ void Sound_setMasterVolume(float volume);
 float Sound_GetMasterVolume();
 int Sound_Preload(int type);
 void Sound_Emit(int type, float volume);
-void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z);
-SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z);
+void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z, float vol);
+SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z, float vol);
 void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, float dir_y, float dir_z);
+void Sound_SetRolloff(SoundID id, float rolloff);
+void Sound_SetVolume(SoundID id, float vol);
 void Sound_Play(SoundID id);
 void Sound_Stop(SoundID id);
 void Sound_Stream(int type);
 void Sound_SetAsMusic(int type);
+void Sound_FlushAll();
 
 #endif
