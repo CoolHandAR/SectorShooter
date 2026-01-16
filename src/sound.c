@@ -438,6 +438,7 @@ void Sound_SetAsMusic(int type)
 
 	ma_sound_set_looping(&sound_core.music_snd, true);
 	ma_sound_start(&sound_core.music_snd);
+	ma_sound_set_volume(&sound_core.music_snd, 0.01);
 }
 
 void Sound_FlushAll()

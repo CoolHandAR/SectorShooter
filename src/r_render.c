@@ -76,6 +76,8 @@ typedef struct
 	int scale;
 	bool is_fullscreen;
 
+	Vec3_u16 extra_light;
+
 	FontData font_data;
 
 	int threads_finished;
@@ -189,6 +191,8 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 	drawing_args.start_x = start_x;
 	drawing_args.end_x = end_x;
 	drawing_args.render_data = render_data;
+	drawing_args.extra_light = s_renderCore.extra_light;
+	drawing_args.extra_light_max = max(drawing_args.extra_light.r, max(drawing_args.extra_light.g, drawing_args.extra_light.b));
 
 	//draw lines and add sprites to draw list
 	int nodes_drawn = Scene_ProcessBSPNode(&s_renderCore.framebuffer, map, map->num_nodes - 1, &drawing_args);
@@ -750,6 +754,11 @@ void Render_QueueFullscreenShader(ShaderFun shader_fun)
 }
 
 
+void Render_SetExtraLightFrame(Vec3_u16 extra_light)
+{
+	s_renderCore.extra_light = extra_light;
+}
+
 void Render_ResizeWindow(int width, int height)
 {
 	Render_FinishAndStall();
@@ -838,8 +847,6 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 		//wait for all threads to finish
 		Render_WaitForAllThreads();
 
-		//Render_DrawAllObjectBoxes();
-
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
 	}
 	else
@@ -861,6 +868,7 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 
 	//reset stuff
 	s_renderCore.fullscreen_shader_fun = NULL;
+	s_renderCore.extra_light = Vec3_u16_Zero();
 }
 
 void Render_GetWindowSize(int* r_width, int* r_height)

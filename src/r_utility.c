@@ -9,7 +9,7 @@ void RenderUtl_ResetClip(ClipSegments* clip, short left, short right)
 	clip->solidsegs[1].first = right;
 	clip->solidsegs[1].last = 0x7fff;
 
-	clip->newend = clip->solidsegs + 2;
+	clip->newend = &clip->solidsegs[2];
 }
 
 void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_end)
@@ -43,11 +43,11 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 
 	if (x_start > 0)
 	{
-		Scene_ClipAndDraw(&data->clip_segs, 0, x_start, true, NULL, NULL);
+		//Scene_ClipAndDraw(&data->clip_segs, 0, x_start, true, NULL, NULL);
 	}
 	if (x_end < width)
 	{
-		Scene_ClipAndDraw(&data->clip_segs, x_end, width, true, NULL, NULL);
+		//Scene_ClipAndDraw(&data->clip_segs, x_end, width, true, NULL, NULL);
 	}
 }
 
@@ -111,7 +111,7 @@ void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector)
 	data->visited_sectors_bitset[mask_index] |= mask;
 }
 
-void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, bool is_decal)
+void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, Vec3_u16 extra_light, bool is_decal)
 {
 	if (data->num_draw_sprites >= MAX_DRAWSPRITES)
 	{
@@ -137,6 +137,10 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	light.g = sector_light;
 	light.b = sector_light;
 #endif
+
+	light.r += extra_light.r;
+	light.g += extra_light.g;
+	light.b += extra_light.b;
 
 	//Convert to draw sprite
 	DrawSprite* draw_sprite = &data->draw_sprites[data->num_draw_sprites++];

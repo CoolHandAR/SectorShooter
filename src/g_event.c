@@ -136,6 +136,27 @@ static void Event_ActivateLiftObject(Sector* sector)
 	sector->sector_object = lift->id;
 }
 
+static void Event_Teleport(Object* obj, Linedef* line)
+{
+	Sector* sector = NULL;
+
+	//find first sector with the tag
+	int iter_index = 0;
+	sector = Map_GetNextSectorByTag(&iter_index, line->sector_tag);
+
+	if (!sector)
+	{
+		return;
+	}
+
+	//sector center
+	float sector_center_x = 0;
+	float sector_center_y = 0;
+	Math_GetBoxCenter(sector->bbox, &sector_center_x, &sector_center_y);
+
+	Move_Teleport(obj, sector_center_x, sector_center_y);
+}
+
 static void Event_HandleSpecialUseLines(Linedef* line, int side)
 {
 	Sector* frontsector = Map_GetSector(line->front_sector);
@@ -179,7 +200,7 @@ static void Event_HandleSpecialUseLines(Linedef* line, int side)
 	}
 	}
 }
-static void Event_HandleSpecialWalkoverLines(Linedef* line, int side)
+static void Event_HandleSpecialWalkoverLines(Object* obj, Linedef* line, int side)
 {
 	Sector* frontsector = Map_GetSector(line->front_sector);
 	Sector* backsector = NULL;
@@ -204,7 +225,12 @@ static void Event_HandleSpecialWalkoverLines(Linedef* line, int side)
 	}
 	case SPECIAL__TRIGGER_EXIT:
 	{
-		Game_ChangeLevel(6);
+		Game_NextLevel();
+		break;
+	}
+	case SPECIAL__TRIGGER_TELEPORT:
+	{
+		Event_Teleport(obj, line);
 		break;
 	}
 	default:
@@ -221,7 +247,7 @@ void Event_TriggerSpecialLine(Object* obj, int side, Linedef* line, EventLineTri
 	}
 	else if (trigger_type == EVENT_TRIGGER__LINE_WALK_OVER)
 	{
-		Event_HandleSpecialWalkoverLines(line, side);
+		Event_HandleSpecialWalkoverLines(obj, line, side);
 	}
 
 	

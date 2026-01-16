@@ -20,6 +20,9 @@
 #define MIN_SENS 0.5
 #define MAX_SENS 16
 #define Z_VIEW_LERP 25
+#define CAMERA_SHAKE_SCALE 1
+#define CAMERA_SHAKE_TIME_SCALE 1
+#define GUN_FLASH_SCALE 0.25
 
 static const float PI = 3.14159265359;
 
@@ -83,6 +86,12 @@ static void Shader_Godmode(Image* img, int x, int y, int tx, int ty)
 
 	sample[0] ^= sample[1];
 }
+static void Shader_Quad(Image* img, int x, int y, int tx, int ty)
+{
+	unsigned char* sample = Image_Get(img, x, y);
+
+	sample[2] = Math_Clampl((int)sample[0] + 12, 0, 255);
+}
 
 static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 {
@@ -123,6 +132,12 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		int dmg = gun_info->damage;
 		float dist = Math_XY_Distance(p_x, p_y, hit_obj->x, hit_obj->y);
 
+		//way too far away
+		if (dist >= TRACE_DIST)
+		{
+			return;
+		}
+
 		//modify damage based on distance
 		if (dist <= 5)
 		{
@@ -133,10 +148,13 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 			dmg *= 2;
 		}
 
-		//way too far away
-		if (dist >= TRACE_DIST)
+		//add some rng
+		dmg += Math_rand() % 10;
+
+		//check for quad
+		if (player.quad_timer > 0)
 		{
-			return;
+			dmg *= 4;
 		}
 
 		//spawn blood particles
@@ -178,24 +196,28 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 
 	int hit = TRACE_NO_HIT;
 
-	for (int i = 0; i < 4; i++)
+	static int PREV_HIT = TRACE_NO_HIT;
+
+	for (int i = 0; i < 32; i++)
 	{
-		float offset = (float)i * 0.1;
+		float angle = player.angle - Math_DegToRad(90.0) / 2.0 + Math_DegToRad(90.0) / 40.0 * i;
 
-		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + p_dirX + offset, p_y + p_dirY + offset, player.obj->z + player.obj->height, TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
+		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + (cos(angle) * TRACE_DIST), p_y + (sin(angle) * TRACE_DIST), player.obj->z + player.obj->height, TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
 
-		if (hit != TRACE_NO_HIT && hit >= 0)
+		if (hit != TRACE_NO_HIT && hit >= 0 && hit != PREV_HIT)
 		{
-			break;
+			Object* trace_obj = Map_GetObject(hit);
+
+			if (trace_obj->type == OT__MONSTER && trace_obj->hp > 0)
+			{
+				break;
+			}
 		}
 	}
 
 	if (hit == TRACE_NO_HIT || hit < 0)
 	{
 		Object* missile = Object_Missile(player.obj, NULL, SUB__MISSILE_MEGASHOT);
-
-		//missile->dir_x = p_dirX;
-		//missile->dir_y = p_dirY;
 	}
 	else
 	{
@@ -204,6 +226,8 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 		if (trace_obj->type == OT__MONSTER)
 		{
 			Object* missile = Object_Missile(player.obj, trace_obj, SUB__MISSILE_MEGASHOT);
+
+			PREV_HIT = hit;
 		}
 		
 	}
@@ -350,13 +374,16 @@ static void Player_ShootGun()
 			return;
 		}
 
-		static float DEV_ANGLE = 0.1;
+		int loops = 4;
 
-		for (int i = 0; i < 1; i++)
+		if (player.quad_timer > 0)
 		{
-			float offset = (float)i * DEV_ANGLE;
+			loops = 8;
+		}
 
-			Player_ShootMissile(player.obj->x + offset - DEV_ANGLE, player.obj->y + offset - DEV_ANGLE, dir_x + offset, dir_y + offset);
+		for (int i = 0; i < loops; i++)
+		{
+			Player_ShootMissile(player.obj->x, player.obj->y, dir_x, dir_y);
 		}										
 		
 		player.rocket_ammo--;
@@ -372,6 +399,8 @@ static void Player_ShootGun()
 	sprite->frame = 0;
 	GunInfo* gun_info = player.gun_info;
 	player.gun_timer = gun_info->cooldown;
+	player.shake_timer = gun_info->shake_time * CAMERA_SHAKE_TIME_SCALE;
+	player.shake_scale = gun_info->shake_scale * CAMERA_SHAKE_SCALE;
 
 	//PLAY SOUND
 	int sound_index = -1;
@@ -427,7 +456,8 @@ static void Player_UpdateTimers(float delta)
 	if (player.hp_tick_timer > 0) player.hp_tick_timer -= delta;
 	if (player.hit_timer > 0) player.hit_timer -= delta;
 	if (player.use_timer > 0) player.use_timer -= delta;
-	if (player.save_timer > 0)player.save_timer -= delta;
+	if (player.save_timer > 0) player.save_timer -= delta;
+	if (player.shake_timer > 0) player.shake_timer -= delta;
 
 	if (player.godmode_timer > 0)
 	{
@@ -582,6 +612,7 @@ static void Player_SetupGunSprites()
 		sprite->scale_y = gun_info->scale;
 		sprite->x = gun_info->screen_x;
 		sprite->y = gun_info->screen_y;
+		sprite->action_frame = gun_info->light_frame;
 	}
 }
 
@@ -853,22 +884,42 @@ void Player_LerpUpdate(double lerp, double delta)
 		return;
 	}
 
+	Sprite* gun_sprite = &player.gun_sprites[player.gun];
+	GunInfo* gun_info = player.gun_info;
+
 	Player_UpdateListener();
-	Sprite_UpdateAnimation(&player.gun_sprites[player.gun], delta);
+	Sprite_UpdateAnimation(gun_sprite, delta);
+
+	//check for extra light
+	if (gun_sprite->frame == gun_sprite->action_frame)
+	{
+		Vec3_u16 extra_light;
+		extra_light.r = gun_info->light_color[0] * GUN_FLASH_SCALE;
+		extra_light.g = gun_info->light_color[1] * GUN_FLASH_SCALE;
+		extra_light.b = gun_info->light_color[2] * GUN_FLASH_SCALE;
+		
+		Render_SetExtraLightFrame(extra_light);
+	}
 
 	//make sure to reset the frame
-	if (!player.gun_sprites[player.gun].playing)
+	if (!gun_sprite->playing)
 	{
-		player.gun_sprites[player.gun].frame = 0;
+		gun_sprite->frame = 0;
 	}
 
 	//bob gun
-	if (player.move_x != 0 || player.move_y != 0)
+	if (player.move_x != 0 || player.move_y != 0 || player.shake_timer > 0)
 	{
 		float bob_amp = 0.003;
 		float bob_freq = 16;
 
 		if (player.slow_move == 1) bob_freq *= 0.5;
+		
+		if (player.shake_timer > 0)
+		{
+			const float SHAKE_SCALE = 32;
+			bob_freq *= SHAKE_SCALE * player.shake_scale;
+		}
 
 		player.bob += delta;
 
@@ -882,6 +933,13 @@ void Player_LerpUpdate(double lerp, double delta)
 	float z = Math_lerpFraction(player.obj->prev_z + player.obj->height, player.obj->z + player.obj->height, lerp);
 
 	player.view_z = Math_lerpClamped(player.view_z, z, delta * Z_VIEW_LERP);
+
+	//do a fake, but cheap camera shake effect
+	if (player.shake_timer > 0 && player.shake_scale > 0)
+	{
+		player.view_x += (Math_randf() * 2.0 - 1.0) * player.shake_scale;
+		player.view_y += (Math_randf() * 2.0 - 1.0) * player.shake_scale;
+	}
 }
 
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle)
@@ -939,22 +997,26 @@ void Player_MouseCallback(float x, float y)
 	}
 }
 
-void Player_Draw(Image* image, FontData* font)
+void Player_Draw(Image* image, FontData* font, int start_x, int end_x)
 {
 	//emit hurt shader
 	if (player.hurt_timer > 0)
 	{
-		Render_QueueFullscreenShader(Shader_HurtSimple);
+		Video_Shade(image, Shader_HurtSimple, start_x, 0, end_x, image->height);
 	}
 	else if (player.godmode_timer > 0)
 	{
-		Render_QueueFullscreenShader(Shader_Godmode);
+		Video_Shade(image, Shader_Godmode, start_x, 0, end_x, image->height);
+	}
+	else if (player.quad_timer > 0)
+	{
+		Video_Shade(image, Shader_Quad, start_x, 0, end_x, image->height);
 	}
 	if (player.obj->hp <= 0)
 	{
 		//draw crazy death stuff
-		Video_Shade(image, Shader_Hurt, 0, 0, image->width, image->height);
-		Video_Shade(image, Shader_Dead, 0, 0, image->width, image->height);
+		Video_Shade(image, Shader_Hurt, start_x, 0, end_x, image->height);
+		Video_Shade(image, Shader_Dead, start_x, 0, end_x, image->height);
 	}
 }
 
@@ -980,6 +1042,14 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 #endif
 		Sprite sprite = player.gun_sprites[player.gun];
 
+		//check for gunshot light
+		if (sprite.frame == sprite.action_frame)
+		{
+			light.r += 255;
+			light.g += 255;
+			light.b += 255;
+		}
+		
 		sprite.light = light;
 
 		float old_x = sprite.x;

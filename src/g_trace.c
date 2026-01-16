@@ -148,9 +148,9 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 
 			Linedef* line = Map_GetLineDef(index);
 
-			//if (Line_BoxOnPointSide(line, bbox) >= 0)
+			if (Line_BoxOnPointSide(line, bbox) >= 0)
 			{
-				//continue;
+				continue;
 			}
 
 			//we hit the line
@@ -161,16 +161,14 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 
 			if (line->flags & MF__LINE_BLOCKING)
 			{
-				return false;
+				if (obj->type != OT__MISSILE)
+				{
+					return false;
+				}
 			}
 
 			Sector* frontsector = &map->sectors[line->front_sector];
 			Sector* backsector = &map->sectors[line->back_sector];
-
-			//if (Check_CanObjectFitInSector(obj, frontsector, backsector))
-			{
-				//continue;
-			}
 
 			float open_low = max(frontsector->floor, backsector->floor);
 			float open_high = min(frontsector->ceil, backsector->ceil);

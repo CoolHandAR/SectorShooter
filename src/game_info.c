@@ -155,7 +155,7 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 5, 6, 0,
 		},
 		100, //SPAWN HP
-		59, //SPEED,
+		80, //SPEED,
 		35, //MELEE DAMAGE
 		20, //SIZE,
 		123, //HEIGHT
@@ -280,12 +280,12 @@ static const MissileInfo MISSILE_INFO[] =
 		//EXPLODE
 		NULL, 0, 2, 1, 3, 0,
 	},
-	8, //SPEED
-	0.25, //SIZE,
+	12, //SPEED
+	2, //SIZE,
 	40, //EXPLOSION DAMAGE
-	40, //EXPLOSION SIZE
+	256, //EXPLOSION SIZE
 	70, //DIRECT HIT DAMAGE
-	32, //SPRITE SCALE
+	64, //SPRITE SCALE
 	},
 };
 static const ObjectInfo OBJECT_INFOS[] =
@@ -311,13 +311,13 @@ static const ObjectInfo OBJECT_INFOS[] =
 		SUB__LIGHT_BLUE_TORCH,
 		//ANIM
 		{
-			NULL, 0, 0, 1, 4, 1,
+			NULL, 0, 0, 14, 4, 1,
 		},
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET_Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET_Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
 		100, //HEIGHT
@@ -327,13 +327,13 @@ static const ObjectInfo OBJECT_INFOS[] =
 		SUB__LIGHT_GREEN_TORCH,
 		//ANIM
 		{
-			NULL, 0, 0, 1, 4, 1,
+			NULL, 0, 0, 15, 4, 1,
 		},
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET_Z
-		32, //SPRITE SCALE
+		80, //SPRITE OFFSET_Z
+		40, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
 		100, //HEIGHT
@@ -740,7 +740,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 	},
 	//TELEPORTER
 	{
-		SUB__TARGET_TELEPORT,
+		SUB__THING_TELEPORTER,
 		//ANIM
 		{
 			NULL, 0, 0, 3, 4, 1,
@@ -754,6 +754,150 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0, //COLLIDABLE
 		32, //HEIGHT
 	},
+	//STALAG0
+	{
+		SUB__THING_STALAG0,
+		//ANIM
+		{
+			NULL, 0, 0, 16, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		24, //SIZE
+		1, //COLLIDABLE
+		32, //HEIGHT
+	},
+	//STALAG1
+	{
+		SUB__THING_STALAG1,
+		//ANIM
+		{
+			NULL, 0, 1, 16, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		-55, //SPRITE OFFSET Z
+		40, //SPRITE SCALE
+		32, //SIZE
+		0, //COLLIDABLE
+		24, //HEIGHT
+	},
+	//STALAG2
+	{
+		SUB__THING_STALAG2,
+		//ANIM
+		{
+			NULL, 0, 2, 16, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
+		24, //SIZE
+		1, //COLLIDABLE
+		32, //HEIGHT
+	},
+	//WINTER_TREE0
+	{
+		SUB__THING_WINTER_TREE0,
+		//ANIM
+		{
+			NULL, 0, 3, 16, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		160, //SPRITE OFFSET Z
+		80, //SPRITE SCALE
+		15, //SIZE
+		1, //COLLIDABLE
+		32, //HEIGHT
+	},
+	//WINTER_TREE1
+	{
+		SUB__THING_WINTER_TREE1,
+		//ANIM
+		{
+			NULL, 0, 0, 17, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		160, //SPRITE OFFSET Z
+		80, //SPRITE SCALE
+		15, //SIZE
+		1, //COLLIDABLE
+		32, //HEIGHT
+	},
+	//WINTER_TREE2
+	{
+		SUB__THING_WINTER_TREE2,
+		//ANIM
+		{
+			NULL, 0, 1, 17, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		160, //SPRITE OFFSET Z
+		80, //SPRITE SCALE
+		15, //SIZE
+		1, //COLLIDABLE
+		60, //HEIGHT
+	},
+	//WINTER_TREE3
+	{
+		SUB__THING_WINTER_TREE3,
+		//ANIM
+		{
+			NULL, 0, 2, 17, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		160, //SPRITE OFFSET Z
+		80, //SPRITE SCALE
+		15, //SIZE
+		1, //COLLIDABLE
+		50, //HEIGHT
+	},
+	//ROCK0
+	{
+		SUB__THING_ROCK0,
+		//ANIM
+		{
+			NULL, 0, 3, 17, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		160, //SPRITE OFFSET Z
+		80, //SPRITE SCALE
+		15, //SIZE
+		1, //COLLIDABLE
+		50, //HEIGHT
+	},
+	//ROCK1
+	{
+		SUB__THING_ROCK1,
+		//ANIM
+		{
+			NULL, 0, 0, 18, 0, 0,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		120, //SPRITE OFFSET Z
+		60, //SPRITE SCALE
+		15, //SIZE
+		1, //COLLIDABLE
+		50, //HEIGHT
+	},
 	//INVUNERABILITY PICKUP
 	{
 		SUB__PICKUP_INVUNERABILITY,
@@ -764,8 +908,8 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
 		32, //HEIGHT
@@ -780,8 +924,8 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //ANIM SPEED
 		0.5, //SPRITE OFFSET X
 		0.5, //SPRITE OFFSET Y
-		64, //SPRITE OFFSET Z
-		32, //SPRITE SCALE
+		128, //SPRITE OFFSET Z
+		64, //SPRITE SCALE
 		32, //SIZE
 		0, //COLLIDABLE
 		32, //HEIGHT
@@ -879,6 +1023,10 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		0, //SCREEN X
 		0, //SCREEN Y
 		0, //SCALE
+		0, //LIGHT FRAME
+		{0, 0, 0}, //LIGHT COLOR
+		0, //SHAKE SCALE,
+		0 //SHAKE TIME
 	},
 	//PISTOL
 	{
@@ -889,6 +1037,10 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		0.55, //SCREEN X
 		0.6, //SCREEN Y
 		1.5, //SCALE
+		1, //LIGHT FRAME
+		{82, 70, 62}, //LIGHT COLOR
+		0.1, //SHAKE SCALE,
+		0.1 //SHAKE TIME
 	},
 	//MACHINE GUN
 	{
@@ -899,6 +1051,10 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		0.2, //SCREEN X
 		0.18, //SCREEN Y
 		1.5, //SCALE
+		1, //LIGHT FRAME
+		{105, 98, 90}, //LIGHT COLOR
+		0.15, //SHAKE SCALE,
+		0.12 //SHAKE TIME
 	},
 	//SHOTGUN
 	{
@@ -909,6 +1065,10 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		0.05, //SCREEN X
 		0.2, //SCREEN Y
 		1.2, //SCALE
+		1, //LIGHT FRAME
+		{128, 93, 73}, //LIGHT COLOR
+		0.36, //SHAKE SCALE,
+		0.1 //SHAKE TIME
 	},
 	//DEVASTATOR
 	{
@@ -919,6 +1079,10 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		0.25, //SCREEN X
 		0.4, //SCREEN Y
 		1.5, //SCALE
+		1, //LIGHT FRAME
+		{100, 100, 150}, //LIGHT COLOR
+		0.45, //SHAKE SCALE,
+		0.25 //SHAKE TIME
 	},
 };
 
@@ -1062,13 +1226,13 @@ static const SFXInfo SFX_INFOS[] =
 	//DESERT WIND
 	{
 		SOUND__DESERT_WIND, //TYPE
-		10.0, //VOLUME
+		1.0, //VOLUME
 		1.0, //ROLLOFF
 	},
 	//TEMPLE AMBIENCE
 	{
 		SOUND__TEMPLE_AMBIENCE, //TYPE
-		10.0, //VOLUME
+		1.0, //VOLUME
 		1.0, //ROLLOFF
 	},
 	//JUNGLE AMBIENCE

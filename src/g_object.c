@@ -4,6 +4,8 @@
 #include "u_math.h"
 #include "sound.h"
 
+#define TOO_CLOSE_DISTANCE 256
+
 bool Object_HandleSwitch(Object* obj)
 {
 	if (obj->type != OT__TRIGGER)
@@ -54,23 +56,7 @@ void Object_HandleTriggers(Object* obj, Object* trigger)
 
 	if (target)
 	{
-		if (target->type == OT__TARGET)
-		{
-			switch (target->sub_type)
-			{
-			case SUB__TARGET_TELEPORT:
-			{
-				Sound_EmitWorldTemp(SOUND__TELEPORT, trigger->x, trigger->y, trigger->z, 0, 0, 0, 1);
-
-				Move_Teleport(obj, target->x, target->y);
-				break;
-			}
-			default:
-				break;
-			}
-
-		}
-		else if (target->type == OT__DOOR)
+		if (target->type == OT__DOOR)
 		{
 			// 0 == door open
 			// 1 == door closed
@@ -134,7 +120,7 @@ bool Object_HandleObjectCollision(Object* obj, Object* collision_obj)
 	}
 
 	//some objects are ignored from collisions
-	if (collision_obj->type == OT__PARTICLE || collision_obj->type == OT__DECAL || collision_obj->type == OT__TARGET || collision_obj->hp <= 0)
+	if (collision_obj->type == OT__PARTICLE || collision_obj->type == OT__DECAL || collision_obj->hp <= 0)
 	{
 		return true;
 	}
@@ -337,7 +323,7 @@ bool Object_CheckSight(Object* obj, Object* target)
 	float d = Math_XY_Distance(obj->x, obj->y, target->x, target->y);
 
 	//very close to target
-	if (d <= 50)
+	if (d <= TOO_CLOSE_DISTANCE)
 	{
 		return true;
 	}
@@ -614,7 +600,7 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	missile->step_height = 0;
 	missile->sprite.playing = true;
 
-	missile->sound_id = Sound_EmitWorld(SOUND__FIREBALL_FOLLOW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
+	missile->sound_id = Sound_EmitWorld(SOUND__FIRE, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
 
 	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
 
@@ -712,6 +698,12 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 			assign_to_spatial_tree = true;
 		}
 
+		if (type == OT__LIGHT)
+		{
+			obj->sound_id = Sound_EmitWorld(SOUND__FIRE, obj->x, obj->y, obj->z, 0, 0, 0, 1);
+			Sound_SetRolloff(obj->sound_id, 2);
+		}
+
 		break;
 	}
 	case OT__TRIGGER:
@@ -722,10 +714,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		{
 			Game_GetGame()->total_secrets++;
 		}
-		break;
-	}
-	case OT__TARGET:
-	{
 		break;
 	}
 	case OT__PARTICLE:
@@ -868,6 +856,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		Move_SetPosition(obj, x, y, obj->size);
 		Move_ZMove(obj, zmove);
 
+		//make sure the sound is located at the correct z coord
 		if (obj->sound_id >= 0)
 		{
 			Sound_SetTransform(obj->sound_id, obj->x, obj->y, obj->z, 0, 0, 0);

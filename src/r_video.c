@@ -744,6 +744,12 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	
 	float xl = 1.0 / fabs(draw_end_x - draw_start_x);
 
+	float depth_scale = (transform_y * DEPTH_SHADING_SCALE);
+
+	int light_r = Math_Clampl(light.r - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	int light_g = Math_Clampl(light.g - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	int light_b = Math_Clampl(light.b - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+
 	//try to make this loop as fast as possible
 	for (int x = draw_start_x; x < draw_end_x; x++)
 	{
@@ -774,16 +780,6 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 		float x_pos = fabs(x - draw_start_x);
 		float depth = (x_pos * xl) + transform_y;
-
-#ifdef DISABLE_LIGHTMAPS
-		int light_r = Math_Clampl(light.r - (depth * DEPTH_SHADING_SCALE), 0, 255);
-		int light_g = Math_Clampl(light.g - (depth * DEPTH_SHADING_SCALE), 0, 255);
-		int light_b = Math_Clampl(light.b - (depth * DEPTH_SHADING_SCALE), 0, 255);
-#else
-		int light_r = light.r;
-		int light_g = light.g;
-		int light_b = light.b;
-#endif // DISABLE_LIGHTMAPS
 
 		int min_y = (sprite->flip_v) ? (sprite_rect_height - (span->max)) : span->min;
 		int max_y = (sprite->flip_v) ? (sprite_rect_height - (span->min)) : span->max;
@@ -1163,7 +1159,7 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 	}
 }
 
-void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, int light, int height_mask, Lightmap* lm)
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, Vec3_u16 light, int height_mask, Lightmap* lm)
 {
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
@@ -1226,9 +1222,9 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 			int current_light_b = lerp_light0.b;
 
 			//clamp
-			current_light_r = Math_Clampl(current_light_r, 0, 255);
-			current_light_g = Math_Clampl(current_light_g, 0, 255);
-			current_light_b = Math_Clampl(current_light_b, 0, 255);
+			current_light_r = Math_Clampl(current_light_r + light.r, 0, 255);
+			current_light_g = Math_Clampl(current_light_g + light.g, 0, 255);
+			current_light_b = Math_Clampl(current_light_b + light.b, 0, 255);
 
 			size_t i = index * 4;
 
@@ -1244,44 +1240,50 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 			index += image->width;
 		}
 	}
-	else if (light > 0)
-	{
-		for (int y = y1; y < y2; y++)
-		{
-			int ty = (int)ty_pos & height_mask;
-
-			unsigned char* data = Image_Get(&texture->img, tx, ty);
-
-			size_t i = index * 4;
-
-			//avoid loops
-			dest[i + 0] = LIGHT_LUT[data[0]][light];
-			dest[i + 1] = LIGHT_LUT[data[1]][light];
-			dest[i + 2] = LIGHT_LUT[data[2]][light];
-
-			depth_buffer[index] = depth;
-
-			ty_pos += ty_step;
-			index += image->width;
-		}
-	}
 	else
 	{
-		//set depth and also set image to black
-		for (int y = y1; y < y2; y++)
+		int max_light = max(light.r, max(light.g, light.b));
+
+		if (max_light > 0)
 		{
-			size_t i = index * 4;
+			for (int y = y1; y < y2; y++)
+			{
+				int ty = (int)ty_pos & height_mask;
 
-			//avoid loops
-			dest[i + 0] = 0;
-			dest[i + 1] = 0;
-			dest[i + 2] = 0;
+				unsigned char* data = Image_Get(&texture->img, tx, ty);
 
-			depth_buffer[index] = depth;
+				size_t i = index * 4;
 
-			index += image->width;
+				//avoid loops
+				dest[i + 0] = LIGHT_LUT[data[0]][light.r];
+				dest[i + 1] = LIGHT_LUT[data[1]][light.g];
+				dest[i + 2] = LIGHT_LUT[data[2]][light.b];
+
+				depth_buffer[index] = depth;
+
+				ty_pos += ty_step;
+				index += image->width;
+			}
 		}
+		else
+		{
+			//set depth and also set image to black
+			for (int y = y1; y < y2; y++)
+			{
+				size_t i = index * 4;
+
+				//avoid loops
+				dest[i + 0] = 0;
+				dest[i + 1] = 0;
+				dest[i + 2] = 0;
+
+				depth_buffer[index] = depth;
+
+				index += image->width;
+			}
+		}	
 	}
+
 }
 
 void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask)
@@ -1402,11 +1404,14 @@ void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, Texture* textur
 		return;
 	}
 
+	const float TEX_HEIGHT_SCALE = 0.35;
+	const float TEX_Y_OFFSET = 28.0 * 0.5;
+
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
 	float tex_cylinder = texture->img.width;
-	float tex_height = texture->img.height * 0.35;
+	float tex_height = texture->img.height * TEX_HEIGHT_SCALE;
 
 	float x_angle = (0.5 - x / (float)image->width) * args->draw_args->tangent * Math_DegToRad(90);
 	float angle = (args->plane_angle + x_angle) * tex_cylinder;
@@ -1416,7 +1421,7 @@ void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, Texture* textur
 	float tex_y_step = args->sky_plane_y_step * tex_height;
 	float tex_y_pos = (float)y1 * tex_y_step;
 
-	tex_y_pos += 28 * 0.5;
+	tex_y_pos += TEX_Y_OFFSET;
 
 	int tex_x = (int)angle & texture->width_mask;
 
@@ -1470,9 +1475,19 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 	y_pos *= 2;
 	y_step *= 2;
 
+	Vec3_u16 extra_light = args->draw_args->extra_light;
+	float depth_scale = (distance * DEPTH_SHADING_SCALE);
+
 	//optimized lightmap only loop
 	if (plane->lightmap && plane->lightmap->data)
 	{
+		if (args->draw_args->extra_light_max > 0)
+		{
+			extra_light.r = Math_Clampl(extra_light.r - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+			extra_light.g = Math_Clampl(extra_light.g - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+			extra_light.b = Math_Clampl(extra_light.b - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+		}
+
 		Sector* sector = args->sector;
 
 		float sector_size_x = sector->bbox[1][0] * 2;
@@ -1555,9 +1570,9 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 			int light_g = Math_lerp(lerp0.g, lerp1.g, ly_frac);
 			int light_b = Math_lerp(lerp0.b, lerp1.b, ly_frac);
 
-			light_r = max(light_r, 0);
-			light_g = max(light_g, 0);
-			light_b = max(light_b, 0);
+			light_r = Math_Clampl(light_r + extra_light.r, 0, MAX_LIGHT_VALUE - 1);
+			light_g = Math_Clampl(light_g + extra_light.g, 0, MAX_LIGHT_VALUE - 1);
+			light_b = Math_Clampl(light_b + extra_light.b, 0, MAX_LIGHT_VALUE - 1);;
 
 			unsigned char* data = Image_GetFast(&texture->img, (int)x_pos & 63, (int)y_pos & 63);
 
@@ -1579,7 +1594,9 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 	}
 	else
 	{
-		int light = Math_Clampl(plane->light - (distance * DEPTH_SHADING_SCALE), 0, 255);
+		int light_r = Math_Clampl((plane->light + extra_light.r) - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+		int light_g = Math_Clampl((plane->light + extra_light.g) - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+		int light_b = Math_Clampl((plane->light + extra_light.b) - depth_scale, 0, MAX_LIGHT_VALUE - 1);
 
 		for (int x = x1; x <= x2; x++)
 		{
@@ -1589,9 +1606,9 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 			size_t i = index * 4;
 
 			//avoid loops
-			dest[i + 0] = LIGHT_LUT[data[0]][light];
-			dest[i + 1] = LIGHT_LUT[data[1]][light];
-			dest[i + 2] = LIGHT_LUT[data[2]][light];
+			dest[i + 0] = LIGHT_LUT[data[0]][light_r];
+			dest[i + 1] = LIGHT_LUT[data[1]][light_g];
+			dest[i + 2] = LIGHT_LUT[data[2]][light_b];
 
 			depth_buffer[index] = distance;
 

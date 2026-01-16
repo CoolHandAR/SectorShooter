@@ -476,6 +476,9 @@ typedef struct
 	RenderData* render_data;
 
 	float* depth_buffer;
+
+	Vec3_u16 extra_light;
+	int extra_light_max;
 } DrawingArgs;
 
 typedef struct
@@ -540,7 +543,7 @@ void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y,
 void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
-void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, int light, int height_mask, Lightmap* lm);
+void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, Vec3_u16 light, int height_mask, Lightmap* lm);
 void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
 void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);
@@ -588,6 +591,7 @@ void Render_FinishAndStall();
 void Render_Resume();
 void Render_QueueFullscreenShader(ShaderFun shader_fun);
 
+void Render_SetExtraLightFrame(Vec3_u16 extra_light);
 void Render_ResizeWindow(int width, int height);
 void Render_View(float x, float y, float z, float angle, float angleCos, float angleSin);
 void Render_GetWindowSize(int* r_width, int* r_height);
@@ -606,7 +610,7 @@ void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int 
 void RenderUtl_DestroyRenderData(RenderData* data);
 bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector);
 void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector);
-void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, bool is_decal);
+void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, Vec3_u16 extra_light, bool is_decal);
 
 void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args);
 void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, LineDrawArgs* args, Image* image);

@@ -440,10 +440,15 @@ void Menu_LevelEnd_Update(float delta, int secret_goal, int secret_max, int mons
 }
 void Menu_LevelEnd_Draw(Image* image, FontData* fd)
 {
+	Render_LockObjectMutex(false);
+
 	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 2, 2);
 
-	Text_DrawColor(image, fd, 0.25, 0.2, 1, 1, 255, 255, 255, 255, "SECRETS %i/%i", (int)menu_core.secret_counter, menu_core.secret_max);
-	Text_DrawColor(image, fd, 0.25, 0.5, 1, 1, 255, 255, 255, 255, "KILLS %i/%i", (int)menu_core.monster_counter, menu_core.monster_max);
+	Text_Draw(image, fd, 0.25, 0.2, 1, 1, 0, image->width, "SECRETS %i/%i", (int)menu_core.secret_counter, menu_core.secret_max);
+	Text_Draw(image, fd, 0.25, 0.5, 1, 1, 0, image->width, "KILLS %i/%i", (int)menu_core.monster_counter, menu_core.monster_max);
+	Text_Draw(image, fd, 0.15, 0.7, 1, 1, 0, image->width, "PRESS ENTER TO CONTINUE");
+
+	Render_UnlockObjectMutex(false);
 }
 
 void Menu_Finale_Update(float delta)
@@ -461,7 +466,7 @@ void Menu_Finale_Draw(Image* image, FontData* fd)
 {
 	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 2, 2);
 
-	Text_DrawColor(image, fd, 0.15, 0.2, 1, 1, 0, image->width, 255, 255, 255, 255, "THE END \n");
-	Text_DrawColor(image, fd, 0.15, 0.5, 1, 1, 0, image->width, 255, 255, 255, 255, "THANKS FOR PLAYING \n");
-	Text_DrawColor(image, fd, 0.15, 0.7, 1, 1, 0, image->width, 255, 255, 255, 255, "PRESS ENTER TO CONTINUE \n");
+	Text_Draw(image, fd, 0.15, 0.2, 1, 1, 0, image->width, "THE END");
+	Text_Draw(image, fd, 0.15, 0.5, 1, 1, 0, image->width, "THANKS FOR PLAYING");
+	Text_Draw(image, fd, 0.15, 0.7, 1, 1, 0, image->width, "PRESS ENTER TO CONTINUE");
 }

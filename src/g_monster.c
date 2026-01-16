@@ -10,6 +10,8 @@
 #define MONSTER_STEP_HEIGHT 64
 #define MONSTER_MELEE_CHECK 45
 #define MONSTER_ANIM_SPEED_SCALE 0.5
+#define MONSTER_WEIGHT_SCALE 500
+#define MONSTER_SUPER_MULTIPLIER 1.5
 #define STUCK_TIMER 2
 
 static int s_SoundPropogationCheck = 0;
@@ -633,7 +635,6 @@ void Monster_Spawn(Object* obj)
 	obj->step_height = MONSTER_STEP_HEIGHT;
 
 	Monster_SetState(obj, MS__IDLE);
-
 }
 
 void Monster_SetState(Object* obj, int state)
@@ -652,6 +653,14 @@ void Monster_SetState(Object* obj, int state)
 
 		//roll
 		MonsterInfo* monster_info = Info_GetMonsterInfo(obj->sub_type);
+
+		float hit_chance = monster_info->hit_chance;
+
+		//reduce hit chance in half if super
+		if (obj->flags & OBJ_FLAG__SUPER_MOB)
+		{
+			hit_chance *= 0.5;
+		}
 
 		if (rand() % 100 > monster_info->hit_chance)
 		{
@@ -793,9 +802,27 @@ void Monster_Imp_FireBall(Object* obj)
 	//play action sound
 	Monster_EmitSound(obj, MSOUND__ATTACK);
 	
-	Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
+	if (obj->flags & OBJ_FLAG__SUPER_MOB)
+	{
+		const float RANDOMNESS = 8.0;
 
-	missile->owner = obj;
+		for (int i = -2; i < 2; i++)
+		{
+			Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
+
+			missile->dir_x += i * (Math_randf() / RANDOMNESS);
+			missile->dir_y += i * (Math_randf() / RANDOMNESS);
+
+			missile->z = (obj->z + 128);
+
+			missile->owner = obj;
+		}
+	}
+	else
+	{
+		Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
+		missile->owner = obj;
+	}
 }
 
 void Monster_Bruiser_FireBall(Object* obj)
@@ -812,7 +839,16 @@ void Monster_Bruiser_FireBall(Object* obj)
 	//play action sound
 	Monster_EmitSound(obj, MSOUND__ATTACK);
 
-	const float RANDOMNESS = 8.0;
+	int iterations = 4;
+	float randomness = 8.0;
+	float z_offset = 100;
+
+	if (obj->flags & OBJ_FLAG__SUPER_MOB)
+	{
+		iterations = 8;
+		randomness *= 2;
+		z_offset = 120;
+	}
 
 	bool vertical = false;
 
@@ -821,17 +857,19 @@ void Monster_Bruiser_FireBall(Object* obj)
 		vertical = true;
 	}
 
-	for (int i = -4; i < 4; i++)
+	for (int i = -iterations; i < iterations; i++)
 	{
 		Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
 		
-		missile->dir_x += i * (Math_randf() / RANDOMNESS);
-		missile->dir_y += i * (Math_randf() / RANDOMNESS);
+		missile->dir_x += i * (Math_randf() / randomness);
+		missile->dir_y += i * (Math_randf() / randomness);
 
 		if (vertical)
 		{
-			missile->dir_z += i * (Math_randf() / RANDOMNESS);
+			missile->dir_z += i * (Math_randf() / randomness);
 		}
+
+		missile->z = obj->z + z_offset;
 
 		missile->owner = obj;
 	}
@@ -851,6 +889,13 @@ void Monster_Melee(Object* obj)
 		return;
 	}
 	MonsterInfo* info = Info_GetMonsterInfo(obj->type);
+
+	float melee_damage = info->melee_damage;
+
+	if (obj->flags & OBJ_FLAG__SUPER_MOB)
+	{
+		melee_damage *= MONSTER_SUPER_MULTIPLIER;
+	}
 
 	if (info->melee_damage <= 0)
 	{
@@ -955,8 +1000,15 @@ void Monster_CheckForPushBack(Object* obj, float delta)
 	{
 		return;
 	}
+
+	float weight = monster_info->weight;
+
+	if (obj->flags & OBJ_FLAG__SUPER_MOB)
+	{
+		weight *= MONSTER_SUPER_MULTIPLIER;
+	}
 	
-	float push_back_speed = delta * (500 / monster_info->weight);
+	float push_back_speed = delta * (MONSTER_WEIGHT_SCALE / monster_info->weight);
 
 	Move_SetPosition(obj, obj->x + (obj->vel_x * push_back_speed), obj->y + (obj->vel_y * push_back_speed), obj->size);
 }
@@ -971,4 +1023,26 @@ void Monster_ApplyPushback(Object* pusher, Object* monster)
 	monster->vel_x = -dx;
 	monster->vel_y = -dy;
 
+}
+
+void Monster_SetAsSuper(Object* obj)
+{
+	if (obj->type != OT__MONSTER || (obj->flags & OBJ_FLAG__SUPER_MOB))
+	{
+		return;
+	}
+
+	obj->flags |= OBJ_FLAG__SUPER_MOB;
+	//almost everything gets multiplied
+
+	obj->hp *= MONSTER_SUPER_MULTIPLIER;
+	obj->size *= MONSTER_SUPER_MULTIPLIER;
+	obj->speed *= MONSTER_SUPER_MULTIPLIER;
+	obj->height *= MONSTER_SUPER_MULTIPLIER;
+	obj->step_height *= MONSTER_SUPER_MULTIPLIER;
+	obj->sprite.scale_x *= MONSTER_SUPER_MULTIPLIER;
+	obj->sprite.scale_y *= MONSTER_SUPER_MULTIPLIER;
+	obj->sprite.offset_x *= MONSTER_SUPER_MULTIPLIER;
+	obj->sprite.offset_y *= MONSTER_SUPER_MULTIPLIER;
+	obj->sprite.offset_z *= MONSTER_SUPER_MULTIPLIER;
 }

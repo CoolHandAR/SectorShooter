@@ -36,6 +36,7 @@
 #define LIGHTMAP_INV_LUXEL_SIZE 1.0 / LIGHTMAP_LUXEL_SIZE
 #define LIGHT_GRID_SIZE 64.0
 #define LIGHT_GRID_Z_SIZE 128.0
+#define LIGHT_GRID_WORLD_BIAS 64.0
 
 static const char SAVEFOLDER[] = { "\\saves" };
 
@@ -55,8 +56,6 @@ typedef enum
 typedef struct
 {
 	GameState state;
-
-	float secret_timer;
 
 	int prev_total_secrets;
 	int prev_total_monsters;
@@ -117,6 +116,7 @@ void Game_SetState(GameState state);
 GameState Game_GetState();
 GameAssets* Game_GetAssets();
 bool Game_ChangeLevel(int level_index);
+void Game_NextLevel();
 void Game_Save(int slot, char desc[32]);
 bool Game_Load(int slot);
 int Game_GetLevelIndex();
@@ -169,7 +169,6 @@ typedef enum
 	OT__PICKUP,
 	OT__MISSILE,
 	OT__TRIGGER,
-	OT__TARGET,
 	OT__DOOR,
 	OT__CRUSHER,
 	OT__LIFT,
@@ -214,10 +213,6 @@ typedef enum
 	SUB__TRIGGER_SWITCH,
 	SUB__TRIGGER_MAX,
 
-	//TARGET
-	SUB__TARGET_TELEPORT,
-	SUB__TARGET_MAX,
-
 	//DOOR
 	SUB__DOOR_VERTICAL,
 	SUB__DOOR_MAX,
@@ -252,6 +247,16 @@ typedef enum
 	SUB__THING_TREE1,
 	SUB__THING_TREE2,
 	SUB__THING_TREE3,
+	SUB__THING_TELEPORTER,
+	SUB__THING_STALAG0,
+	SUB__THING_STALAG1,
+	SUB__THING_STALAG2,
+	SUB__THING_WINTER_TREE0,
+	SUB__THING_WINTER_TREE1,
+	SUB__THING_WINTER_TREE2,
+	SUB__THING_WINTER_TREE3,
+	SUB__THING_ROCK0,
+	SUB__THING_ROCK1,
 	SUB__THING_MAX,
 
 	//LIGHT STROBER
@@ -296,6 +301,7 @@ typedef enum
 	OBJ_FLAG__IGNORE_POSITION_CHECK = 1 << 8,
 	OBJ_FLAG__IGNORE_SOUND = 1 << 9,
 	OBJ_FLAG__FULL_BRIGHT = 1 << 10,
+	OBJ_FLAG__SUPER_MOB = 1 << 11
 } ObjectFlag;
 
 typedef struct
@@ -362,6 +368,7 @@ typedef enum
 	MF__LINE_DONT_PEG_TOP = 8,
 	MF__LINE_DONT_PEG_BOTTOM = 16,
 	MF__LINE_SECRET = 32,
+	MF__LINE_BLOCK_SOUND = 64,
 	MF__LINE_DONT_DRAW = 128,
 	MF__LINE_MAPPED = 256,
 	MF__MAX
@@ -601,10 +608,12 @@ typedef struct
 	float hp_tick_timer;
 	float hit_timer;
 	float use_timer;
+	float shake_timer;
 
 	float bob;
 	float gun_offset_x;
 	float gun_offset_y;
+	float shake_scale;
 
 	float current_speed;
 
@@ -629,7 +638,7 @@ void Player_Update(GLFWwindow* window, float delta);
 void Player_LerpUpdate(double lerp, double delta);
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle);
 void Player_MouseCallback(float x, float y);
-void Player_Draw(Image* image, FontData* font);
+void Player_Draw(Image* image, FontData* font, int start_x, int end_x);
 void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x);
 float Player_GetSensitivity();
 void Player_SetSensitivity(float sens);
@@ -703,6 +712,7 @@ typedef enum
 void Event_TriggerSpecialLine(Object* obj, int side, Linedef* line, EventLineTriggerType trigger_type);
 void Event_CreateExistingSectorObject(int type, int sub_type, int state, float stop_timer, int sector_index);
 
+void Sector_Secret(Sector* sector);
 void Sector_CreateLightStrober(Sector* sector, SubType light_type);
 float Sector_FindHighestNeighbourCeilling(Sector* sector);
 float Sector_FindLowestNeighbourCeilling(Sector* sector);
@@ -736,6 +746,7 @@ void Monster_Melee(Object* obj);
 void Monster_WakeAll(Object* waker);
 void Monster_CheckForPushBack(Object* obj, float delta);
 void Monster_ApplyPushback(Object* pusher, Object* monster);
+void Monster_SetAsSuper(Object* obj);
 
 //Visual map stuff
 void VisualMap_Init();

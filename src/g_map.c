@@ -33,55 +33,6 @@ static void Map_UpdateSortedList()
 	s_map.num_sorted_objects = index;
 }
 
-static void Map_UpdateObjectTilemap()
-{
-	
-}
-static void Map_ConnectTriggersToTargets()
-{
-	for (int i = 0; i < s_map.num_objects; i++)
-	{
-		Object* obj = &s_map.objects[i];
-
-		if (obj->type != OT__TRIGGER)
-		{
-			continue;
-		}
-
-		int target_id = (int)obj->target;
-		obj->target = NULL;
-
-		for (int k = 0; k < s_map.num_objects; k++)
-		{
-			Object* target_obj = &s_map.objects[k];
-
-			if (target_obj->type == OT__TARGET || target_obj->type == OT__DOOR)
-			{
-				
-			}
-		}
-
-		Object* t = obj->target;
-
-		if (t && t->sub_type == SUB__TARGET_TELEPORT)
-		{
-			GameAssets* assets = Game_GetAssets();
-
-			ObjectInfo* object_info = Info_GetObjectInfo(OT__TARGET, SUB__TARGET_TELEPORT);
-
-			obj->sprite.img = &assets->object_textures;
-			obj->sprite.frame_count = object_info->anim_info.frame_count;
-			obj->sprite.anim_speed_scale = object_info->anim_speed;
-			obj->sprite.playing = true;
-			obj->sprite.looping = object_info->anim_info.looping;
-			obj->sprite.offset_x = object_info->sprite_offset_x;
-			obj->sprite.offset_y = object_info->sprite_offset_y;
-			obj->sprite.frame_offset_y = object_info->anim_info.y_offset;
-			obj->sprite.frame_offset_x = object_info->anim_info.x_offset;
-			
-		}
-	}
-}
 static void Map_FreeListStoreID(ObjectID id)
 {
 	if (s_map.num_free_list >= MAX_OBJECTS)
@@ -310,6 +261,8 @@ void Map_UpdateObjects(float delta)
 			Lift_Update(obj, delta);
 			break;
 		}
+		case OT__LIGHT:
+			//fallthrough
 		case OT__SFX_EMITTER:
 		{
 			SFX_Update(obj);
@@ -326,8 +279,6 @@ void Map_UpdateObjects(float delta)
 
 void Map_SmoothUpdate(double lerp, double delta)
 {
-	Render_LockObjectMutex(true);
-
 	for (int i = 0; i < s_map.num_sorted_objects; i++)
 	{
 		ObjectID id = s_map.sorted_list[i];
@@ -377,8 +328,6 @@ void Map_SmoothUpdate(double lerp, double delta)
 			}
 		}
 	}
-
-	Render_UnlockObjectMutex(true);
 }
 
 void Map_DeleteObject(Object* obj)
@@ -522,8 +471,8 @@ void Map_SetupLightGrid(Lightblock* data)
 
 	memset(lightgrid, 0, sizeof(Lightgrid));
 
-	int x_blocks = ceil(s_map.world_size[0] / LIGHT_GRID_SIZE) + 1;
-	int y_blocks = ceil(s_map.world_size[1] / LIGHT_GRID_SIZE) + 1;
+	int x_blocks = ceil((s_map.world_size[0] + LIGHT_GRID_WORLD_BIAS) / LIGHT_GRID_SIZE) + 1;
+	int y_blocks = ceil((s_map.world_size[1] + LIGHT_GRID_WORLD_BIAS) / LIGHT_GRID_SIZE) + 1;
 	int z_blocks = ceil(s_map.world_height / LIGHT_GRID_Z_SIZE) + 1;
 
 	if (data)
@@ -554,9 +503,9 @@ void Map_SetupLightGrid(Lightblock* data)
 
 	for (int i = 0; i < 2; i++)
 	{
-		lightgrid->origin[i] = lightgrid->size[i] * ceil(s_map.world_bounds[0][i] / lightgrid->size[i]);
+		lightgrid->origin[i] = lightgrid->size[i] * ceil((s_map.world_bounds[0][i] - LIGHT_GRID_WORLD_BIAS) / lightgrid->size[i]);
 
-		float maxs = lightgrid->size[i] * floor(s_map.world_bounds[1][i] / lightgrid->size[i]);
+		float maxs = lightgrid->size[i] * floor((s_map.world_bounds[1][i] + LIGHT_GRID_WORLD_BIAS) / lightgrid->size[i]);
 
 		lightgrid->bounds[i] = (maxs - lightgrid->origin[i]) / lightgrid->size[i] + 1;
 	}

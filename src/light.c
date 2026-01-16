@@ -23,16 +23,16 @@
 #define RADIOSITY_TRACE_DIST 1024 
 #define RADIOSITY_SAMPLES 64
 #define RADIOSITY_RADIUS 512
-#define RADIOSITY_ATTENUATION 2
-#define RADIOSITY_SCALE 0.75
+#define RADIOSITY_ATTENUATION 0.25
+#define RADIOSITY_SCALE 2
 
 #define DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SAMPLES 4
-#define SUN_DEVIANCE_SCALE 0.01
+#define SUN_DEVIANCE_SCALE 0.05
 
-#define SKY_SCALE 0.5
+#define SKY_SCALE 0.25
 
-#define LIGHTGRID_RADIOSITY_SCALE 5.0
+#define LIGHTGRID_RADIOSITY_SCALE 2.0
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88
@@ -49,125 +49,8 @@
 #define LINE_TRACE_NORMAL_BIAS 2.1
 
 #define AREA_LIGHT_TILE_SIZE 64.0
-
-#define LIGHTMAP_GAMMA 1.0
-#define LIGHTMAP_EXPOSURE 1.0
-#define LIGHTMAP_COMPNENSTANTE 1.0
-
-static void ClampLightVector(Vec4* v)
-{
-	float luma[4] = { 0.299, 0.587, 0.114, 1};
-	
-	float rgba[4] = { v->r, v->g, v->b, v->a };
-
-	float sat = 1000;
-
-	for (int i = 0; i < 4; i++)
-	{
-		if (rgba[i] > 255)
-		{
-			sat = min(sat, (luma[i] - 255e3) / (luma[i] - rgba[i]));
-		}
-		else if (rgba[i] < 0)
-		{
-			sat = min(sat, luma[i] / (luma[i] - rgba[i]));
-		}
-	}
-	if (sat != 1.0)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			rgba[i] = (rgba[i] - luma[i]) * sat / 1e3 + luma[i];
-
-			rgba[i] = Math_Clamp(rgba[i], 0, 255);
-		}
-	}
-
-	v->r = rgba[0];
-	v->g = rgba[1];
-	v->g = rgba[2];
-	v->a = rgba[3];
-}
-
-static void ClampLightVector3(Vec4* v)
-{
-	double rgba[4] = { v->r, v->g, v->b, v->a };
-	
-	float max_v = max(rgba[0], max(rgba[1], rgba[2]));
-
-	for (int i = 0; i < 4; i++)
-	{
-		if (max_v > 255 && i < 3)
-		{
-			rgba[i] *= (255.0 / max_v);
-		}
-
-		rgba[i] = Math_Clamp(rgba[i], 0, 255);
-	}
-
-	v->r = rgba[0];
-	v->g = rgba[1];
-	v->g = rgba[2];
-	v->a = rgba[3];
-}
-static void ClampLightVector2(Vec4* v)
-{
-	float gamma = 1.0 / LIGHTMAP_GAMMA;
-	double rgba[4] = { v->r, v->g, v->b, v->a };
-
-	for (int i = 0; i < 3; i++)
-	{
-		if (rgba[i] < 0)
-		{
-			rgba[i] = 0;
-			continue;
-		}
-		rgba[i] = pow(rgba[i] / 255.0, gamma) * 255.0;
-	}
-	float expv = LIGHTMAP_EXPOSURE;
-	if (expv > 0)
-	{
-		float exposure = 1.0 / (float)expv;
-		float max_v = max(rgba[0], max(rgba[1], rgba[2]));
-		float dif = (1.0 - exp(-max_v * exposure)) * 255.0;
-		if (max_v > 0)
-		{
-			dif /= max_v;
-		}
-		else
-		{
-			dif = 0;
-		}
-
-		for (int i = 0; i < 4; i++)
-		{
-			rgba[i] *= dif;
-		}
-	}
-	else
-	{
-		float max_v = max(rgba[0], max(rgba[1], rgba[2]));
-
-		if (max_v > 255)
-		{
-			for (int i = 0; i < 3; i++)
-			{
-				rgba[i] *= 255.0 / max_v;
-			}
-		}
-	}
-
-	for (int i = 0; i < 4; i++)
-	{
-		rgba[i] = Math_Clamp(rgba[i], 0, 255);
-	}
-
-
-	v->r = rgba[0];
-	v->g = rgba[1];
-	v->g = rgba[2];
-	v->a = rgba[3];
-}
+#define AREA_LIGHT_RADIUS 512.0
+#define AREA_LIGHT_ATTENUATION 1.0
 
 static void BiasPositionToSample(float position[3], float normal[3], float dir[3], float dest[3], float bias, float normal_bias)
 {
@@ -359,13 +242,13 @@ static void LightGlobal_AddSectorAreaLight(LightGlobal* global, Sector* sector)
 				lightdef->color[0] = light_color;
 				lightdef->color[1] = light_color;
 				lightdef->color[2] = light_color;
-				lightdef->attenuation = 1;
+				lightdef->attenuation = AREA_LIGHT_ATTENUATION;
 				lightdef->direction[0] = 0;
 				lightdef->direction[1] = 0;
 				lightdef->direction[2] = (is_ceil) ? -1 : 1;
 				lightdef->deviance = 1;
 				lightdef->type = LDT__AREA;
-				lightdef->radius = 512;
+				lightdef->radius = AREA_LIGHT_RADIUS;
 				lightdef->position[0] = position[0] + lightdef->direction[0];
 				lightdef->position[1] = position[1] + lightdef->direction[1];
 				lightdef->position[2] = light_def_z + lightdef->direction[2];
@@ -484,13 +367,13 @@ static void LightGlobal_AddLinedefAreaLight(LightGlobal* global, Linedef* line)
 			lightdef->color[0] = light_color;
 			lightdef->color[1] = light_color;
 			lightdef->color[2] = light_color;
-			lightdef->attenuation = 1;
+			lightdef->attenuation = AREA_LIGHT_ATTENUATION;
 			lightdef->direction[0] = normal[0];
 			lightdef->direction[1] = normal[1];
 			lightdef->direction[2] = normal[2];
 			lightdef->deviance = 1;
 			lightdef->type = LDT__AREA;
-			lightdef->radius = 512;
+			lightdef->radius = AREA_LIGHT_RADIUS;
 			lightdef->position[0] = position[0] + lightdef->direction[0];
 			lightdef->position[1] = position[1] + lightdef->direction[1];
 			lightdef->position[2] = position[2] + lightdef->direction[2];
@@ -1029,7 +912,7 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 	}
 	
 	unsigned char* texture_sample = NULL;
-	Vec4_u8* light_sample = NULL;
+	Vec4* light_sample = NULL;
 	
 	float open_low = frontsector->floor;
 	float open_high = frontsector->ceil;
@@ -1067,15 +950,18 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 		{
 			Lightmap* lightmap = &global->ceil_back_lightmaps[frontsector->index];
 
-			if (lightmap->data && !frontsector->is_sky)
+			if (lightmap->float_data && !frontsector->is_sky)
 			{
-				int lx = ((result->hit[0] - (frontsector->bbox[1][0] * 2)) / LIGHTMAP_LUXEL_SIZE) + lightmap->width;
-				int ly = ((result->hit[1] + (frontsector->bbox[1][1] * 2)) / LIGHTMAP_LUXEL_SIZE);
+				float hit_x = result->hit[0] * 2.0;
+				float hit_y = result->hit[1] * 2.0;
+
+				int lx = ((hit_x - (frontsector->bbox[1][0] * 2)) / LIGHTMAP_LUXEL_SIZE) + lightmap->width;
+				int ly = ((hit_y + (frontsector->bbox[1][1] * 2)) / LIGHTMAP_LUXEL_SIZE);
 
 				lx = Math_Clamp(lx, 0, lightmap->width - 1);
 				ly = Math_Clamp(ly, 0, lightmap->height - 1);
 
-				light_sample = &lightmap->data[lx + ly * lightmap->width];
+				light_sample = &lightmap->float_data[lx + ly * lightmap->width];
 			}
 			if (frontsector->ceil_texture)
 			{
@@ -1104,15 +990,18 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 		{
 			Lightmap* lightmap = &global->floor_back_lightmaps[frontsector->index];
 
-			if (lightmap->data)
+			if (lightmap->float_data)
 			{
-				int lx = ((result->hit[0] - (frontsector->bbox[1][0] * 2)) / LIGHTMAP_LUXEL_SIZE) + lightmap->width;
-				int ly = ((result->hit[1] + (frontsector->bbox[1][1] * 2)) / LIGHTMAP_LUXEL_SIZE);
+				float hit_x = result->hit[0] * 2.0;
+				float hit_y = result->hit[1] * 2.0;
+
+				int lx = ((hit_x - (frontsector->bbox[1][0] * 2)) / LIGHTMAP_LUXEL_SIZE) + lightmap->width;
+				int ly = ((hit_y + (frontsector->bbox[1][1] * 2)) / LIGHTMAP_LUXEL_SIZE);
 
 				lx = Math_Clamp(lx, 0, lightmap->width - 1);
 				ly = Math_Clamp(ly, 0, lightmap->height - 1);
 
-				light_sample = &lightmap->data[lx + ly * lightmap->width];
+				light_sample = &lightmap->float_data[lx + ly * lightmap->width];
 			}
 			if (frontsector->floor_texture)
 			{
@@ -1210,7 +1099,10 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 
 				if (lightmap->data)
 				{
-					light_sample = Lightmap_Get(lightmap, tx / LIGHTMAP_LUXEL_SIZE, ty / LIGHTMAP_LUXEL_SIZE);
+					int lx = Math_Clamp(tx / LIGHTMAP_LUXEL_SIZE, 0, lightmap->width - 1);
+					int ly = Math_Clamp(ty / LIGHTMAP_LUXEL_SIZE, 0, lightmap->height - 1);
+
+					light_sample = &lightmap->float_data[lx + ly * lightmap->width];
 				}
 			}
 		}
@@ -1390,6 +1282,40 @@ static void Lightmap_ConvertFloatingToShort(Lightmap* lm)
 		return;
 	}
 
+	Vec4* cast_data = lm->float_data;
+
+	//check if each luxel is completely back
+	bool all_black = true;
+
+	for (int x = 0; x < lm->width; x++)
+	{
+		for (int y = 0; y < lm->height; y++)
+		{
+			Vec4 sample = cast_data[x + y * lm->width];
+
+			float max_light = max(sample.r, max(sample.g, sample.b));
+
+			if (max_light > 0)
+			{
+				all_black = false;
+				break;
+			}
+		}
+	}
+
+	if (all_black)
+	{
+		if (lm->data)
+		{
+			free(lm->data);
+		}
+		lm->width = 0;
+		lm->height = 0;
+		lm->data = NULL;
+		return;
+	}
+
+
 	Vec3_u16* bytes = calloc(lm->width * lm->height, sizeof(Vec3_u16));
 
 	if (!bytes)
@@ -1397,7 +1323,6 @@ static void Lightmap_ConvertFloatingToShort(Lightmap* lm)
 		return;
 	}
 	
-	Vec4* cast_data = lm->float_data;
 
 	//for each luxel
 	for (int x = 0; x < lm->width; x++)
@@ -1805,27 +1730,13 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 			float light_dir[3] = { light_trace_pos[0] - target_pos[0], light_trace_pos[1] - target_pos[1], light_trace_pos[2] - target_pos[2] };
 			Math_XYZ_Normalize(&light_dir[0], &light_dir[1], &light_dir[2]);
 
-			if (light->type == LDT__SUN)
+			if (surf_type == LST__WALL)
 			{
-				if (surf_type == LST__WALL)
-				{
-					BiasPositionToSample(target_pos, normal, light_dir, target_pos, LINE_TRACE_BIAS, 64);
-				}
-				else if (surf_type == LST__FLOOR || surf_type == LST__CEIL)
-				{
-					BiasPositionToSample(target_pos, normal, light_dir, target_pos, -3, 3);
-				}
+				BiasPositionToSample(target_pos, normal, light_dir, target_pos, LINE_TRACE_BIAS, LINE_TRACE_NORMAL_BIAS);
 			}
-			else
+			else if (surf_type == LST__FLOOR || surf_type == LST__CEIL)
 			{
-				if (surf_type == LST__WALL)
-				{
-					BiasPositionToSample(target_pos, normal, light_dir, target_pos, LINE_TRACE_BIAS, LINE_TRACE_NORMAL_BIAS);
-				}
-				else if (surf_type == LST__FLOOR || surf_type == LST__CEIL)
-				{
-					BiasPositionToSample(target_pos, normal, light_dir, target_pos, FLOOR_CEILING_TRACE_BIAS, FLOOR_CEILING_TRACE_NORMAL_BIAS);
-				}
+				BiasPositionToSample(target_pos, normal, light_dir, target_pos, FLOOR_CEILING_TRACE_BIAS, FLOOR_CEILING_TRACE_NORMAL_BIAS);
 			}
 		}
 
@@ -1844,24 +1755,6 @@ static Vec4 Lightmap_CalcDirectLight(LightGlobal* global, LightTraceThread* thre
 			//we don't care if we hit the sky
 			if (trace_result.hit_type != LST__SKY)
 			{
-				if (light->type == LDT__SUN)
-				{
-					//tracing to wall
-					if (target_line)
-					{
-						//we did not the target
-						if (trace_result.linedef != target_line)
-						{
-							continue;
-						}
-					}
-					else
-					{
-						continue;
-					}
-					
-				}
-
 				//tracing to wall
 				if (target_line)
 				{
@@ -1993,9 +1886,9 @@ static Vec4 Lightmap_CalcRadiosity(LightGlobal* global, LightTraceThread* thread
 					float norm_light_a = max_light / 255.0;
 
 					Vec4 trace_light = Vec4_Zero();
-					trace_light.r = trace.color_sample.r * norm_light_r * atten;
-					trace_light.g = trace.color_sample.g * norm_light_g * atten;
-					trace_light.b = trace.color_sample.b * norm_light_b * atten;
+					trace_light.r = (trace.color_sample.r * norm_light_r) * atten;
+					trace_light.g = (trace.color_sample.g * norm_light_g) * atten;
+					trace_light.b = (trace.color_sample.b * norm_light_b) * atten;
 					trace_light.a = (trace.light_sample.a);
 
 					Vec4_Add(&total_light, trace_light);
@@ -2324,7 +2217,7 @@ static void Lightmap_LinePass(LightGlobal* global, LightTraceThread* thread, Lin
 			if (backsector)
 			{
 				//skip empty spaces
-				if (position[2] > open_low && position[2] < open_high)
+				if (position[2] < open_low && position[2] > open_high)
 				{
 					position[2] += z_step;
 					continue;

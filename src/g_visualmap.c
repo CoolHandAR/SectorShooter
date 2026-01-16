@@ -1,6 +1,7 @@
 #include "g_common.h"
 
 #include "u_math.h"
+#include "game_info.h"
 
 #define MAX_ITEMS 2000
 #define MANUAL_MOVE_SPEED 500
@@ -271,7 +272,8 @@ void VisualMap_Draw(Image* image, FontData* font)
 
 			if (backsector && !(line->flags & MF__LINE_SECRET))
 			{
-				if (line->special == 1 || line->special == 62)
+				if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE || line->special == SPECIAL__USE_LIFT || 
+					line->special == SPECIAL__TRIGGER_TELEPORT || line->special == SPECIAL__TRIGGER_EXIT)
 				{
 					for (int k = 0; k < 3; k++)
 					{

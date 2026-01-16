@@ -138,6 +138,7 @@ typedef enum
 	SOUND__DESERT_WIND,
 	SOUND__TEMPLE_AMBIENCE,
 	SOUND__JUNGLE_AMBIENCE,
+	SOUND__FIRE,
 
 	SOUND__MAX
 } SoundType;
@@ -241,7 +242,10 @@ static const char* SOUND_INFO[SOUND__MAX] =
 	"assets/sfx/temple_ambience.mp3",
 
 	//JUNGLE AMBIENCE
-	"assets/sfx/jungle_ambience.mp3"
+	"assets/sfx/jungle_ambience.mp3",
+
+	//FIRE
+	"assets/sfx/fire.wav"
 };
 
 
@@ -254,6 +258,10 @@ typedef struct
 	float screen_x;
 	float screen_y;
 	float scale;
+	int light_frame;
+	float light_color[3];
+	float shake_scale;
+	float shake_time;
 } GunInfo;
 
 typedef struct
@@ -311,8 +319,8 @@ typedef struct
 #define PICKUP_SHOTGUN_AMMO_GIVE 12
 #define PICKUP_MACHINEGUN_AMMO_GIVE 50
 #define PICKUP_DEVASTATOR_AMMO_GIVE 12
-#define PICKUP_INVUNERABILITY_TIME 15
-#define PICKUP_QUAD_TIME 15
+#define PICKUP_INVUNERABILITY_TIME 10
+#define PICKUP_QUAD_TIME 8
 
 GunInfo* Info_GetGunInfo(int type);
 MonsterInfo* Info_GetMonsterInfo(int type);
@@ -342,7 +350,7 @@ static const char* SKIES[] =
 	"SKY3",
 	"SKY3",
 	"SKY4",
-	"SKY3",
+	"SKY6",
 	"SKY3",
 };
 
@@ -356,7 +364,8 @@ typedef enum
 
 	SPECIAL__TRIGGER_EXIT = 11,
 	SPECIAL__TRIGGER_DOOR_NEVER_CLOSE = 29,
-	SPECIAL__TRIGGER_CRUSHER = 49, 
+	SPECIAL__TRIGGER_CRUSHER = 49,
+	SPECIAL__TRIGGER_TELEPORT = 97,
 	SPECIAL__WALL_AREA_LIGHT = 138
 } SpecialType;
 typedef enum
@@ -364,6 +373,7 @@ typedef enum
 	SECTOR_SPECIAL__NONE,
 	SECTOR_SPECIAL__LIGHT_FLICKER = 1,
 	SECTOR_SPECIAL__LIGHT_GLOW = 8,
+	SECTOR_SPECIAL__SECRET = 9,
 	SECTOR_SPECIAL__LIGHT_AREA = 21,
 } SectorSpecialType;
 

@@ -25,6 +25,19 @@ static Sector* Sector_GetLineOtherSector(Linedef* line, int sector_index)
 	return Map_GetSector(line->front_sector);
 }
 
+void Sector_Secret(Sector* sector)
+{
+	if (sector->special != SECTOR_SPECIAL__SECRET)
+	{
+		return;
+	}
+
+	//remove the special secret
+	sector->special = 0;
+
+	Game_SecretFound();
+}
+
 void Sector_CreateLightStrober(Sector* sector, SubType light_type)
 {
 	//already has object associated with it

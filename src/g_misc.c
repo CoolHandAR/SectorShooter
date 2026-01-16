@@ -22,12 +22,6 @@ void Particle_Update(Object* obj, float delta)
 	}
 	case SUB__PARTICLE_BLOOD_EXPLOSION:
 	{
-		//obj->vel_x += obj->dir_x * delta * 16;
-		//obj->vel_y += obj->dir_y * delta * 16;
-		//obj->vel_z += obj->dir_z * delta * 16;
-
-		//Move_SetPosition(obj, obj->x + obj->dir_x * delta * 32, obj->y + obj->dir_y * delta * 32, obj->size);
-		//Move_ZMove(obj, obj->dir_z * delta * 32);
 		break;
 	}
 	default:
@@ -150,7 +144,7 @@ void SFX_Update(Object* obj)
 {
 	Object* player = Player_GetObj();
 
-	if (!player)
+	if (!player || obj->sound_id <= 0)
 	{
 		return;
 	}

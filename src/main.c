@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stb_image/stb_image.h>
 
 #include "g_common.h"
 #include "r_common.h"
@@ -20,7 +21,7 @@
 #define WINDOW_SCALE 3
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 360
-#define WINDOW_NAME "FPS_GAME"
+#define WINDOW_NAME "SECTOR_SHOOTER"
 
 #define MAX_STEPS 8
 #define TICKS_PER_SECOND 60.0
@@ -39,6 +40,22 @@ static const double MIN_DT = 1.0 / 1000000.0;
 static const double TIME_STEP = 1.0 / TICKS_PER_SECOND;
 
 extern void Render_WindowCallback(GLFWwindow* window, int width, int height);
+
+static void LoadExeIcon(GLFWwindow* window)
+{
+	GLFWimage image[1];
+
+	image[0].pixels = stbi_load("icon.png", &image[0].width, &image[0].height, 0, 4);
+
+	if (!image[0].pixels)
+	{
+		printf("Failed to load exe icon\n");
+		return;
+	}
+
+	glfwSetWindowIcon(window, 1, image);
+	stbi_image_free(image[0].pixels);
+}
 
 static void MouseCallback(GLFWwindow* window, double x, double y)
 {
@@ -248,9 +265,7 @@ int main()
 		return -1;
 	}
 
-	double lastTime = 0;
-	double currentTime = 0;
-	double accumulator = 0;
+	LoadExeIcon(s_engine.window);
 
 	s_engine.time_scale = 1.0;
 
@@ -263,6 +278,10 @@ int main()
 	Engine_LoadCfg("config.cfg");
 
 	//Render_ToggleFullscreen();
+
+	double lastTime = 0;
+	double currentTime = 0;
+	double accumulator = 0;
 
 	//MAIN LOOP
 	while (!glfwWindowShouldClose(s_engine.window) && Game_GetState() != GS__EXIT)

@@ -108,7 +108,7 @@ bool Game_LoadAssets()
 	strcpy(assets.missing_texture.name, "MISS");
 
 	assets.object_textures.h_frames = 4;
-	assets.object_textures.v_frames = 14;
+	assets.object_textures.v_frames = 19;
 
 	assets.shotgun_texture.h_frames = 18;
 	assets.shotgun_texture.v_frames = 1;
@@ -226,7 +226,6 @@ void Game_LogicUpdate(double delta)
 		Player_Update(window, delta);
 		Map_UpdateObjects(delta);
 
-		if (game.secret_timer > 0) game.secret_timer -= delta;
 		break;
 	}
 	case GS__LEVEL_END:
@@ -263,8 +262,12 @@ void Game_SmoothUpdate(double lerp, double delta)
 			break;
 		}
 
+		Render_LockObjectMutex(true);
+
 		Player_LerpUpdate(lerp, delta);
 		Map_SmoothUpdate(lerp, delta);
+
+		Render_UnlockObjectMutex(true);
 
 		VisualMap_Update(window, delta);
 		break;
@@ -299,11 +302,7 @@ void Game_Draw(Image* image, FontData* fd)
 		{
 			break;
 		}
-		//level rendering and sprite renddering is handled by the renderer
-
-		//just shader dispatches
-		Player_Draw(image, fd);
-
+		//level rendering and sprite rendering is handled by the renderer
 		VisualMap_Draw(image, fd);
 
 		break;
@@ -336,6 +335,10 @@ void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x)
 
 		//draw player stuff (gun and hud)
 		Player_DrawHud(image, fd, start_x, end_x);
+
+		//shader stuff
+		Player_Draw(image, fd, start_x, end_x);
+
 		break;
 	}
 	default:
@@ -412,6 +415,12 @@ bool Game_ChangeLevel(int level_index)
 		printf("Num Linedefs: %i, Num Sectors %i, Num Objects %i \n", map->num_linedefs, map->num_sectors, map->num_objects);
 
 		Player_Init(false);
+
+		if (level_index != START_LEVEL)
+		{
+			Game_SetState(GS__LEVEL_END);
+		}
+		
 	}
 
 	game.level_index = level_index;
@@ -420,6 +429,11 @@ bool Game_ChangeLevel(int level_index)
 	Render_Resume();
 
 	return true;
+}
+
+void Game_NextLevel()
+{
+	Game_ChangeLevel(game.level_index + 1);
 }
 
 void Game_Save(int slot, char desc[32])
@@ -501,9 +515,10 @@ void Game_Reset(bool to_start)
 
 void Game_SecretFound()
 {
-	Sound_Emit(SOUND__SECRET_FOUND, 0.25);
+	Sound_Emit(SOUND__SECRET_FOUND, 0.025);
+	
+	Game_SetStatusMessage("SECRET FOUND!");
 
-	game.secret_timer = 1;
 	game.secrets_found++;
 }
 

@@ -3,6 +3,8 @@
 #include "u_math.h"
 #include "main.h"
 
+#include "game_info.h"
+
 #define MAX_BUMPS 5
 #define MAX_CLIP_OBJECTS 4
 
@@ -33,7 +35,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 
 	float time_left = 1;
 
-	Line start_vel_line;
+	Linedef start_vel_line;
 	Move_CreateClipLine(obj->x, obj->y, p_moveX, p_moveY, &start_vel_line);
 
 	//clip_hits[num_clips++] = &start_vel_line;
@@ -201,8 +203,6 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 			trail_y = obj->y + obj->size;
 		}
 
-		Linedef vel_line;
-
 		float best_frac = 1.01;
 		int hit = TRACE_NO_HIT;
 
@@ -215,26 +215,22 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 			hit = hit0;
 		}
 
-		if (hit0 != TRACE_NO_HIT)
+		float frac1 = best_frac;
+		int hit1 = Trace_FindSlideHit(obj, trail_x, lead_y, trail_x + p_moveX, lead_y + p_moveY, obj->size, &frac1);
+		if (frac1 < best_frac && hit1 != TRACE_NO_HIT)
 		{
-			float frac1 = best_frac;
-			int hit1 = Trace_FindSlideHit(obj, trail_x, lead_y, trail_x + p_moveX, lead_y + p_moveY, obj->size, &frac1);
-			if (frac1 < best_frac && hit1 != TRACE_NO_HIT)
-			{
-				best_frac = frac1;
-				hit = hit1;
-			}
-			if (hit1 != TRACE_NO_HIT)
-			{
-				float frac2 = best_frac;
-				int hit2 = Trace_FindSlideHit(obj, lead_x, trail_y, lead_x + p_moveX, trail_y + p_moveY, obj->size, &frac2);
-				if (frac2 < best_frac && hit2 != TRACE_NO_HIT)
-				{
-					best_frac = frac2;
-					hit = hit2;
-				}
-			}
+			best_frac = frac1;
+			hit = hit1;
 		}
+
+		float frac2 = best_frac;
+		int hit2 = Trace_FindSlideHit(obj, lead_x, trail_y, lead_x + p_moveX, trail_y + p_moveY, obj->size, &frac2);
+		if (frac2 < best_frac && hit2 != TRACE_NO_HIT)
+		{
+			best_frac = frac2;
+			hit = hit2;
+		}
+		
 
 		if (hit == TRACE_NO_HIT || best_frac >= 1)
 		{
@@ -246,7 +242,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 					{
 						if (Move_SetPosition(obj, obj->x, obj->y + p_moveY, obj->size))
 						{
-							continue;
+							return true;
 						}
 					}
 				}
@@ -256,7 +252,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 					{
 						if (Move_SetPosition(obj, obj->x + p_moveX, obj->y, obj->size))
 						{
-							continue;
+							return true;
 						}
 					}
 				}
@@ -280,6 +276,9 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 
 		if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
 		{
+			obj->vel_x = p_moveX;
+			obj->vel_y = p_moveY;
+
 			return true;
 		}
 	}
@@ -366,20 +365,19 @@ bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sector
 	
 	bool on_ground = (obj->z <= floor);
 
-	float old_z = obj->z;
+	float next_z = obj->z;
 
-	if (obj->z <= new_sector->floor)
+	if (next_z <= new_sector->floor)
 	{
-		//obj->z = new_sector->floor;
+		next_z = new_sector->floor;
 	}
-	if (obj->z + obj->height > new_sector->ceil)
+	if (next_z + obj->height > new_sector->ceil)
 	{
-		//obj->z = new_sector->ceil - obj->height;
+		next_z = new_sector->ceil - obj->height;
 	}
 
 	if (!Trace_CheckBoxPosition(obj, x, y, size, &floor, &ceil, &low_floor))
 	{
-		obj->z = old_z;
 		return false;
 	}
 
@@ -388,29 +386,25 @@ bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sector
 	//can't fit in gap
 	if (range < obj->height)
 	{
-		obj->z = old_z;
 		return false;
 	}
 	//you will bonk your head
-	if (ceil - obj->z < obj->height)
+	if (ceil - next_z < obj->height)
 	{
-		obj->z = old_z;
 		return false;
 	}
 	if (obj->type == OT__MISSILE)
 	{
-		if (floor - obj->z > obj->height)
+		if (floor - next_z > obj->height)
 		{
-			obj->z = old_z;
 			return false;
 		}
 	}
 	else
 	{
 		//you are too short for stepping over
-		if (floor - obj->z > obj->step_height)
+		if (floor - next_z > obj->step_height)
 		{
-			obj->z = old_z;
 			return false;
 		}
 		//too big of a fall
@@ -418,7 +412,6 @@ bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sector
 		{
 			if ((floor - low_floor) > obj->step_height)
 			{
-				obj->z = old_z;
 				return false;
 			}
 		}
@@ -428,14 +421,14 @@ bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sector
 	if (r_floorZ) *r_floorZ = floor;
 	if (r_ceilZ) *r_ceilZ = ceil;
 
-	obj->z = old_z;
-
 	return true;
 }
 bool Move_SetPosition(Object* obj, float x, float y, float size)
 {
 	obj->prev_x = obj->x;
 	obj->prev_y = obj->y;
+
+	bool sector_changed = false;
 
 	int new_sector_index = -1;
 
@@ -493,6 +486,8 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 		Object_LinkSector(obj);
 
 		Render_UnlockObjectMutex(true);
+
+		sector_changed = true;
 	}
 	
 	//update light
@@ -512,7 +507,7 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 		BVH_Tree_UpdateBounds(&map->spatial_tree, obj->spatial_id, box);
 	}
 
-	//trigger any special lines
+	//trigger any special lines and check for sector specials
 	if (obj->type == OT__PLAYER)
 	{
 		Map* map = Map_GetMap();
@@ -541,6 +536,19 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 			if (old_side != new_side)
 			{
 				Event_TriggerSpecialLine(obj, old_side, line, EVENT_TRIGGER__LINE_WALK_OVER);
+			}
+		}
+
+		if (sector_changed && obj->sector_index >= 0) 
+		{
+			Sector* sector = Map_GetSector(obj->sector_index);
+
+			if (sector)
+			{
+				if (sector->special == SECTOR_SPECIAL__SECRET)
+				{
+					Sector_Secret(sector);
+				}
 			}
 		}
 	}
@@ -638,9 +646,23 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 
 bool Move_Teleport(Object* obj, float x, float y)
 {
+	//failed to teleport
+	if (!Move_SetPosition(obj, x, y, obj->size))
+	{
+		return false;
+	}
 
+	//just snap to floor
+	Move_ZMove(obj, -1000);
 
-	return false;
+	//remove any velocity
+	obj->vel_x = 0;
+	obj->vel_y = 0;
+	obj->vel_z = 0;
+
+	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.25);
+
+	return true;
 }
 bool Move_Unstuck(Object* obj)
 {
