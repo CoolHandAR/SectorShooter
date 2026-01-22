@@ -1,7 +1,11 @@
+#ifndef LIGHT_H
+#define LIGHT_H
 #pragma once
+
+#include <Windows.h>
+
 #include "g_common.h"
 #include "dynamic_array.h"
-#include <Windows.h>
 
 #define LIGHTTRACE_MAX_HITS 100000
 
@@ -77,6 +81,8 @@ typedef struct
 
 typedef struct
 {
+	float sky_scale;
+
 	LightDef* sun_lightdef;
 
 	float* random_vectors;
@@ -119,9 +125,12 @@ typedef struct
 
 	int bounce;
 } LightGlobal;
-void LightGlobal_Setup(struct LightGlobal* global);
+
+void LightGlobal_Setup(struct LightGlobal* global, struct LightCompilerInfo* compiler_info);
 void LightGlobal_Destruct(struct LightGlobal* global);
 void Lightmap_Create(struct LightGlobal* global, Map* map);
 void Lightblocks_Create(struct LightGlobal* global, Map* map);
 void Lightmap_Sector(LightGlobal* global, LightTraceThread* thread, Sector* sector, int bounce);
 void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3]);
+
+#endif // !LIGHT_H

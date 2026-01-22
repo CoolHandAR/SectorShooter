@@ -1,11 +1,12 @@
 #include "g_common.h"
 
+#include <stdio.h>
+
 #include "game_info.h"
 #include "main.h"
 #include "sound.h"
-#include <stdio.h>
 
-#define START_LEVEL 7
+#define START_LEVEL 8
 
 static Game game;
 static GameAssets assets;
@@ -108,7 +109,7 @@ bool Game_LoadAssets()
 	strcpy(assets.missing_texture.name, "MISS");
 
 	assets.object_textures.h_frames = 4;
-	assets.object_textures.v_frames = 19;
+	assets.object_textures.v_frames = 22;
 
 	assets.shotgun_texture.h_frames = 18;
 	assets.shotgun_texture.v_frames = 1;
@@ -135,10 +136,10 @@ bool Game_LoadAssets()
 	assets.bruiser_texture.v_frames = 7;
 
 	assets.particle_textures.h_frames = 4;
-	assets.particle_textures.v_frames = 5;
+	assets.particle_textures.v_frames = 7;
 
 	assets.decal_textures.h_frames = 5;
-	assets.decal_textures.v_frames = 2;
+	assets.decal_textures.v_frames = 3;
 
 	Image_GenerateFrameInfo(&assets.object_textures);
 	Image_GenerateFrameInfo(&assets.shotgun_texture);
@@ -187,6 +188,14 @@ void Game_DestructAssets()
 		Image_Destruct(&t->img);
 	}
 	if (assets.patchy_textures) free(assets.patchy_textures);
+
+	for (int i = 0; i < assets.num_png_texures; i++)
+	{
+		Texture* t = &assets.png_textures[i];
+
+		Image_Destruct(&t->img);
+	}
+	if (assets.png_textures) free(assets.png_textures);
 }
 
 void Game_NewTick()
@@ -219,7 +228,7 @@ void Game_LogicUpdate(double delta)
 		//no map loaded? load the first map
 		if (game.level_index < 0)
 		{
-			Game_ChangeLevel(START_LEVEL);
+			Game_ChangeLevel(START_LEVEL, false);
 			break;
 		}
 
@@ -258,7 +267,7 @@ void Game_SmoothUpdate(double lerp, double delta)
 		//no map loaded? load the first map
 		if (game.level_index < 0)
 		{
-			Game_ChangeLevel(START_LEVEL);
+			Game_ChangeLevel(START_LEVEL, false);
 			break;
 		}
 
@@ -333,11 +342,8 @@ void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x)
 			break;
 		}
 
-		//draw player stuff (gun and hud)
+		//draw player stuff (gun and hud) and some shader stuff
 		Player_DrawHud(image, fd, start_x, end_x);
-
-		//shader stuff
-		Player_Draw(image, fd, start_x, end_x);
 
 		break;
 	}
@@ -370,7 +376,7 @@ GameAssets* Game_GetAssets()
 	return &assets;
 }
 
-bool Game_ChangeLevel(int level_index)
+bool Game_ChangeLevel(int level_index, bool player_keep_stuff)
 {
 	//stall render threads
 	Render_FinishAndStall();
@@ -402,10 +408,11 @@ bool Game_ChangeLevel(int level_index)
 
 		const char* level = LEVELS[level_index];
 		const char* sky = SKIES[level_index];
+		LightCompilerInfo* lci = Info_GetLightCompilerInfo(level_index);
 
 		printf("Setting Level to %s\n", level);
 
-		if (!Map_Load(level, sky))
+		if (!Map_Load(level, sky, lci))
 		{
 			Render_Resume();
 			return false;
@@ -414,13 +421,8 @@ bool Game_ChangeLevel(int level_index)
 		Map* map = Map_GetMap();
 		printf("Num Linedefs: %i, Num Sectors %i, Num Objects %i \n", map->num_linedefs, map->num_sectors, map->num_objects);
 
-		Player_Init(false);
+		Player_Init(player_keep_stuff);
 
-		if (level_index != START_LEVEL)
-		{
-			Game_SetState(GS__LEVEL_END);
-		}
-		
 	}
 
 	game.level_index = level_index;
@@ -433,7 +435,8 @@ bool Game_ChangeLevel(int level_index)
 
 void Game_NextLevel()
 {
-	Game_ChangeLevel(game.level_index + 1);
+	Game_ChangeLevel(game.level_index + 1, true);
+	Game_SetState(GS__LEVEL_END);
 }
 
 void Game_Save(int slot, char desc[32])
@@ -510,7 +513,7 @@ void Game_Reset(bool to_start)
 		index = 0;
 	}
 
-	Game_ChangeLevel(index);
+	Game_ChangeLevel(index, false);
 }
 
 void Game_SecretFound()
@@ -551,6 +554,17 @@ Texture* Game_FindTextureByName(const char p_name[8])
 	for (int i = 0; i < assets.num_patchy_textures; i++)
 	{
 		Texture* texture = &assets.patchy_textures[i];
+
+		if (!_stricmp(texture->name, name))
+		{
+			return texture;
+		}
+	}
+
+	//look for png textures
+	for (int i = 0; i < assets.num_png_texures; i++)
+	{
+		Texture* texture = &assets.png_textures[i];
 
 		if (!_stricmp(texture->name, name))
 		{

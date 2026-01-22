@@ -5,7 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
-#include <cjson/cJSON.h>
+
 #include "u_math.h"
 #include "game_info.h"
 #include "main.h"
@@ -73,6 +73,8 @@ Object* Map_NewObject(ObjectType type)
 
 	if (index < 0)
 	{
+		printf("Can't create new Object\n");
+
 		return NULL;
 	}
 
@@ -110,8 +112,10 @@ bool Map_LoadFromIndex(int index)
 	{
 		index = 0;
 	}
+	
+	LightCompilerInfo* lci = Info_GetLightCompilerInfo(index);
 
-	if (!Map_Load(LEVELS[index], SKIES[index]))
+	if (!Map_Load(LEVELS[index], SKIES[index], lci))
 	{
 		return false;
 	}
@@ -120,13 +124,11 @@ bool Map_LoadFromIndex(int index)
 	return true;
 }
 
-bool Map_Load(const char* filename, const char* skyname)
+bool Map_Load(const char* filename, const char* skyname, LightCompilerInfo* light_compiler_info)
 {
 	Map_Destruct();
 
-	Load_Doommap(filename, skyname, &s_map);
-
-	return true;
+	return Load_Doommap(filename, skyname, light_compiler_info, &s_map);
 }
 
 Object* Map_GetObject(ObjectID id)
@@ -417,7 +419,7 @@ Line* Map_GetLine(int index)
 {
 	assert(index >= 0);
 
-	if (index >= s_map.num_line_segs)
+	if (index < 0 ||index >= s_map.num_line_segs)
 	{
 		return NULL;
 	}
@@ -429,7 +431,7 @@ Linedef* Map_GetLineDef(int index)
 {
 	assert(index >= 0);
 
-	if (index >= s_map.num_line_segs)
+	if (index < 0 || index >= s_map.num_line_segs)
 	{
 		return NULL;
 	}
@@ -441,7 +443,7 @@ Sidedef* Map_GetSideDef(int index)
 {
 	assert(index >= 0);
 
-	if (index >= s_map.num_sidedefs)
+	if (index < 0 || index >= s_map.num_sidedefs)
 	{
 		return NULL;
 	}
@@ -471,9 +473,24 @@ void Map_SetupLightGrid(Lightblock* data)
 
 	memset(lightgrid, 0, sizeof(Lightgrid));
 
-	int x_blocks = ceil((s_map.world_size[0] + LIGHT_GRID_WORLD_BIAS) / LIGHT_GRID_SIZE) + 1;
-	int y_blocks = ceil((s_map.world_size[1] + LIGHT_GRID_WORLD_BIAS) / LIGHT_GRID_SIZE) + 1;
-	int z_blocks = ceil(s_map.world_height / LIGHT_GRID_Z_SIZE) + 1;
+	float world_bounds[2][3];
+	world_bounds[0][0] = s_map.world_bounds[0][0] - (LIGHT_GRID_SIZE * LIGHT_GRID_WORLD_BIAS_MULTIPLIER);
+	world_bounds[0][1] = s_map.world_bounds[0][1] - (LIGHT_GRID_SIZE * LIGHT_GRID_WORLD_BIAS_MULTIPLIER);
+	world_bounds[0][2] = s_map.world_min_height - (LIGHT_GRID_Z_SIZE * LIGHT_GRID_WORLD_BIAS_MULTIPLIER);
+
+	world_bounds[1][0] = s_map.world_bounds[1][0] + (LIGHT_GRID_SIZE * LIGHT_GRID_WORLD_BIAS_MULTIPLIER);
+	world_bounds[1][1] = s_map.world_bounds[1][1] + (LIGHT_GRID_SIZE * LIGHT_GRID_WORLD_BIAS_MULTIPLIER);
+	world_bounds[1][2] = s_map.world_max_height + (LIGHT_GRID_Z_SIZE * LIGHT_GRID_WORLD_BIAS_MULTIPLIER);
+
+	float world_size[3];
+	for (int i = 0; i < 3; i++)
+	{
+		world_size[i] = world_bounds[1][i] - world_bounds[0][i];
+	}
+
+	int x_blocks = ceil((world_size[0]) / LIGHT_GRID_SIZE) + 1;
+	int y_blocks = ceil((world_size[1]) / LIGHT_GRID_SIZE) + 1;
+	int z_blocks = ceil((world_size[2]) / LIGHT_GRID_Z_SIZE) + 1;
 
 	if (data)
 	{
@@ -501,18 +518,14 @@ void Map_SetupLightGrid(Lightblock* data)
 	lightgrid->inv_size[1] = 1.0 / lightgrid->size[1];
 	lightgrid->inv_size[2] = 1.0 / lightgrid->size[2];
 
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 3; i++)
 	{
-		lightgrid->origin[i] = lightgrid->size[i] * ceil((s_map.world_bounds[0][i] - LIGHT_GRID_WORLD_BIAS) / lightgrid->size[i]);
+		lightgrid->origin[i] = lightgrid->size[i] * ceil((world_bounds[0][i]) / lightgrid->size[i]);
 
-		float maxs = lightgrid->size[i] * floor((s_map.world_bounds[1][i] + LIGHT_GRID_WORLD_BIAS) / lightgrid->size[i]);
+		float maxs = lightgrid->size[i] * floor((world_bounds[1][i]) / lightgrid->size[i]);
 
 		lightgrid->bounds[i] = (maxs - lightgrid->origin[i]) / lightgrid->size[i] + 1;
 	}
-
-	lightgrid->origin[2] = lightgrid->size[2] * ceil(s_map.world_min_height / lightgrid->size[2]);
-	float maxs = lightgrid->size[2] * floor(s_map.world_max_height / lightgrid->size[2]);
-	lightgrid->bounds[2] = (maxs - lightgrid->origin[2]) / lightgrid->size[2] + 1;
 }
 
 void Map_UpdateObjectsLight()
@@ -560,14 +573,12 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest)
 		}
 	}
 
-	//((int)lightgrid->bounds[0] * (int)lightgrid->bounds[1] * z) + ((int)lightgrid->bounds[0] * y) + x;
-
 	int grid_step[3];
 	grid_step[0] = 1;
 	grid_step[1] = grid->bounds[0];
 	grid_step[2] = grid->bounds[0] * grid->bounds[1];
 
-	Lightblock* block_data = &grid->blocks[(grid_step[2] * pos[2]) + (grid_step[1] * pos[1]) + pos[0]];
+	Lightblock* block_data = grid->blocks + pos[0] * grid_step[0] + pos[1] * grid_step[1] + pos[2] * grid_step[2];
 
 	float total_factor = 0;
 	Vec4 total_light = Vec4_Zero();
@@ -593,6 +604,7 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest)
 		{
 			continue;
 		}
+
 		total_factor += factor;
 
 		total_light.r += (float)data->light.r * factor;

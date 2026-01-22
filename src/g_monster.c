@@ -1,17 +1,18 @@
 #include "g_common.h"
 
+#include <math.h>
+#include <stdlib.h>
+
 #include "game_info.h"
 #include "sound.h"
 #include "u_math.h"
-
-#include <math.h>
-#include <stdlib.h>
 
 #define MONSTER_STEP_HEIGHT 64
 #define MONSTER_MELEE_CHECK 45
 #define MONSTER_ANIM_SPEED_SCALE 0.5
 #define MONSTER_WEIGHT_SCALE 500
 #define MONSTER_SUPER_MULTIPLIER 1.5
+#define MONSTER_SUPER_HP_SCALE 2.5
 #define STUCK_TIMER 2
 
 static int s_SoundPropogationCheck = 0;
@@ -198,7 +199,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 
 	if (index >= 0)
 	{
-		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, 0, 0, 0, 1);
+		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, obj->dir_x, obj->dir_y, obj->dir_z, 1);
 	}
 }
 static MonsterAnimState Monster_GetAnimState(Object* obj)
@@ -398,7 +399,7 @@ static bool Monster_CheckIfMissilesPossible(Object* obj)
 	}
 
 	//check sight
-	if (!Object_CheckSight(obj, chase_obj))
+	if (!Object_CheckSight(obj, chase_obj, true))
 	{
 		return false;
 	}
@@ -589,7 +590,7 @@ static void Monster_LookForTarget(Object* monster)
 	}
 
 	//make sure player is alive and visible
-	if (player->hp <= 0 || !Object_CheckSight(monster, player))
+	if (player->hp <= 0 || !Object_CheckSight(monster, player, true))
 	{
 		return;
 	}
@@ -810,6 +811,11 @@ void Monster_Imp_FireBall(Object* obj)
 		{
 			Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
 
+			if (!missile)
+			{
+				continue;
+			}
+
 			missile->dir_x += i * (Math_randf() / RANDOMNESS);
 			missile->dir_y += i * (Math_randf() / RANDOMNESS);
 
@@ -821,7 +827,10 @@ void Monster_Imp_FireBall(Object* obj)
 	else
 	{
 		Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
-		missile->owner = obj;
+		if (missile)
+		{
+			missile->owner = obj;
+		}
 	}
 }
 
@@ -847,7 +856,7 @@ void Monster_Bruiser_FireBall(Object* obj)
 	{
 		iterations = 8;
 		randomness *= 2;
-		z_offset = 120;
+		z_offset = 170;
 	}
 
 	bool vertical = false;
@@ -861,6 +870,11 @@ void Monster_Bruiser_FireBall(Object* obj)
 	{
 		Object* missile = Object_Missile(obj, target, SUB__MISSILE_FIREBALL);
 		
+		if (!missile)
+		{
+			continue;
+		}
+
 		missile->dir_x += i * (Math_randf() / randomness);
 		missile->dir_y += i * (Math_randf() / randomness);
 
@@ -940,7 +954,10 @@ static void Monster_WakeRecursive(Object* waker, int sector_index)
 
 			if (sector_obj && sector_obj->type == OT__MONSTER && sector_obj->hp > 0 && !(sector_obj->flags & OBJ_FLAG__IGNORE_SOUND))
 			{
-				Monster_SetTarget(sector_obj, waker);
+				if (sector_obj->target == NULL && Object_CheckSight(sector_obj, waker, false))
+				{
+					Monster_SetTarget(sector_obj, waker);
+				}
 			}
 		}
 		else
@@ -980,7 +997,7 @@ void Monster_WakeAll(Object* waker)
 	{
 		return;
 	}
-	return;
+
 	s_SoundPropogationCheck++;
 	Monster_WakeRecursive(waker, waker->sector_index);
 }
@@ -1035,7 +1052,7 @@ void Monster_SetAsSuper(Object* obj)
 	obj->flags |= OBJ_FLAG__SUPER_MOB;
 	//almost everything gets multiplied
 
-	obj->hp *= MONSTER_SUPER_MULTIPLIER;
+	obj->hp *= MONSTER_SUPER_HP_SCALE;
 	obj->size *= MONSTER_SUPER_MULTIPLIER;
 	obj->speed *= MONSTER_SUPER_MULTIPLIER;
 	obj->height *= MONSTER_SUPER_MULTIPLIER;

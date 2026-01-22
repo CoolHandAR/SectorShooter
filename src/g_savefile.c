@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "utility.h"
 #include "game_info.h"
 #include "u_math.h"
@@ -648,7 +649,7 @@ bool Load_Game(const char* filename)
 	}
 
 	//load the actual map
-	Game_ChangeLevel(level_index);
+	Game_ChangeLevel(level_index, false);
 
 	Load_ParseWorld(&header, file, map);
 	Load_ParseObj(&header, file, map);

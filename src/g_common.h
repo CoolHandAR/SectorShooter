@@ -11,11 +11,11 @@
 #include "sound.h"
 
 #define DONT_FILE_LIGHTMAPS
-#define DISABLE_LIGHTMAPS
+//#define DISABLE_LIGHTMAPS
 #define TRACE_NO_HIT INT_MAX
 
 #define NULL_INDEX -1
-#define MAX_OBJECTS 5024
+#define MAX_OBJECTS 2048
 
 #define SECTOR_SLEEP 0
 #define SECTOR_OPEN 1
@@ -24,8 +24,10 @@
 #define GRAVITY_SCALE -500
 #define PLAYER_SIZE 8
 #define PLAYER_STEP_SIZE 50
-#define PLAYER_ACCEL 40
-#define PLAYER_FRICTION 0.8
+#define PLAYER_ACCEL 30
+#define PLAYER_FRICTION 0.88
+#define PLAYER_HEIGHT 100
+#define PLAYER_GRAVITY_SCALE 0.5
 
 #define MAX_RENDER_SCALE 3
 
@@ -36,7 +38,7 @@
 #define LIGHTMAP_INV_LUXEL_SIZE 1.0 / LIGHTMAP_LUXEL_SIZE
 #define LIGHT_GRID_SIZE 64.0
 #define LIGHT_GRID_Z_SIZE 128.0
-#define LIGHT_GRID_WORLD_BIAS 64.0
+#define LIGHT_GRID_WORLD_BIAS_MULTIPLIER 2.0
 
 static const char SAVEFOLDER[] = { "\\saves" };
 
@@ -99,6 +101,9 @@ typedef struct
 
 	Texture* patchy_textures;
 	int num_patchy_textures;
+
+	Texture* png_textures;
+	int num_png_texures;
 } GameAssets;
 
 Game* Game_GetGame();
@@ -115,7 +120,7 @@ void Game_DrawHud(Image* image, FontData* fd, int start_x, int end_x);
 void Game_SetState(GameState state);
 GameState Game_GetState();
 GameAssets* Game_GetAssets();
-bool Game_ChangeLevel(int level_index);
+bool Game_ChangeLevel(int level_index, bool player_keep_stuff);
 void Game_NextLevel();
 void Game_Save(int slot, char desc[32]);
 bool Game_Load(int slot);
@@ -217,6 +222,10 @@ typedef enum
 	SUB__DOOR_VERTICAL,
 	SUB__DOOR_MAX,
 
+	//CRUSHER
+	SUB__CRUSHER_LOOPING,
+	SUB__CRUSHER_ONCE,
+
 	//LIGHTS
 	SUB__LIGHT_TORCH,
 	SUB__LIGHT_BLUE_TORCH,
@@ -257,6 +266,8 @@ typedef enum
 	SUB__THING_WINTER_TREE3,
 	SUB__THING_ROCK0,
 	SUB__THING_ROCK1,
+	SUB__THING_FALLING_SAND,
+	SUB__THING_FALLING_SNOW,
 	SUB__THING_MAX,
 
 	//LIGHT STROBER
@@ -268,16 +279,20 @@ typedef enum
 	SUB__PARTICLE_WALL_HIT,
 	SUB__PARTICLE_BLOOD_EXPLOSION,
 	SUB__PARTICLE_FIRE_SPARKS,
+	SUB__PARTICLE_BULLET_IMPACT,
+	SUB__PARTICLE_EXPLOSION,
 	SUB__PARTICLE_MAX,
 
 	//DECALS
 	SUB__DECAL_WALL_HIT,
 	SUB__DECAL_SCORCH,
+	SUB__DECAL_BLOOD_SPLATTER,
 
 	//SFX EMITTERS
 	SUB__SFX_DESERT_WIND,
 	SUB__SFX_TEMPLE_AMBIENCE,
 	SUB__SFX_JUNGLE_AMBIENCE,
+	SUB__SFX_WINTER_WIND,
 
 	SUB__MAX
 } SubType;
@@ -301,7 +316,7 @@ typedef enum
 	OBJ_FLAG__IGNORE_POSITION_CHECK = 1 << 8,
 	OBJ_FLAG__IGNORE_SOUND = 1 << 9,
 	OBJ_FLAG__FULL_BRIGHT = 1 << 10,
-	OBJ_FLAG__SUPER_MOB = 1 << 11
+	OBJ_FLAG__SUPER_MOB = 1 << 11,
 } ObjectFlag;
 
 typedef struct
@@ -542,9 +557,8 @@ typedef struct
 	float world_min_height;
 	float world_max_height;
 
+	bool has_sun_entity;
 	float sun_angle;
-	float sun_position[2];
-	float sun_color[3];
 	float sky_color[3];
 
 	char name[MAX_MAP_NAME];
@@ -553,7 +567,7 @@ typedef struct
 Map* Map_GetMap();
 Object* Map_NewObject(ObjectType type);
 bool Map_LoadFromIndex(int index);
-bool Map_Load(const char* filename, const char* skyname);
+bool Map_Load(const char* filename, const char* skyname, struct LightCompilerInfo* light_compiler_info);
 Object* Map_GetObject(ObjectID id);
 Object* Map_FindObjectByUniqueID(int unique_id);
 Object* Map_GetNextObjectByType(int* r_iterIndex, int type);
@@ -576,7 +590,7 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest);
 void Map_Destruct();
 
 //Load stuff
-bool Load_Doommap(const char* filename, const char* skyname, Map* map);
+bool Load_Doommap(const char* filename, const char* skyname, struct LightCompilerInfo* light_compiler_info, Map* map);
 bool Load_DoomIWAD(const char* filename);
 bool Load_Lightmap(const char* filename, Map* map);
 bool Save_Lightmap(const char* filename, Map* map);
@@ -616,6 +630,7 @@ typedef struct
 	float shake_scale;
 
 	float current_speed;
+	float z_vel;
 
 	int stored_hp;
 
@@ -638,7 +653,6 @@ void Player_Update(GLFWwindow* window, float delta);
 void Player_LerpUpdate(double lerp, double delta);
 void Player_GetView(float* r_x, float* r_y, float* r_z, float* r_yaw, float* r_angle);
 void Player_MouseCallback(float x, float y);
-void Player_Draw(Image* image, FontData* font, int start_x, int end_x);
 void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x);
 float Player_GetSensitivity();
 void Player_SetSensitivity(float sens);
@@ -679,6 +693,7 @@ int Trace_SectorObjects(Sector* sector);
 int Trace_SectorLines(Sector* sector, bool front_only);
 int Trace_SectorAll(Sector* sector);
 int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, bool ignore_sky_plane, int* r_hits, int max_hit_count, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
+int Trace_FindLineAtPoint(float x, float y, float z, int* r_hits, int max_hit_count);
 
 //Object stuff
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
@@ -688,7 +703,7 @@ bool Object_IsSectorLinked(Object* obj);
 void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive);
 bool Object_Crush(Object* obj);
 bool Object_CheckLineToTarget(Object* obj, Object* target);
-bool Object_CheckSight(Object* obj, Object* target);
+bool Object_CheckSight(Object* obj, Object* target, bool check_angle);
 Object* Object_Missile(Object* obj, Object* target, int type);
 bool Object_HandleObjectCollision(Object* obj, Object* collision_obj);
 bool Object_HandleSwitch(Object* obj);
@@ -729,6 +744,7 @@ DirEnum DirVectorToRoundedDirEnum(int x, int y);
 void DirEnumToDirEnumVector(DirEnum dir, DirEnum* r_x, DirEnum* r_y);
 
 //Particle stuff
+void Particle_Spawn(int sub_type, float x, float y, float z);
 void Particle_Update(Object* obj, float delta);
 
 //Decal stuff
@@ -772,6 +788,7 @@ int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y);
 
 //LINE CHECK STUFF
 int Line_PointSide(Linedef* line, float p_x, float p_y);
+int Line_PointSideBias(Linedef* line, float p_x, float p_y, float bias);
 int Line_BoxOnPointSide(Linedef* line, float p_bbox[2][2]);
 float Line_Intercept(float p_x, float p_y, float p_dx, float p_dy, Linedef* line);
 float Line_InterceptLine(Linedef* line1, Linedef* line2);

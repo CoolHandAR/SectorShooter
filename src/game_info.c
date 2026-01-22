@@ -77,7 +77,7 @@ static const MonsterInfo MONSTER_INFO[] =
 		60, //SPAWN HP
 		24, //SPEED,
 		14, //MELEE DAMAGE
-		18, //SIZE,
+		12, //SIZE,
 		120, //HEIGHT
 		24, //WEIGHT
 		70, //HIT CHANCE
@@ -154,8 +154,8 @@ static const MonsterInfo MONSTER_INFO[] =
 			//EXPLODE
 			NULL, 0, 0, 5, 6, 0,
 		},
-		100, //SPAWN HP
-		80, //SPEED,
+		180, //SPAWN HP
+		100, //SPEED,
 		35, //MELEE DAMAGE
 		20, //SIZE,
 		123, //HEIGHT
@@ -282,9 +282,9 @@ static const MissileInfo MISSILE_INFO[] =
 	},
 	12, //SPEED
 	2, //SIZE,
-	40, //EXPLOSION DAMAGE
+	24, //EXPLOSION DAMAGE
 	256, //EXPLOSION SIZE
-	70, //DIRECT HIT DAMAGE
+	40, //DIRECT HIT DAMAGE
 	64, //SPRITE SCALE
 	},
 };
@@ -766,7 +766,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //SPRITE OFFSET Y
 		128, //SPRITE OFFSET Z
 		64, //SPRITE SCALE
-		24, //SIZE
+		8, //SIZE
 		1, //COLLIDABLE
 		32, //HEIGHT
 	},
@@ -782,7 +782,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //SPRITE OFFSET Y
 		-55, //SPRITE OFFSET Z
 		40, //SPRITE SCALE
-		32, //SIZE
+		8, //SIZE
 		0, //COLLIDABLE
 		24, //HEIGHT
 	},
@@ -798,7 +798,7 @@ static const ObjectInfo OBJECT_INFOS[] =
 		0.5, //SPRITE OFFSET Y
 		128, //SPRITE OFFSET Z
 		64, //SPRITE SCALE
-		24, //SIZE
+		8, //SIZE
 		1, //COLLIDABLE
 		32, //HEIGHT
 	},
@@ -896,6 +896,38 @@ static const ObjectInfo OBJECT_INFOS[] =
 		60, //SPRITE SCALE
 		15, //SIZE
 		1, //COLLIDABLE
+		50, //HEIGHT
+	},
+	//FALLING SAND
+	{
+		SUB__THING_FALLING_SAND,
+		//ANIM
+		{
+			NULL, 0, 1, 18, 11, 1,
+		},
+		1.1, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		-120, //SPRITE OFFSET Z
+		60, //SPRITE SCALE
+		15, //SIZE
+		0, //COLLIDABLE
+		50, //HEIGHT
+	},
+	//FALLING SNOW
+	{
+		SUB__THING_FALLING_SNOW,
+		//ANIM
+		{
+			NULL, 0, 0, 21, 4, 1,
+		},
+		0.5, //ANIM SPEED
+		0.5, //SPRITE OFFSET X
+		0.5, //SPRITE OFFSET Y
+		400, //SPRITE OFFSET Z
+		200, //SPRITE SCALE
+		15, //SIZE
+		0, //COLLIDABLE
 		50, //HEIGHT
 	},
 	//INVUNERABILITY PICKUP
@@ -1039,8 +1071,8 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		1.5, //SCALE
 		1, //LIGHT FRAME
 		{82, 70, 62}, //LIGHT COLOR
-		0.1, //SHAKE SCALE,
-		0.1 //SHAKE TIME
+		0.15, //SHAKE SCALE,
+		0.15 //SHAKE TIME
 	},
 	//MACHINE GUN
 	{
@@ -1067,8 +1099,8 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		1.2, //SCALE
 		1, //LIGHT FRAME
 		{128, 93, 73}, //LIGHT COLOR
-		0.36, //SHAKE SCALE,
-		0.1 //SHAKE TIME
+		0.46, //SHAKE SCALE,
+		0.15 //SHAKE TIME
 	},
 	//DEVASTATOR
 	{
@@ -1097,6 +1129,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		},
 		0.5, //time
 		18, //sprite scale
+		0 //anim speed scale
 	},
 	//WALL HIT
 	{
@@ -1107,6 +1140,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		},
 		0.5, //time
 		10, //sprite scale
+		2 //anim speed scale
 	},
 	//BLOOD EXPLOSION
 	{
@@ -1117,6 +1151,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		},
 		0.3, //time
 		8, //sprite scale
+		3 //anim speed scale
 	},
 	//FIRE SPARKS
 	{
@@ -1127,7 +1162,30 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		},
 		FLT_MAX, //time
 		7, //sprite scale
-	}
+		0.5 //anim speed scale
+	},
+	//BULLET IMPACT
+	{
+		SUB__PARTICLE_BULLET_IMPACT,
+		//ANIM INFO
+		{
+			NULL, 0, 0, 5, 4, 0,
+		},
+		0.12, //time
+		12, //sprite scale
+		1.8 //anim speed scale
+	},
+	//EXPLOSION
+	{
+		SUB__PARTICLE_EXPLOSION,
+		//ANIM INFO
+		{
+			NULL, 0, 0, 6, 4, 0,
+		},
+		0.5, //time
+		14, //sprite scale
+		0.9 //anim speed scale
+	},
 };
 
 static const DecalInfo DECAL_INFOS[] =
@@ -1151,7 +1209,17 @@ static const DecalInfo DECAL_INFOS[] =
 		},
 		5.5, //time
 		32, //sprite scale
-	}
+	},
+	//BLOOD SPLATTER
+	{
+		SUB__DECAL_BLOOD_SPLATTER,
+		//ANIM INFO
+		{
+			NULL, 0, 2, 1, 3, 0,
+		},
+		5.5, //time
+		32, //sprite scale
+	},
 };
 
 static const LightInfo LIGHT_INFOS[] =
@@ -1186,7 +1254,7 @@ static const LightInfo LIGHT_INFOS[] =
 	//LAMP
 	{
 		SUB__LIGHT_LAMP,
-		450, //radius
+		350, //radius
 		1.25, //attenuation
 		1, // scale
 		12, //deviance
@@ -1195,7 +1263,7 @@ static const LightInfo LIGHT_INFOS[] =
 	//BLUE LAMP
  	{
 		SUB__LIGHT_BLUE_LAMP,
-		450, //radius
+		350, //radius
 		1.25, //attenuation
 		1, // scale
 		12, //deviance
@@ -1204,7 +1272,7 @@ static const LightInfo LIGHT_INFOS[] =
 	//GREEN LAMP
 	{
 		SUB__LIGHT_GREEN_LAMP,
-		450, //radius
+		350, //radius
 		1.25, //attenuation
 		1, // scale
 		12, //deviance
@@ -1226,23 +1294,80 @@ static const SFXInfo SFX_INFOS[] =
 	//DESERT WIND
 	{
 		SOUND__DESERT_WIND, //TYPE
-		1.0, //VOLUME
-		1.0, //ROLLOFF
+		0.10, //VOLUME
+		0.02, //ROLLOFF
 	},
 	//TEMPLE AMBIENCE
 	{
 		SOUND__TEMPLE_AMBIENCE, //TYPE
-		1.0, //VOLUME
-		1.0, //ROLLOFF
+		0.01, //VOLUME
+		0.001, //ROLLOFF
 	},
 	//JUNGLE AMBIENCE
 	{
 		SOUND__JUNGLE_AMBIENCE, //TYPE
-		1.0, //VOLUME
-		0.1, //ROLLOFF
+		0.08, //VOLUME
+		0.01, //ROLLOFF
+	},
+	//WINTER WIND
+	{
+		SOUND__WINTER_WIND, //TYPE
+		0.08, //VOLUME
+		0.01, //ROLLOFF
 	}
 };
 
+static const LightCompilerInfo LIGHT_COMPILER_INFOS[] =
+{
+	{
+		0.2, //SKY SCALE
+		2, //SUN Z
+		{255, 255, 255}, //SUN COLOR
+	},
+	{
+		0.2, //SKY SCALE
+		2, //SUN Z
+		{255, 255, 255}, //SUN COLOR
+	},
+	{
+		0.2, //SKY SCALE
+		2, //SUN Z
+		{255, 255, 255}, //SUN COLOR
+	},
+	{
+		0.2, //SKY SCALE
+		2, //SUN Z
+		{255, 255, 255}, //SUN COLOR
+	},
+	{
+		0.2, //SKY SCALE
+		2, //SUN Z
+		{255, 255, 255}, //SUN COLOR
+	},
+	//MAP00
+	{
+		0.3, //SKY SCALE
+		2, //SUN Z
+		{255, 204, 51}, //SUN COLOR
+	},
+	//MAP01
+	{
+		0.4, //SKY SCALE
+		1.8, //SUN Z
+		{254, 221, 150}, //SUN COLOR
+	},
+	//MAP02
+	{
+		0.2, //SKY SCALE
+		2.2, //SUN Z
+		{234, 220, 220}, //SUN COLOR
+	},
+	{
+		0.0, //SKY SCALE
+		2, //SUN Z
+		{255, 255, 255}, //SUN COLOR
+	},
+};
 GunInfo* Info_GetGunInfo(int type)
 {
 	int index = type;
@@ -1389,4 +1514,20 @@ SFXInfo* Info_GetSFXInfo(int sub_type)
 	}
 
 	return &SFX_INFOS[index];
+}
+
+LightCompilerInfo* Info_GetLightCompilerInfo(int index)
+{
+	int arr_size = sizeof(LIGHT_COMPILER_INFOS) / sizeof(LIGHT_COMPILER_INFOS[0]);
+	
+	if (index < 0)
+	{
+		index = 0;
+	}
+	else if (index >= arr_size)
+	{
+		index = arr_size - 1;
+	}
+
+	return &LIGHT_COMPILER_INFOS[index];
 }

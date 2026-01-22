@@ -1,12 +1,12 @@
 #include "r_common.h"
 
-#include "g_common.h"
-
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
-#include "u_math.h"
 #include <stdio.h>
+
+#include "g_common.h"
+#include "u_math.h"
 
 //#define WHITE_TEXTURES
 
@@ -274,7 +274,7 @@ void Video_DrawBoxLines(Image* image, float box[2][2], unsigned char* color)
 	Video_DrawLine(image, box[1][0], box[0][1], box[1][0], box[1][1], color);
 }
 
-void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float tan_sin, float tan_cos, float v_fov, int x_start, int x_end)
+void Video_DrawBox(Image* image, float* depth_buffer, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float tan_sin, float tan_cos, float v_fov, int x_start, int x_end, Vec3_u16* light)
 {
 	float box_size_x = box[1][0] - box[0][0];
 	float box_size_y = box[1][1] - box[0][1];
@@ -352,22 +352,40 @@ void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, fl
 		return;
 	}
 
-	unsigned char top_color[4] = { 255, 0, 255, 255 };
-	unsigned char bottom_color[4] = { 0, 255, 255, 255 };
-	unsigned char left_color[4] = { 255, 255, 0, 255 };
-	unsigned char right_color[4] = { 128, 255, 128, 255 };
+	if (light)
+	{
+		unsigned char color[4] = { light->r, light->g, light->b, 255 };
 
-	//top line
-	for (int x = draw_start_x; x < draw_end_x; x++) Image_Set2(image, x, draw_start_y, top_color);
+		for (int x = draw_start_x; x < draw_end_x; x++)
+		{
+			for (int y = draw_start_y; y < draw_end_y; y++)
+			{
+				if (transform_y_tan <= depth_buffer[x + y * image->width])
+				{
+					Image_Set2(image, x, y, color);
+				}
+			}
+		}
+	}
+	else
+	{
+		unsigned char top_color[4] = { 255, 0, 255, 255 };
+		unsigned char bottom_color[4] = { 0, 255, 255, 255 };
+		unsigned char left_color[4] = { 255, 255, 0, 255 };
+		unsigned char right_color[4] = { 128, 255, 128, 255 };
 
-	//bottom line
-	for (int x = draw_start_x; x < draw_end_x; x++) Image_Set2(image, x, draw_end_y, bottom_color);
+		//top line
+		for (int x = draw_start_x; x < draw_end_x; x++) { if (transform_y_tan <= depth_buffer[x + draw_start_y * image->width]) Image_Set2(image, x, draw_start_y, top_color); };
 
-	//left line
-	for (int y = draw_start_y; y < draw_end_y; y++) Image_Set2(image, draw_start_x, y, left_color);
+		//bottom line
+		for (int x = draw_start_x; x < draw_end_x; x++) { if (transform_y_tan <= depth_buffer[x + draw_end_y * image->width]) Image_Set2(image, x, draw_end_y, top_color); };
 
-	//right line
-	for (int y = draw_start_y; y < draw_end_y; y++) Image_Set2(image, draw_end_x, y, right_color);
+		//left line
+		for (int y = draw_start_y; y < draw_end_y; y++) { if (transform_y_tan <= depth_buffer[draw_start_x + y * image->width]) Image_Set2(image, draw_start_x, y, top_color); };
+
+		//right line
+		for (int y = draw_start_y; y < draw_end_y; y++) { if (transform_y_tan <= depth_buffer[draw_end_x + y * image->width]) Image_Set2(image, draw_end_x, y, top_color); };
+	}
 
 }
 
@@ -491,10 +509,12 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 	float x_tex_step = 0;
 	float x_tex_pos = 0;
 	
-	for (int x = min_x; x <= max_x; x++)
+	for (int x = min_x; x < max_x; x++)
 	{
 		if (x + pix_x < start_x)
 		{
+			x += (start_x - (x + pix_x)) - 1;
+
 			continue;
 		}
 		else if (x + pix_x >= end_x)
@@ -518,7 +538,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 
 		AlphaSpan* span = FrameInfo_GetAlphaSpan(frame_info, span_x * d_scale_x);
 
-		if (span->min > span->max)
+		if (span->min >= span->max)
 		{
 			continue;
 		}
@@ -579,31 +599,30 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 
 			unsigned char clr[4] = { LIGHT_LUT[color[0]][light.r], LIGHT_LUT[color[1]][light.g], LIGHT_LUT[color[2]][light.b], 255 };
 
-			//apply transparency
-			if (transparency > 1)
+			//try to set as many pixels in a row as possible
+			while (y < y_max)
 			{
-				
-			}
-			else
-			{
-				//try to set as many pixels in a row as possible
-				while (y < y_max)
+				for (int l = 0; l < x_steps; l++)
 				{
-					for (int l = 0; l < x_steps; l++)
-					{
-						Image_Set2(image, (x + pix_x + l), y + pix_y, clr);
-					}
+					int x_p = ((x + pix_x + l));
 
-					y_tex_pos += y_tex_step;
-
-					if ((int)y_tex_pos != ty)
+					if (x_p < start_x || x_p >= end_x)
 					{
 						break;
 					}
 
-					y++;
+					Image_Set2(image, (x + pix_x + l), y + pix_y, clr);
 				}
-			}		
+
+				y_tex_pos += y_tex_step;
+
+				if ((int)y_tex_pos != ty)
+				{
+					break;
+				}
+
+				y++;
+			}
 		}
 		x += x_steps - 1;
 	}
@@ -746,9 +765,29 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 	float depth_scale = (transform_y * DEPTH_SHADING_SCALE);
 
-	int light_r = Math_Clampl(light.r - depth_scale, 0, MAX_LIGHT_VALUE - 1);
-	int light_g = Math_Clampl(light.g - depth_scale, 0, MAX_LIGHT_VALUE - 1);
-	int light_b = Math_Clampl(light.b - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	int light_r = light.r;
+	int light_g = light.g;
+	int light_b = light.b;
+
+	if (args->extra_light_max > 0)
+	{
+		Vec3_u16 extra_light = args->extra_light;
+
+#ifndef DISABLE_LIGHTMAPS
+		extra_light.r = Math_Clampl(extra_light.r - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+		extra_light.g = Math_Clampl(extra_light.g - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+		extra_light.b = Math_Clampl(extra_light.b - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+#endif
+		light_r = Math_Clampl(light.r + extra_light.r, 0, MAX_LIGHT_VALUE - 1);
+		light_g = Math_Clampl(light.g + extra_light.g, 0, MAX_LIGHT_VALUE - 1);
+		light_b = Math_Clampl(light.b + extra_light.b, 0, MAX_LIGHT_VALUE - 1);
+	}
+
+#ifdef DISABLE_LIGHTMAPS
+	light_r = Math_Clampl(light_r - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	light_g = Math_Clampl(light_g - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	light_b = Math_Clampl(light_b - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+#endif
 
 	//try to make this loop as fast as possible
 	for (int x = draw_start_x; x < draw_end_x; x++)
@@ -1053,6 +1092,58 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 	float texheight = sprite->sprite_rect_height;
 
+	float depth_scale = (tz1 * DEPTH_SHADING_SCALE);
+
+	Lightmap* lightmap = &line->lightmap;
+	Vec3_u16* light_sample = NULL;
+
+	if(lightmap->data)
+	{
+		int line_tx = 0;
+		int line_ty = 0;
+
+		float z = sprite->z;
+		line_ty = (z - frontsector->floor) / (frontsector->ceil - frontsector->floor);
+
+		float texwidth = sqrt(line->dx * line->dx + line->dy * line->dy) * 2;
+
+		float u = 0;
+		float t = 0;
+
+		if (fabs(line->dx) > fabs(line->dy))
+		{
+			t = (sprite->x - line->x0) / line->dx;
+		}
+		else
+		{
+			t = (sprite->y - line->y0) / line->dy;
+		}
+		u = t + u * t;
+		u = fabs(u);
+		u *= texwidth;
+
+		line_tx = u;
+
+		int lx = line_tx / LIGHTMAP_LUXEL_SIZE;
+		int ly = line_ty / LIGHTMAP_LUXEL_SIZE;
+
+		light_sample = Lightmap_Get(lightmap, lx, ly);
+	}
+
+	int light_r = Math_Clampl(sprite->light.r - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	int light_g = Math_Clampl(sprite->light.g - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+	int light_b = Math_Clampl(sprite->light.b - depth_scale, 0, MAX_LIGHT_VALUE - 1);
+
+#ifndef DISABLE_LIGHTMAPS
+
+	if (!light_sample)
+	{
+		return;
+	}
+
+#endif // DISABLE_LIGHTMAPS
+
+
 	for (int x = begin_x; x < end_x; x++)
 	{
 		int tx = (u0 * (x_pos2 * tz2) + u1 * (x_pos * tz1)) / (x_pos2 * tz2 + x_pos * tz1);
@@ -1065,7 +1156,7 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		}
 		else if (tx > max_x)
 		{
-			//break;
+			break;
 		}
 		int span_x = (sprite->flip_h) ? (sprite->sprite_rect_width - tx) : tx;
 
@@ -1085,7 +1176,6 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 
 		float depth = (int)(x_pos * depth_step) + tz1;
 		depth *= 0.95;
-		int depth_light = 255;//Math_Clampl(sprite->light - (depth * DEPTH_SHADING_SCALE), 0, 255);
 
 		float yceil = (int)(x_pos * ceil_step) + top_y1;
 		float yfloor = (int)(x_pos * floor_step) + bottom_y1;
@@ -1131,7 +1221,7 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 			}
 			else if ((int)ty_local_pos > max_y)
 			{
-				//break;
+				break;
 			}
 
 			if (depth <= args->depth_buffer[x + y * image->width])
@@ -1139,14 +1229,35 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 				int ty = (int)ty_pos;
 				unsigned char* tex_color = Image_Get(sprite->img, tx, ty);
 
+				//int lx = Math_Clamp(tx * LIGHTMAP_LUXEL_SIZE, 0, lightmap->width - 1);
+				//int ly = Math_Clamp(ty / LIGHTMAP_LUXEL_SIZE, 0, lightmap->height - 1);
+
+				//light_sample = Lightmap_Get(lightmap, lx, ly);
+
 				if (tex_color[3] > 128)
 				{
 					size_t index = ((size_t)x + (size_t)y * (size_t)image->width) * (size_t)image->numChannels;
 
+					//mix with img color
+					//both are half transparent
+					unsigned char img_r = LIGHT_LUT[image->data[index + 0]][127];
+					unsigned char img_g = LIGHT_LUT[image->data[index + 1]][127];
+					unsigned char img_b = LIGHT_LUT[image->data[index + 2]][127];
+
+					unsigned char decal_r = LIGHT_LUT[tex_color[0]][127];
+					unsigned char decal_g = LIGHT_LUT[tex_color[1]][127];
+					unsigned char decal_b = LIGHT_LUT[tex_color[2]][127];
+
+#ifdef DISABLE_LIGHTMAPS
 					//avoid loops
-					image->data[index + 0] = LIGHT_LUT[image->data[index + 0]][128] + LIGHT_LUT[LIGHT_LUT[tex_color[0]][depth_light]][2];
-					image->data[index + 1] = LIGHT_LUT[image->data[index + 1]][128] + LIGHT_LUT[LIGHT_LUT[tex_color[1]][depth_light]][2];
-					image->data[index + 2] = LIGHT_LUT[image->data[index + 2]][128] + LIGHT_LUT[LIGHT_LUT[tex_color[2]][depth_light]][2];
+					image->data[index + 0] = LIGHT_LUT[img_r + decal_r][light_r];
+					image->data[index + 1] = LIGHT_LUT[img_g + decal_g][light_g];
+					image->data[index + 2] = LIGHT_LUT[img_b + decal_b][light_b];
+#else
+					image->data[index + 0] = LIGHT_LUT[img_r + decal_r][light_sample->r];
+					image->data[index + 1] = LIGHT_LUT[img_g + decal_g][light_sample->g];
+					image->data[index + 2] = LIGHT_LUT[img_b + decal_b][light_sample->b];
+#endif // DISABLE_LIGHTMAPS
 				}
 			}
 			
@@ -1222,9 +1333,9 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 			int current_light_b = lerp_light0.b;
 
 			//clamp
-			current_light_r = Math_Clampl(current_light_r + light.r, 0, 255);
-			current_light_g = Math_Clampl(current_light_g + light.g, 0, 255);
-			current_light_b = Math_Clampl(current_light_b + light.b, 0, 255);
+			current_light_r = Math_Clampl(current_light_r + light.r, 0, MAX_LIGHT_VALUE - 1);
+			current_light_g = Math_Clampl(current_light_g + light.g, 0, MAX_LIGHT_VALUE - 1);
+			current_light_b = Math_Clampl(current_light_b + light.b, 0, MAX_LIGHT_VALUE - 1);
 
 			size_t i = index * 4;
 
@@ -1286,10 +1397,19 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 
 }
 
-void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask)
+void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, Vec3_u16 light, int height_mask)
 {
 	unsigned char* dest = image->data;
 	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
+
+	float depth_shade_scale = (z * DEPTH_SHADING_SCALE);
+
+	if (light.r + light.g + light.b > 0)
+	{
+		light.r = Math_Clampl(light.r - depth_shade_scale, 0, MAX_LIGHT_VALUE - 1);
+		light.g = Math_Clampl(light.g - depth_shade_scale, 0, MAX_LIGHT_VALUE - 1);
+		light.b = Math_Clampl(light.b - depth_shade_scale, 0, MAX_LIGHT_VALUE - 1);
+	}
 
 	//optimized lightmap only loop
 	if (lm && lm->data)
@@ -1351,9 +1471,9 @@ void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, fl
 				int current_light_b = lerp_light0.b;
 
 				//clamp
-				current_light_r = Math_Clampl(current_light_r, 0, 255);
-				current_light_g = Math_Clampl(current_light_g, 0, 255);
-				current_light_b = Math_Clampl(current_light_b, 0, 255);
+				current_light_r = Math_Clampl(current_light_r + light.r, 0, MAX_LIGHT_VALUE - 1);
+				current_light_g = Math_Clampl(current_light_g + light.g, 0, MAX_LIGHT_VALUE - 1);
+				current_light_b = Math_Clampl(current_light_b + light.b, 0, MAX_LIGHT_VALUE - 1);
 
 				size_t i = index * 4;
 
@@ -1370,7 +1490,7 @@ void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, fl
 			index += image->width;
 		}
 	}
-	else if (light >= 0)
+	else
 	{
 		tx &= texture->width_mask;
 		for (int y = y1 + 1; y < y2; y++)
@@ -1384,9 +1504,9 @@ void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, fl
 				size_t i = index * 4;
 
 				//avoid loops
-				dest[i + 0] = LIGHT_LUT[data[0]][light];
-				dest[i + 1] = LIGHT_LUT[data[1]][light];
-				dest[i + 2] = LIGHT_LUT[data[2]][light];
+				dest[i + 0] = LIGHT_LUT[data[0]][light.r];
+				dest[i + 1] = LIGHT_LUT[data[1]][light.g];
+				dest[i + 2] = LIGHT_LUT[data[2]][light.b];
 
 				depth_buffer[index] = z;
 			}
@@ -1620,6 +1740,35 @@ void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int
 
 
 	
+}
+
+void Video_DrawThreadSlice(Image* image, int x1, int x2, Vec3_u16* color)
+{
+	if (color)
+	{
+		unsigned char c[4] = { color->r, color->g, color->b, 255 };
+
+		for (int x = x1; x < x2; x++)
+		{
+			for (int y = 0; y < image->height; y++)
+			{
+				Image_Set2(image, x, y, c);
+			}
+		}
+	}
+	else
+	{
+		unsigned char line_color[4] = { 0, 0, 0, 255 };
+
+		for (int y = 0; y < image->height; y++)
+		{
+			Image_Set2(image, x1, y, line_color);
+		}
+		for (int y = 0; y < image->height; y++)
+		{
+			Image_Set2(image, x2, y, line_color);
+		}
+	}
 }
 
 void Video_Shade(Image* image, ShaderFun shader_fun, int x0, int y0, int x1, int y1)

@@ -228,8 +228,8 @@ void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float
 	Sound_load(sound_file, MA_SOUND_FLAG_NO_PITCH, &snd->snd);
 	
 	ma_sound_set_volume(&snd->snd, vol);
-	ma_sound_set_position(&snd->snd, x, z, y);
-	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
+	ma_sound_set_position(&snd->snd, x, y, z);
+	ma_sound_set_direction(&snd->snd, dir_x, dir_y, dir_z);
 	ma_sound_start(&snd->snd);
 }
 
@@ -263,8 +263,8 @@ SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float 
 
 	ma_sound_set_volume(&snd->snd, vol);
 	ma_sound_set_looping(&snd->snd, MA_TRUE);
-	ma_sound_set_position(&snd->snd, x, z, y);
-	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
+	ma_sound_set_position(&snd->snd, x, y, z);
+	ma_sound_set_direction(&snd->snd, dir_x, dir_y, dir_z);
 	ma_sound_start(&snd->snd);
 
 	return id;
@@ -338,8 +338,8 @@ void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, floa
 		return;
 	}
 
-	ma_sound_set_position(&snd->snd, x, z, y);
-	ma_sound_set_direction(&snd->snd, dir_x, dir_z, dir_y);
+	ma_sound_set_position(&snd->snd, x, y, z);
+	ma_sound_set_direction(&snd->snd, dir_x, dir_y, dir_z);
 }
 
 void Sound_SetRolloff(SoundID id, float rolloff)
@@ -352,6 +352,19 @@ void Sound_SetRolloff(SoundID id, float rolloff)
 	}
 
 	ma_sound_set_rolloff(&snd->snd, rolloff);
+}
+
+void Sound_SetMinMaxGain(SoundID id, float min_gain, float max_gain)
+{
+	Sound* snd = Sound_IDToSound(id);
+
+	if (!snd)
+	{
+		return;
+	}
+
+	ma_sound_set_min_gain(&snd->snd, min_gain);
+	ma_sound_set_max_gain(&snd->snd, max_gain);
 }
 
 void Sound_SetVolume(SoundID id, float vol)
@@ -476,6 +489,8 @@ int Sound_Init()
 		printf("Failed to init MA sound engine \n");
 		return 0;
 	}
+
+	ma_engine_listener_set_world_up(&sound_core.sound_engine, 0, 0, 0, 1);
 
 	return 1;
 }

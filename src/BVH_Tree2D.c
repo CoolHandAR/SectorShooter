@@ -1,8 +1,9 @@
 #include "BVH_Tree2D.h"
 
 #include <assert.h>
-#include "u_math.h"
 #include <stdlib.h>
+
+#include "u_math.h"
 #include "dynamic_array.h"
 
 //inspired by https://web.archive.org/web/20240328144640/https://www.azurefromthetrenches.com/introductory-guide-to-aabb-tree-collision-detection/

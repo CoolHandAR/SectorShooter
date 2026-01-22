@@ -2,6 +2,15 @@
 
 #include "game_info.h"
 
+void Particle_Spawn(int sub_type, float x, float y, float z)
+{
+	switch (sub_type)
+	{
+	default:
+		break;
+	}
+}
+
 void Particle_Update(Object* obj, float delta)
 {
 	switch (obj->sub_type)
@@ -132,7 +141,10 @@ void Missile_Explode(Object* obj)
 		int line_index = -(obj->collision_hit + 1);
 		Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_SCORCH, obj->x, obj->y, obj->z);
 
-		decal->sprite.decal_line_index = line_index;
+		if (decal)
+		{
+			decal->sprite.decal_line_index = line_index;
+		}
 	}
 
 	obj->flags |= OBJ_FLAG__EXPLODING;

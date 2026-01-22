@@ -139,6 +139,7 @@ typedef enum
 	SOUND__TEMPLE_AMBIENCE,
 	SOUND__JUNGLE_AMBIENCE,
 	SOUND__FIRE,
+	SOUND__WINTER_WIND,
 
 	SOUND__MAX
 } SoundType;
@@ -245,7 +246,10 @@ static const char* SOUND_INFO[SOUND__MAX] =
 	"assets/sfx/jungle_ambience.mp3",
 
 	//FIRE
-	"assets/sfx/fire.wav"
+	"assets/sfx/fire.wav",
+
+	//WINTER WIND
+	"assets/sfx/winter_wind.mp3",
 };
 
 
@@ -294,6 +298,7 @@ typedef struct
 	AnimInfo anim_info;
 	float time;
 	float sprite_scale;
+	float anim_speed_scale;
 } ParticleInfo;
 
 typedef struct
@@ -311,16 +316,22 @@ typedef struct
 	float rolloff;
 } SFXInfo;
 
+typedef struct
+{
+	float sky_scale;
+	float sun_z;
+	float sun_color[3];
+} LightCompilerInfo;
 
 #define PICKUP_SMALLHP_HEAL 20
 #define PICKUP_BIGHP_HEAL 50
 #define PICKUP_AMMO_GIVE 12
-#define PICKUP_ROCKETS_GIVE 12
+#define PICKUP_ROCKETS_GIVE 5
 #define PICKUP_SHOTGUN_AMMO_GIVE 12
 #define PICKUP_MACHINEGUN_AMMO_GIVE 50
-#define PICKUP_DEVASTATOR_AMMO_GIVE 12
-#define PICKUP_INVUNERABILITY_TIME 10
-#define PICKUP_QUAD_TIME 8
+#define PICKUP_DEVASTATOR_AMMO_GIVE 6
+#define PICKUP_INVUNERABILITY_TIME 20
+#define PICKUP_QUAD_TIME 20
 
 GunInfo* Info_GetGunInfo(int type);
 MonsterInfo* Info_GetMonsterInfo(int type);
@@ -330,6 +341,7 @@ ParticleInfo* Info_GetParticleInfo(int sub_type);
 DecalInfo* Info_GetDecalInfo(int sub_type);
 MissileInfo* Info_GetMissileInfo(int sub_type);
 SFXInfo* Info_GetSFXInfo(int sub_type);
+LightCompilerInfo* Info_GetLightCompilerInfo(int index);
 
 static const char* LEVELS[] =
 {
@@ -340,7 +352,9 @@ static const char* LEVELS[] =
 	"M13.WAD",
 	"ourmap00.WAD",
 	"ourmap01.WAD",
-	"ourmap02.WAD"
+	"ourmap02.WAD",
+	"ourmap03.WAD"
+
 };
 static const char* SKIES[] =
 {
@@ -349,9 +363,10 @@ static const char* SKIES[] =
 	"SKY3",
 	"SKY3",
 	"SKY3",
-	"SKY4",
-	"SKY6",
-	"SKY3",
+	"SKYPNG1",
+	"SKYPNG2",
+	"SKYPNG3",
+	"SKYPNG1",
 };
 
 //SPECIAL ENUMS
@@ -363,6 +378,7 @@ typedef enum
 	SPECIAL__USE_LIFT = 62,
 
 	SPECIAL__TRIGGER_EXIT = 11,
+	SPECIAL__TRIGGER_CRUSHER_LOOP = 25,
 	SPECIAL__TRIGGER_DOOR_NEVER_CLOSE = 29,
 	SPECIAL__TRIGGER_CRUSHER = 49,
 	SPECIAL__TRIGGER_TELEPORT = 97,

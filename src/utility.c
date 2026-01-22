@@ -2,7 +2,6 @@
 
 #include <string.h>
 #include <stdlib.h>
-
 #include <stdint.h>
 
 int File_GetLength(FILE* p_file)

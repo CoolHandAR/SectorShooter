@@ -5,6 +5,7 @@
 #define MAX_TRACE_ITEMS 10000
 #define MAX_TRACE_SORT_ITEMS 10000
 #define MAX_SPECIAL_LINES 1000
+#define MAX_HIT_OBJECTS 5000
 #define TRACE_EPSILON 0.125
 
 typedef struct
@@ -16,8 +17,12 @@ typedef struct
 typedef struct
 {
 	int result_items[MAX_TRACE_ITEMS];
+
 	int special_line_indices[MAX_SPECIAL_LINES];
 	int num_hit_special_lines;
+
+	int hit_objects[MAX_HIT_OBJECTS];
+	int num_hit_objects;
 
 	TraceSortItem sort_items[MAX_TRACE_SORT_ITEMS];
 	int num_sort_items;
@@ -56,14 +61,6 @@ static void Trace_AddTraceSortItem(float frac, int index)
 
 static bool Trace_LineIntersectLine(Map* map, Linedef* trace_line, Linedef* line, float* r_hitX, float* r_hitY, float* r_frac)
 {
-	Sector* frontsector = &map->sectors[line->front_sector];
-	Sector* backsector = NULL;
-
-	if (line->back_sector >= 0)
-	{
-		backsector = &map->sectors[line->back_sector];
-	}
-
 	int s1 = Line_PointSide(trace_line, line->x0, line->y0);
 	int s2 = Line_PointSide(trace_line, line->x1, line->y1);
 
@@ -119,13 +116,15 @@ int* Trace_GetSpecialLines(int* r_length)
 
 int* Trace_GetHitObjects()
 {
-	return s_traceCore.result_items;
+	return s_traceCore.hit_objects;
 }
 bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_floorZ, float* r_ceilZ, float* r_lowFloorZ)
 {
 	s_traceCore.num_hit_special_lines = 0;
 
 	Map* map = Map_GetMap();
+
+	float point[2] = { x, y };
 
 	float bbox[2][2];
 	Math_SizeToBbox(x, y, size, bbox);
@@ -134,6 +133,7 @@ bool Trace_CheckBoxPosition(Object* obj, float x, float y, float size, float* r_
 
 	float min_obj_frac = 1.001;
 	int min_obj_hit = TRACE_NO_HIT;
+
 
 	for (int i = 0; i < num_traces; i++)
 	{
@@ -233,7 +233,7 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 	float bbox[2][2];
 	if (end_x > start_x)
 	{
-		bbox[0][0] = start_x - size - 1;
+		bbox[0][0] = start_x - size - 3;
 		bbox[1][0] = end_x + size + 1;
 	}
 	else
@@ -308,7 +308,7 @@ int Trace_FindSlideHit(Object* obj, float start_x, float start_y, float end_x, f
 
 			if (!backsector)
 			{
-				if (Line_PointSide(line, obj->x, obj->y))
+				if (Line_PointSide(line, start_x, start_y))
 				{
 					continue;
 				}
@@ -847,8 +847,14 @@ int Trace_SectorObjects(Sector* sector)
 		{
 			continue;
 		}
+		
+		if (num_collisions >= MAX_HIT_OBJECTS)
+		{
+			printf("Reached max hit object limit\n");
+			break;
+		}
 
-		s_traceCore.result_items[num_collisions++] = index;
+		s_traceCore.hit_objects[num_collisions++] = index;
 	}
 
 	return num_collisions;
@@ -874,19 +880,24 @@ int Trace_SectorLines(Sector* sector, bool front_only)
 		int line_index = -(index + 1);
 		Linedef* line = Map_GetLineDef(line_index);
 
+		if (num_collisions >= MAX_HIT_OBJECTS)
+		{
+			printf("Reached max hit object limit\n");
+			break;
+		}
 
 		if (front_only)
 		{
 			if (line->front_sector == sector->index)
 			{
-				s_traceCore.result_items[num_collisions++] = line_index;
+				s_traceCore.hit_objects[num_collisions++] = line_index;
 			}
 		}
 		else
 		{
 			if (line->back_sector == sector->index || line->front_sector == sector->index)
 			{
-				s_traceCore.result_items[num_collisions++] = line_index;
+				s_traceCore.hit_objects[num_collisions++] = line_index;
 			}
 		}
 	}
@@ -904,6 +915,12 @@ int Trace_SectorAll(Sector* sector)
 	{
 		int index = s_traceCore.result_items[i];
 
+		if (num_collisions >= MAX_HIT_OBJECTS)
+		{
+			printf("Reached max hit object limit\n");
+			break;
+		}
+
 		//is line
 		if (index < 0)
 		{
@@ -912,7 +929,7 @@ int Trace_SectorAll(Sector* sector)
 
 			if (line->back_sector == sector->index || line->front_sector == sector->index)
 			{
-				s_traceCore.result_items[num_collisions++] = index;
+				s_traceCore.hit_objects[num_collisions++] = index;
 			}
 		}
 		else
@@ -922,7 +939,7 @@ int Trace_SectorAll(Sector* sector)
 
 			if (trace_obj->sector_index == sector->index)
 			{
-				s_traceCore.result_items[num_collisions++] = index;
+				s_traceCore.hit_objects[num_collisions++] = index;
 			}
 		}
 	}

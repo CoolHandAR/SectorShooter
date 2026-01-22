@@ -4,8 +4,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <glad/glad.h>
-#include "g_common.h"
 #include <main.h>
+
+#include "g_common.h"
 #include "utility.h"
 #include "u_math.h"
 
@@ -198,7 +199,7 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 	int nodes_drawn = Scene_ProcessBSPNode(&s_renderCore.framebuffer, map, map->num_nodes - 1, &drawing_args);
 
 	//draw draw collumns
-	Scene_DrawDrawCollumns(&s_renderCore.framebuffer, &drawing_args.render_data->draw_collums, s_renderCore.depth_buffer);
+	Scene_DrawDrawCollumns(&s_renderCore.framebuffer, &drawing_args.render_data->draw_collums, s_renderCore.depth_buffer, &drawing_args);
 	
 	//draw sprites and decals
 	for (int i = 0; i < render_data->num_draw_sprites; i++)
@@ -242,8 +243,52 @@ static void Render_DrawAllObjectBoxes()
 		box[1][1] = obj->y + obj->size;
 		box[1][2] = obj->z + obj->height;
 
-		Video_DrawBox(&s_renderCore.framebuffer, box, s_renderCore.view_x, s_renderCore.view_y, s_renderCore.view_z, s_renderCore.view_cos, s_renderCore.view_sin, view_sin, view_cos, s_renderCore.vfov * (float)s_renderCore.h,
-			0, s_renderCore.framebuffer.width);
+		Video_DrawBox(&s_renderCore.framebuffer, s_renderCore.depth_buffer, box, s_renderCore.view_x, s_renderCore.view_y, s_renderCore.view_z, s_renderCore.view_cos, s_renderCore.view_sin, view_sin, view_cos, s_renderCore.vfov * (float)s_renderCore.h,
+			0, s_renderCore.framebuffer.width, NULL);
+	}
+}
+static void Render_DrawLightGrid()
+{
+	Map* map = Map_GetMap();
+	Lightgrid* grid = &map->lightgrid;
+
+	if (!map->lightgrid.blocks)
+	{
+		return;
+	}
+
+	float tangent = tan(Math_DegToRad(VIEW_FOV) / 2.0);
+	float view_cos = tangent * s_renderCore.view_cos;
+	float view_sin = tangent * s_renderCore.view_sin;
+
+	for (int x = 0; x < grid->block_size[0]; x++)
+	{
+		for (int y = 0; y < grid->block_size[1]; y++)
+		{
+			for (int z = 0; z < grid->block_size[2]; z++)
+			{
+				float position[3];
+
+				position[0] = grid->origin[0] + (x * grid->size[0]);
+				position[1] = grid->origin[1] + (y * grid->size[1]);
+				position[2] = grid->origin[2] + (z * grid->size[2]);
+
+				float box[2][3];
+				box[0][0] = position[0] - 5;
+				box[0][1] = position[1] - 5;
+				box[0][2] = position[2] - 5;
+
+				box[1][0] = position[0] + 5;
+				box[1][1] = position[1] + 5;
+				box[1][2] = position[2] + 5;
+
+				int flat_index = ((int)grid->bounds[0] * (int)grid->bounds[1] * z) + ((int)grid->bounds[0] * y) + x;
+				Lightblock* block = &grid->blocks[flat_index];
+
+				Video_DrawBox(&s_renderCore.framebuffer, s_renderCore.depth_buffer, box, s_renderCore.view_x, s_renderCore.view_y, s_renderCore.view_z, s_renderCore.view_cos, s_renderCore.view_sin, view_sin, view_cos, s_renderCore.vfov * (float)s_renderCore.h,
+					0, s_renderCore.framebuffer.width, &block->light);
+			}
+		}
 	}
 }
 
@@ -351,13 +396,18 @@ static void Render_ThreadLoop(RenderThread* thread)
 			}
 
 			Render_Level(map, &thread->render_data, thread->x_start, thread->x_end);
-
+			break;
+		}
+		case TWT__DRAW_HUD:
+		{
 			Game_DrawHud(&s_renderCore.framebuffer, &s_renderCore.font_data, thread->x_start, thread->x_end);
 			break;
 		}
 		default:
 			break;
 		}
+
+		//Video_DrawThreadSlice(&s_renderCore.framebuffer, thread->x_start, thread->x_end, NULL);
 
 		Render_ThreadMutexUnlock(thread);
 
@@ -841,23 +891,27 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 
 	if (game_state == GS__LEVEL && Game_GetLevelIndex() >= 0)
 	{
-		//set work state for all threads
+		//set work state for all threads to draw level
 		Render_SetWorkStateForAllThreads(TWT__DRAW_LEVEL);
 
 		//wait for all threads to finish
 		Render_WaitForAllThreads();
 
+		//set work state for all threads to draw hud
+		Render_SetWorkStateForAllThreads(TWT__DRAW_HUD);
+
+		//wait for all threads to finish
+		Render_WaitForAllThreads();
+
+		//draw stuff like visual map
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
+
+		//Render_DrawAllObjectBoxes();
+
 	}
 	else
 	{
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
-	}
-	if (s_renderCore.fullscreen_shader_fun)
-	{
-		//Render_SetWorkStateForAllThreads(TWT__SHADER);
-
-		//Render_WaitForAllThreads();
 	}
 
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, s_renderCore.w, s_renderCore.h, GL_RGBA, GL_UNSIGNED_BYTE, s_renderCore.framebuffer.data);
@@ -867,8 +921,10 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
 	//reset stuff
+	Render_LockObjectMutex(true);
 	s_renderCore.fullscreen_shader_fun = NULL;
 	s_renderCore.extra_light = Vec3_u16_Zero();
+	Render_UnlockObjectMutex(true);
 }
 
 void Render_GetWindowSize(int* r_width, int* r_height)

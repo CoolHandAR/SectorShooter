@@ -2,6 +2,8 @@
 
 #include "utility.h"
 
+#define LIGHT_MAGIC 0xF0Ce0
+
 #define LIGHTMAP_LUMP 0
 #define LIGHTGRID_LUMP 1
 #define MAX_LUMPS 2
@@ -36,6 +38,7 @@ typedef struct
 typedef struct
 {
 	int magic;
+	int luxel_size;
 	LightLump lumps[MAX_LUMPS];
 } LightHeader;
 
@@ -271,6 +274,13 @@ bool Load_Lightmap(const char* filename, Map* map)
 		return false;
 	}
 
+	if (Num_LittleLong(header.magic) != LIGHT_MAGIC || Num_LittleLong(header.luxel_size) != LIGHTMAP_LUXEL_SIZE)
+	{
+		printf("Failed to load lightmaps \n");
+		fclose(file);
+		return false;
+	}
+
 	if (!Load_ParseLightmaps(&header, file, map))
 	{
 		printf("Failed to load lightmaps \n");
@@ -416,7 +426,11 @@ bool Save_Lightmap(const char* filename, Map* map)
 
 	lightgrid_lump.offset = Save_Data(file, map->lightgrid.blocks, sizeof(Lightblock) * (lightgrid_lump.x_blocks * lightgrid_lump.y_blocks * lightgrid_lump.z_blocks));
 	
-	//go back to data
+	//save some header info
+	header.magic = Num_LittleLong(LIGHT_MAGIC);
+	header.luxel_size = Num_LittleLong(LIGHTMAP_LUXEL_SIZE);
+
+	//go back to start
 	fseek(file, 0, SEEK_SET);
 
 	if (!File_Write(file, &header, sizeof(header)))

@@ -1,9 +1,9 @@
 #include "g_common.h"
 
+#include <stdio.h>
+
 #include "main.h"
 #include "sound.h"
-
-#include <stdio.h>
 
 #define SUB_MENU_MAIN 0
 #define SUB_MENU_LOAD 1
@@ -213,8 +213,6 @@ void Menu_Update(float delta)
 		return;
 	}
 
-	//Render_LockObjectMutex(true);
-
 	if (menu_core.input_timer > 0) menu_core.input_timer -= delta;
 	
 	//handle sub menu
@@ -295,7 +293,6 @@ void Menu_Update(float delta)
 	if (menu_core.index < 0) menu_core.index = SUB_MENU_EXIT;
 	else if (menu_core.index > SUB_MENU_EXIT) menu_core.index = 0;
 
-	//Render_UnlockObjectMutex(true);
 }
 
 void Menu_Draw(Image* image, FontData* fd)

@@ -3,7 +3,7 @@
 #include "u_math.h"
 #include "game_info.h"
 
-static void Event_ActivateCrusherObject(Sector* sector)
+static void Event_ActivateCrusherObject(Sector* sector, bool loop)
 {
 	if(sector->sector_object >= 0)
 	{
@@ -14,18 +14,22 @@ static void Event_ActivateCrusherObject(Sector* sector)
 	float sector_center_y = 0;
 	Math_GetBoxCenter(sector->bbox, &sector_center_x, &sector_center_y);
 
-	Object* crusher = Object_Spawn(OT__CRUSHER, 0, sector_center_x, sector_center_y, 0);
+	Object* crusher = Object_Spawn(OT__CRUSHER, (loop) ? SUB__CRUSHER_LOOPING : SUB__CRUSHER_ONCE, sector_center_x, sector_center_y, 0);
+
+	if (!crusher)
+	{
+		return;
+	}
 
 	crusher->sector_index = sector->index;
 	crusher->speed = 50;
-	crusher->hp = 0; //0 == means one cycle only, 1 == repeats
 	crusher->dir_y = 1; //floor move
 	crusher->dir_z = -1; //ceil move
 
 	sector->sector_object = crusher->id;
 }
 
-static void Event_ActivateCrushersByTag(int tag)
+static void Event_ActivateCrushersByTag(int tag, bool loop)
 {
 	if (tag <= 0)
 	{
@@ -44,7 +48,7 @@ static void Event_ActivateCrushersByTag(int tag)
 			continue;
 		}
 
-		Event_ActivateCrusherObject(sector);
+		Event_ActivateCrusherObject(sector, loop);
 	}
 }
 static void Event_ActivateDoorObject(Sector* sector, bool never_close)
@@ -72,6 +76,11 @@ static void Event_ActivateDoorObject(Sector* sector, bool never_close)
 	Math_GetBoxCenter(sector->bbox, &sector_center_x, &sector_center_y);
 
 	Object* door = Object_Spawn(OT__DOOR, 0, sector_center_x, sector_center_y, sector_center_z);
+
+	if (!door)
+	{
+		return;
+	}
 
 	door->sector_index = sector->index;
 	door->speed = 100;
@@ -127,6 +136,11 @@ static void Event_ActivateLiftObject(Sector* sector)
 	Math_GetBoxCenter(sector->bbox, &sector_center_x, &sector_center_y);
 
 	Object* lift = Object_Spawn(OT__LIFT, 0, sector_center_x, sector_center_y, sector_center_z);
+
+	if (!lift)
+	{
+		return;
+	}
 
 	lift->sector_index = sector->index;
 	lift->speed = 200;
@@ -218,9 +232,15 @@ static void Event_HandleSpecialWalkoverLines(Object* obj, Linedef* line, int sid
 		line->special = 0;
 		break;
 	}
+	case SPECIAL__TRIGGER_CRUSHER_LOOP:
+	{
+		Event_ActivateCrushersByTag(line->sector_tag, true);
+		line->special = 0;
+		break;
+	}
 	case SPECIAL__TRIGGER_CRUSHER:
 	{
-		Event_ActivateCrushersByTag(line->sector_tag);
+		Event_ActivateCrushersByTag(line->sector_tag, false);
 		break;
 	}
 	case SPECIAL__TRIGGER_EXIT:
@@ -250,7 +270,6 @@ void Event_TriggerSpecialLine(Object* obj, int side, Linedef* line, EventLineTri
 		Event_HandleSpecialWalkoverLines(obj, line, side);
 	}
 
-	
 
 }
 
@@ -272,7 +291,14 @@ void Event_CreateExistingSectorObject(int type, int sub_type, int state, float s
 	{
 	case OT__CRUSHER:
 	{
-		Event_ActivateCrusherObject(sector);
+		if (sub_type == SUB__CRUSHER_LOOPING)
+		{
+			Event_ActivateCrusherObject(sector, true);
+		}
+		else
+		{
+			Event_ActivateCrusherObject(sector, false);
+		}
 		break;
 	}
 	case OT__LIFT:

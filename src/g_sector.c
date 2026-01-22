@@ -1,4 +1,5 @@
 #include "g_common.h"
+
 #include "u_math.h"
 #include "game_info.h"
 #include "sound.h"
@@ -52,6 +53,11 @@ void Sector_CreateLightStrober(Sector* sector, SubType light_type)
 	Math_GetBoxCenter(sector->bbox, &sector_center_x, &sector_center_y);
 
 	Object* strober = Object_Spawn(OT__LIGHT_STROBER, light_type, sector_center_x, sector_center_y, sector_center_z);
+
+	if (!strober)
+	{
+
+	}
 
 	strober->sector_index = sector->index;
 	strober->hp = sector->light_level; //store the base light level somewhere
@@ -194,7 +200,7 @@ void Crusher_Update(Object* obj, float delta)
 		if ((int)sector->floor == (int)sector->base_floor && (int)sector->ceil == (int)sector->base_ceil)
 		{
 			//cycle completed
-			if (obj->hp == 0)
+			if (obj->sub_type == SUB__CRUSHER_ONCE)
 			{
 				Sector_RemoveSectorObject(sector);
 				return;

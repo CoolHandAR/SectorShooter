@@ -12,12 +12,6 @@
 #define CMP_EPSILON 0.00001
 #define MATH_EQUAL_EPSILON (1/65536.)
 
-#define Math_vxs(x0,y0, x1,y1) ((x0)*(y1) - (x1)*(y0)) // vxs: Vector cross product
-// Intersect: Calculate the point of intersection between two lines.
-#define Math_IntersectLines(x1,y1, x2,y2, x3,y3, x4,y4) ((Vertex) { \
-    Math_vxs(Math_vxs(x1,y1, x2,y2), (x1)-(x2), Math_vxs(x3,y3, x4,y4), (x3)-(x4)) / Math_vxs((x1)-(x2), (y1)-(y2), (x3)-(x4), (y3)-(y4)), \
-    Math_vxs(Math_vxs(x1,y1, x2,y2), (y1)-(y2), Math_vxs(x3,y3, x4,y4), (y3)-(y4)) / Math_vxs((x1)-(x2), (y1)-(y2), (x3)-(x4), (y3)-(y4)) })
-
 static void Math_SwapFloat(float* a, float* b)
 {
 	float temp = *a;

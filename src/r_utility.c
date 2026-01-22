@@ -17,10 +17,15 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	Map* map = Map_GetMap();
 
 	int num_sectors = map->num_sectors;
-	
-	if (!data->visited_sectors_bitset)
+	size_t num_bitsets = ceilf((float)num_sectors / 64.0) + 1;
+
+	if (!data->visited_sectors_bitset || data->bitset_size != num_bitsets)
 	{
-		size_t num_bitsets = ceilf((float)num_sectors / 64.0) + 1;
+		if (data->visited_sectors_bitset)
+		{
+			free(data->visited_sectors_bitset);
+			data->visited_sectors_bitset = NULL;
+		}
 
 		data->visited_sectors_bitset = calloc(num_bitsets, sizeof(uint64_t));
 
@@ -121,10 +126,10 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	const int h_frames = sprite->img->h_frames;
 	const int v_frames = sprite->img->v_frames;
 
-	int sprite_offset_x = (h_frames > 0) ? sprite->frame % h_frames : 0;
-	int sprite_offset_y = (v_frames > 0) ? sprite->frame / h_frames : 0;
+	int sprite_offset_x = (h_frames > 0) ? (sprite->frame + sprite->frame_offset_x) % h_frames : 0;
+	int sprite_offset_y = (v_frames > 0) ? (sprite->frame + sprite->frame_offset_x) / h_frames : 0;
 
-	sprite_offset_x += sprite->frame_offset_x;
+	//sprite_offset_x += sprite->frame_offset_x;
 	sprite_offset_y += sprite->frame_offset_y;
 
 	int sprite_rect_width = (h_frames > 0) ? sprite->img->width / h_frames : sprite->img->width;
@@ -138,9 +143,6 @@ void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_lig
 	light.b = sector_light;
 #endif
 
-	light.r += extra_light.r;
-	light.g += extra_light.g;
-	light.b += extra_light.b;
 
 	//Convert to draw sprite
 	DrawSprite* draw_sprite = &data->draw_sprites[data->num_draw_sprites++];

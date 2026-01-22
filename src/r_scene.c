@@ -504,9 +504,9 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 				float ty_pos = (fabs(c_yceil - yceil)) * ty_step;
 
-				ty_pos -= texheight;
+				//ty_pos += sidedef->y_offset;
 
-				//Scene_StoreDrawCollumn(&draw_args->render_data->draw_collums, mid_texture, &linedef->lightmap, x, c_yceil, c_yfloor, tx, depth, ty_pos, ty_step, wall_light);
+				Scene_StoreDrawCollumn(&draw_args->render_data->draw_collums, mid_texture, &linedef->lightmap, x, c_yceil, c_yfloor, tx, depth, ty_pos, ty_step, light);
 			}
 		}
 		else
@@ -988,7 +988,7 @@ int Scene_ProcessBSPNode(Image* image, Map* map, int node_index, DrawingArgs* ar
 	return total;
 }
 
-void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer)
+void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer, DrawingArgs* args)
 {
 	for (int i = 0; i < collumns->index; i++)
 	{
@@ -996,6 +996,11 @@ void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_b
 
 		Texture* tex = c->texture;
 
-		Video_DrawWallCollumnDepth(image, tex, c->lightmap, depth_buffer, c->x, c->y1, c->y2, c->depth, c->tx, c->ty_pos, c->ty_step, c->light, tex->height_mask);
+		Vec3_u16 light;
+		light.r = c->light + args->extra_light.r;
+		light.g = c->light + args->extra_light.g;
+		light.b = c->light + args->extra_light.b;
+
+		Video_DrawWallCollumnDepth(image, tex, c->lightmap, depth_buffer, c->x, c->y1, c->y2, c->depth, c->tx, c->ty_pos, c->ty_step, light, tex->height_mask);
 	}
 }

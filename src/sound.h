@@ -33,6 +33,7 @@ void Sound_EmitWorldTemp(int type, float x, float y, float z, float dir_x, float
 SoundID Sound_EmitWorld(int type, float x, float y, float z, float dir_x, float dir_y, float dir_z, float vol);
 void Sound_SetTransform(SoundID id, float x, float y, float z, float dir_x, float dir_y, float dir_z);
 void Sound_SetRolloff(SoundID id, float rolloff);
+void Sound_SetMinMaxGain(SoundID id, float min_gain, float max_gain);
 void Sound_SetVolume(SoundID id, float vol);
 void Sound_Play(SoundID id);
 void Sound_Stop(SoundID id);

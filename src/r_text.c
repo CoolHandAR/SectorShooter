@@ -1,12 +1,12 @@
 #include "r_common.h"
 
-#include "utility.h"
-
 #include <cjson/cJSON.h>
 #include <stdlib.h>
-
-#include "u_math.h"
 #include <stdarg.h>
+#include <string.h>
+
+#include "utility.h"
+#include "u_math.h"
 
 bool Text_LoadFont(const char* filename, const char* image_path, FontData* font_data)
 {

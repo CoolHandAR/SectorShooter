@@ -2,6 +2,7 @@
 
 #include "light.h"
 
+#include <stb_image/stb_image.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
@@ -90,7 +91,6 @@ enum
     ML_SECTORS,		// Sectors, from editing
     ML_REJECT,		// LUT, sector-sector visibility	
     ML_BLOCKMAP,		// LUT, motion clipping, walls/grid element,
-    ML_LIGHTGRID, //LIGHT GRID
 };
 
 typedef struct
@@ -295,7 +295,10 @@ typedef enum
     THING__ROCK1 = 10038,
     THING__SUPER_IMP = 10039,
     THING__SUPER_PINKY = 10040,
-    THING__SUPER_BRUISER = 10041
+    THING__SUPER_BRUISER = 10041,
+    THING__SFX_WINTER_WIND = 10042,
+    THING__FALLING_SAND = 10043,
+    THING__FALLING_SNOW = 10044
 } thingtypes;
 
 
@@ -706,15 +709,34 @@ static void Load_PostProcessMap(Texture* sky_texture, Map* map)
 
         if (line->special > 0)
         {
+            typedef enum
+            {
+                IS__NONE,
+                IS__DOOR,
+                IS__LIFT,
+                IS__CRUSHER
+            };
+
+            int is = IS__NONE;
+
+            if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE || line->special == SPECIAL__TRIGGER_DOOR_NEVER_CLOSE)
+            {
+                is = IS__DOOR;
+            }
+            else if(line->special == SPECIAL__USE_LIFT)
+            {
+                is = IS__LIFT;
+            }
+
             if (line->sector_tag > 0)
             {
                 while (sector = Map_GetNextSectorByTag(&iter_index, line->sector_tag))
                 {
-                    if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE || line->special == SPECIAL__TRIGGER_DOOR_NEVER_CLOSE)
+                    if (is == IS__DOOR)
                     {
                         sector->neighbour_sector_value = Sector_FindLowestNeighbourCeilling(sector);
                     }
-                    else if (line->special == SPECIAL__USE_LIFT)
+                    else if (is == IS__LIFT)
                     {
                        sector->neighbour_sector_value = Sector_FindLowestNeighbourFloor(sector);
                     }
@@ -725,11 +747,11 @@ static void Load_PostProcessMap(Texture* sky_texture, Map* map)
                 Sector* frontsector = &map->sectors[line->front_sector];
                 Sector* backsector = &map->sectors[line->back_sector];
 
-                if (line->special == SPECIAL__USE_DOOR || line->special == SPECIAL__USE_DOOR_NEVER_CLOSE || line->special == SPECIAL__TRIGGER_DOOR_NEVER_CLOSE)
+                if (is == IS__DOOR)
                 {
                     backsector->neighbour_sector_value = Sector_FindLowestNeighbourCeilling(backsector);
                 }
-                else if (line->special == SPECIAL__USE_LIFT)
+                else if (is == IS__LIFT)
                 {
                     backsector->neighbour_sector_value = Sector_FindLowestNeighbourFloor(backsector);
                 }
@@ -930,11 +952,7 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         case THING__SUN:
         {
             map->sun_angle = (float)mt->angle - 180;
-            map->sun_color[0] = 255;
-            map->sun_color[1] = 204;
-            map->sun_color[2] = 51;
-            map->sun_position[0] = object_x;
-            map->sun_position[1] = object_y;
+            map->has_sun_entity = true;
             break;
         }
         case THING__BLUE_TORCH:
@@ -1221,6 +1239,25 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             sub_type = SUB__PICKUP_INVUNERABILITY;
             break;
         }
+        case THING__SFX_WINTER_WIND:
+        {
+            type = OT__SFX_EMITTER;
+            sub_type = SUB__SFX_WINTER_WIND;
+            break;
+        }
+        case THING__FALLING_SAND:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_FALLING_SAND;
+            clamp_to_ceil = true;
+            break;
+        }
+        case THING__FALLING_SNOW:
+        {
+            type = OT__THING;
+            sub_type = SUB__THING_FALLING_SNOW;
+            break;
+        }
         default:
             break;
         }
@@ -1235,20 +1272,23 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         {
             Object* obj = Object_Spawn(type, sub_type, object_x, object_y, 0);
 
-            float rad_angle = Math_DegToRad(mt->angle);
-            obj->dir_x = cosf(rad_angle);
-            obj->dir_y = sinf(rad_angle);
-
-            obj->flags |= flags;
-
-            if (clamp_to_ceil)
+            if (obj)
             {
-                obj->z = obj->ceil_clamp - obj->height;
-                obj->sprite.z = obj->z;
-            }
-            if (type == OT__MONSTER && is_super)
-            {
-                Monster_SetAsSuper(obj);
+                float rad_angle = Math_DegToRad(mt->angle);
+                obj->dir_x = cosf(rad_angle);
+                obj->dir_y = sinf(rad_angle);
+
+                obj->flags |= flags;
+
+                if (clamp_to_ceil)
+                {
+                    obj->z = obj->ceil_clamp - obj->height;
+                    obj->sprite.z = obj->z;
+                }
+                if (type == OT__MONSTER && is_super)
+                {
+                    Monster_SetAsSuper(obj);
+                }
             }
         }
     }
@@ -1294,7 +1334,7 @@ static int Load_FindLumpNum(const char* name, wadinfo_t* header, filelump_t* fil
     return -1;
 }
 
-bool Load_Doommap(const char* filename, const char* skyname, Map* map)
+bool Load_Doommap(const char* filename, const char* skyname, LightCompilerInfo* light_compiler_info, Map* map)
 {
     bool result = true;
 
@@ -1378,7 +1418,7 @@ bool Load_Doommap(const char* filename, const char* skyname, Map* map)
 
         //create new lightmaps
         LightGlobal light_global;
-        LightGlobal_Setup(&light_global);
+        LightGlobal_Setup(&light_global, light_compiler_info);
 
         Lightmap_Create(&light_global, map);
         Lightblocks_Create(&light_global, map);
@@ -1704,21 +1744,7 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
             j <<= 1;
         }
 
-
-     
-
         ourtexture->height_mask = j - 1;
-
-        if (!strcmp(ourtexture->name, "NUKE24"))
-        {
-            ourtexture->height_mask = 127;
-        }
-
-        //ourtexture->height_mask = texheight - 1;
-
-        //ourtexture->height_mask = texheight - 1;
-
-        //ourtexture->height_mask = 127;
     }
 
 
@@ -1728,6 +1754,61 @@ static void Load_PatchyTextures(FILE* file, wadinfo_t* header, filelump_t* file_
     if (patchlookup) free(patchlookup);
 }
 
+static void Load_PNGTextures(FILE* file, wadinfo_t* header, filelump_t* file_infos, int png_start, int png_end)
+{
+    GameAssets* assets = Game_GetAssets();
+
+    int num_pngs = png_end - png_start;
+
+    assets->png_textures = calloc(num_pngs, sizeof(Texture));
+
+    if (!assets->png_textures)
+    {
+        return;
+    }
+
+    int tex_index = 0;
+    for (int i = 0; i < num_pngs; i++)
+    {
+        int size = 0;
+        unsigned char* data = MallocLump(file, header, file_infos, 0, i + png_start, 1, &size);
+        filelump_t* lump = &file_infos[i + png_start];
+        if (!data)
+        {
+            continue;
+        }
+
+        int tex_width = 0;
+        int tex_height = 0;
+        int nr_channels = 0;
+
+        unsigned char* png_data = stbi_load_from_memory(data, lump->size, &tex_width, &tex_height, &nr_channels, 0);
+
+        if (png_data && tex_width > 0 && tex_height > 0 && nr_channels > 0)
+        {
+            Texture* texture = &assets->png_textures[tex_index++];
+            Image* img = &texture->img;
+
+            Image_Create(img, tex_width, tex_height, 4);
+
+            if (img->data)
+            {
+                free(img->data);
+                img->data = NULL;
+            }
+
+            img->data = png_data;
+
+            strncpy(texture->name, lump->name, 8);
+            texture->width_mask = tex_width - 1;
+            texture->height_mask = tex_height - 1;
+        }
+        
+        free(data);
+    }
+
+    assets->num_png_texures = tex_index;
+}
 
 bool Load_DoomIWAD(const char* filename)
 {
@@ -1765,7 +1846,8 @@ bool Load_DoomIWAD(const char* filename)
     int texture2_lump_index = -1;
     int flat_start_index = -1;
     int flat_end_index = -1;
-    int num_flats = 0;
+    int png_start_index = -1;
+    int png_end_index = -1;
 
     char name[12];
     //query indexes of several lumps
@@ -1800,12 +1882,21 @@ bool Load_DoomIWAD(const char* filename)
         {
             flat_end_index = i - 1;
         }
+        else if (!strcmp(name, "IM_START"))
+        {
+            png_start_index = i + 1;
+        }
+        else if (!strcmp(name, "IM_END"))
+        {
+            png_end_index = i;
+        }
     }
 
     unsigned* paletteLut = Load_Pallete(file, &header, file_infos, playpal_index);
 
     Load_FlatTextures(file, &header, file_infos, flat_start_index, flat_end_index, paletteLut);
     Load_PatchyTextures(file, &header, file_infos, patch_name_lump_index, texture1_lump_index, texture2_lump_index, paletteLut);
+    Load_PNGTextures(file, &header, file_infos, png_start_index, png_end_index);
 
     if (file_infos) free(file_infos);
     if (paletteLut) free(paletteLut);

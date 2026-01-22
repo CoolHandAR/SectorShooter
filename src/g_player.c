@@ -9,22 +9,21 @@
 #include "u_math.h"
 
 #define TRACE_DIST 1024
+#define BLOOD_SPLATTER_TRACE_DIST 128
 #define HIT_TIME 0.1
 #define USE_TIME 0.7
 #define SAVE_TIME 2
 #define PLAYER_MAX_HP 100
 #define PLAYER_MAX_AMMO 100
 #define PLAYER_OVERHEAL_HP_TICK_TIME 0.25
-#define PLAYER_SPEED 10
+#define PLAYER_SPEED 3
 #define MOUSE_SENS_DIVISOR 1000
 #define MIN_SENS 0.5
 #define MAX_SENS 16
 #define Z_VIEW_LERP 25
 #define CAMERA_SHAKE_SCALE 1
 #define CAMERA_SHAKE_TIME_SCALE 1
-#define GUN_FLASH_SCALE 0.25
-
-static const float PI = 3.14159265359;
+#define GUN_FLASH_SCALE 0.55
 
 static PlayerData player;
 
@@ -37,60 +36,36 @@ static void Player_GiveAll()
 	player.rocket_ammo = PLAYER_MAX_AMMO;
 }
 
-static void Shader_Hurt(Image* img, int x, int y, int tx, int ty)
+static void Player_TraceBloodSplat(Object* hit_obj, float hit_x, float hit_y, float hit_z, float p_dir_x, float p_dir_y, float dir_z)
 {
-	int center_x = abs(x - img->half_width);
-	int center_y = abs(y - img->half_height);
+	p_dir_x *= BLOOD_SPLATTER_TRACE_DIST;
+	p_dir_y *= BLOOD_SPLATTER_TRACE_DIST;
 
-	float strenght_x = (float)center_x / (float)img->half_width;
-	float strenght_y = (float)center_y / (float)img->half_height;
+	float frac = 0;
+	float inter_x = 0;
+	float inter_y = 0;
+	float inter_z = 0;
 
-	float lerp = Math_lerp(0, strenght_x, strenght_y) * player.hurt_timer;
+	int hit = Trace_AttackLine(hit_obj, hit_x, hit_y, hit_x + p_dir_x, hit_y + p_dir_y, hit_z, BLOOD_SPLATTER_TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
 
-	unsigned char* sample = Image_Get(img, x, y);
-
-	sample[0] = Math_lerp(sample[0], 255, lerp);
-}
-static void Shader_HurtSimple(Image* img, int x, int y, int tx, int ty)
-{
-	unsigned char* sample = Image_Get(img, x, y);
-
-	int r = sample[0];
-
-	r *= 2;
-	
-	if (r > 255)
+	if (hit == TRACE_NO_HIT || hit >= 0)
 	{
-		r = 255;
+		return;
 	}
 
-	sample[0] = r;
-}
+	float dist = Math_XY_Distance(inter_x, inter_y, hit_x, hit_y);
 
-static void Shader_Dead(Image* img, int x, int y, int tx, int ty)
-{
-	int center_x = abs(x - img->half_width);
-	int center_y = abs(y - img->half_height);
+	//way too far away
+	if (dist >= BLOOD_SPLATTER_TRACE_DIST)
+	{
+		return;
+	}
 
-	float strenght_x = (float)center_x / (float)img->half_width;
-	float strenght_y = (float)center_y / (float)img->half_height;
+	//hit a wall
+	//spawn blood decal
+	Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_BLOOD_SPLATTER, inter_x, inter_y, inter_z);
 
-	unsigned char* sample = Image_Get(img, x, y);
-
-	Image_Set2(img, x + (rand() % 2), y - (rand() % 2), sample);
-}
-
-static void Shader_Godmode(Image* img, int x, int y, int tx, int ty)
-{
-	unsigned char* sample = Image_Get(img, x, y);
-
-	sample[0] ^= sample[1];
-}
-static void Shader_Quad(Image* img, int x, int y, int tx, int ty)
-{
-	unsigned char* sample = Image_Get(img, x, y);
-
-	sample[2] = Math_Clampl((int)sample[0] + 12, 0, 255);
+	if(decal) decal->sprite.decal_line_index = -(hit + 1);
 }
 
 static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
@@ -122,7 +97,6 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 	inter_x = p_x + dx * frac;
 	inter_y = p_y + dy * frac;
 	
-
 	//hit a an object
 	if (hit >= 0)
 	{
@@ -157,10 +131,22 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 			dmg *= 4;
 		}
 
+		//spawn bullet impact particle
+		if (rand() % 100 > 25)
+		{
+			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BULLET_IMPACT, (inter_x)+(Math_randf() * 0.5), (inter_y)+(Math_randf() * 0.5), inter_z + (Math_randf() * 0.5));
+		}
+
 		//spawn blood particles
 		if (rand() % 100 > 25)
 		{
 			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_BLOOD, (inter_x) + (Math_randf() * 0.5), (inter_y) + (Math_randf() * 0.5), inter_z + (Math_randf() * 0.5));
+		}
+
+		//spawn blood decal behing the hit object
+		if (rand() % 100 > 25)
+		{
+			Player_TraceBloodSplat(hit_obj, inter_x, inter_y, inter_z, p_dirX, p_dirY, inter_z - (player.obj->z + player.obj->height));
 		}
 
 		if (hit_obj->hp > 0)
@@ -179,7 +165,7 @@ static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
 		//spawn bullet hole decal
 		Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_WALL_HIT, origin_x, origin_y, origin_z);
 
-		decal->sprite.decal_line_index = -(hit + 1);
+		if(decal) decal->sprite.decal_line_index = -(hit + 1);
 	}
 
 	Monster_WakeAll(player.obj);
@@ -198,9 +184,9 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 
 	static int PREV_HIT = TRACE_NO_HIT;
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < 40; i++)
 	{
-		float angle = player.angle - Math_DegToRad(90.0) / 2.0 + Math_DegToRad(90.0) / 40.0 * i;
+		float angle = player.angle - Math_DegToRad(90.0) / 2.0 + (Math_DegToRad(90.0) / 40.0 * i);
 
 		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + (cos(angle) * TRACE_DIST), p_y + (sin(angle) * TRACE_DIST), player.obj->z + player.obj->height, TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
 
@@ -231,6 +217,8 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 		}
 		
 	}
+
+	Monster_WakeAll(player.obj);
 }
 
 static void Player_Use()
@@ -240,7 +228,7 @@ static void Player_Use()
 		return;
 	}
 
-	float check_range = 45;
+	const float check_range = 45;
 	int hit = Trace_FindSpecialLine(player.obj->x, player.obj->y, player.obj->x + (player.obj->dir_x * check_range), player.obj->y + (player.obj->dir_y * check_range), player.obj->z + player.obj->height);
 
 	//no special line was found
@@ -393,11 +381,8 @@ static void Player_ShootGun()
 		break;
 	}
 
-	Sprite* sprite = &player.gun_sprites[player.gun];
-
-	sprite->playing = true;
-	sprite->frame = 0;
 	GunInfo* gun_info = player.gun_info;
+	player.obj->flags |= OBJ_FLAG__JUST_ATTACKED;
 	player.gun_timer = gun_info->cooldown;
 	player.shake_timer = gun_info->shake_time * CAMERA_SHAKE_TIME_SCALE;
 	player.shake_scale = gun_info->shake_scale * CAMERA_SHAKE_SCALE;
@@ -473,8 +458,8 @@ static void Player_UpdateListener()
 {
 	ma_engine* sound_engine = Sound_GetEngine();
 
-	ma_engine_listener_set_position(sound_engine, 0, player.obj->x, player.obj->z, player.obj->y);
-	ma_engine_listener_set_direction(sound_engine, 0, player.obj->dir_x, -player.obj->z, -player.obj->dir_y);
+	ma_engine_listener_set_position(sound_engine, 0, player.obj->x, player.obj->y, player.obj->z);
+	ma_engine_listener_set_direction(sound_engine, 0, player.obj->dir_x, player.obj->dir_y, 0);
 }
 
 static void Player_ProcessInput(GLFWwindow* window)
@@ -615,6 +600,24 @@ static void Player_SetupGunSprites()
 		sprite->action_frame = gun_info->light_frame;
 	}
 }
+static void Player_HandleHurt()
+{
+	if (player.obj->hp <= 0)
+	{
+		player.hurt_timer = 2;
+		Sound_Emit(SOUND__PLAYER_DIE, 0.035);
+	}
+	else
+	{
+		if (player.hurt_timer <= 0)
+		{
+			Sound_Emit(SOUND__PLAYER_PAIN, 0.035);
+		}
+
+		player.hurt_timer = 0.5;
+	}
+}
+
 
 void Player_Init(int keep)
 {
@@ -653,15 +656,15 @@ void Player_Init(int keep)
 	player.sensitivity = sens;
 	player.view_x = player.obj->x;
 	player.view_y = player.obj->y;
-	player.view_z = 0;
+	player.view_z = player.obj->z;
 
 	player.obj->speed = PLAYER_SPEED;
-	player.obj->height = 100;
+	player.obj->height = PLAYER_HEIGHT;
 	player.obj->step_height = PLAYER_STEP_SIZE;
 
 	Player_SetupGunSprites();
 
-	Player_GiveAll();
+	//Player_GiveAll();
 
 	if(!keep)
 		Player_SetGun(GUN__PISTOL);
@@ -689,17 +692,7 @@ void Player_Rotate(float rot)
 
 void Player_Hurt(float dir_x, float dir_y)
 {
-	if (player.obj->hp <= 0)
-	{
-		player.hurt_timer = 2;
-		Sound_Emit(SOUND__PLAYER_DIE, 0.035);
-	}
-	else
-	{
-		player.hurt_timer = 0.5;
-		Sound_Emit(SOUND__PLAYER_PAIN, 0.035);
-	}
-
+	player.obj->flags |= OBJ_FLAG__JUST_HIT;
 }
 
 void Player_HandlePickup(Object* obj)
@@ -734,6 +727,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_ROCKETS:
 	{
 		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Game_SetStatusMessage("ROCKETS PICKED UP!");
 
 		player.rocket_ammo += PICKUP_ROCKETS_GIVE;
 		break;
@@ -741,6 +735,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_SHOTGUN:
 	{
 		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Game_SetStatusMessage("SHOTGUN PICKED UP!");
 
 		bool just_picked = false;
 
@@ -763,6 +758,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_MACHINEGUN:
 	{
 		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Game_SetStatusMessage("MACHINE GUN PICKED UP!");
 
 		bool just_picked = false;
 
@@ -785,6 +781,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_DEVASTATOR:
 	{
 		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Game_SetStatusMessage("DEVASTATOR PICKED UP!");
 
 		bool just_picked = false;
 
@@ -807,6 +804,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_INVUNERABILITY:
 	{
 		Sound_Emit(SOUND__PICKUP_SPECIAL, 0.05);
+		Game_SetStatusMessage("INVUNERABILITY ORB PICKED UP!");
 
 		player.godmode_timer = PICKUP_INVUNERABILITY_TIME;
 		break;
@@ -814,6 +812,7 @@ void Player_HandlePickup(Object* obj)
 	case SUB__PICKUP_QUAD_DAMAGE:
 	{
 		Sound_Emit(SOUND__PICKUP_SPECIAL, 0.05);
+		Game_SetStatusMessage("QUAD DAMAGE ORB PICKED UP!");
 
 		player.quad_timer = PICKUP_QUAD_TIME;
 		break;
@@ -833,6 +832,20 @@ void Player_HandlePickup(Object* obj)
 	Object_ConsumePickup(obj);
 }
 
+static void Player_ApplyGravity(float delta)
+{
+	if (player.obj->z > player.obj->floor_clamp)
+	{
+		player.z_vel += (GRAVITY_SCALE * PLAYER_GRAVITY_SCALE) * delta;
+		player.z_vel *= PLAYER_FRICTION;
+	}
+	else
+	{
+		//apply some gravity
+		player.z_vel = GRAVITY_SCALE * delta;
+	}
+}
+
 static void Player_Move(float dirx, float diry, float delta)
 {
 	player.obj->speed = PLAYER_SPEED;
@@ -842,11 +855,17 @@ static void Player_Move(float dirx, float diry, float delta)
 	player.prev_y = player.obj->y;
 
 	Move_Object(player.obj, dirx, diry, delta, true);
-	Move_ZMove(player.obj, GRAVITY_SCALE * delta);
+
+	Player_ApplyGravity(delta);
+	Move_ZMove(player.obj, player.z_vel);
 }
 
 void Player_Update(GLFWwindow* window, float delta)
 {
+	//Map* map = Map_GetMap();
+
+	//printf("free list: %i, num_objects: %i , sorted_objects: %i \n", map->num_free_list, map->num_objects, map->num_sorted_objects);
+
 	Player_ProcessInput(window);
 	Player_UpdateTimers(delta);
 	
@@ -884,8 +903,27 @@ void Player_LerpUpdate(double lerp, double delta)
 		return;
 	}
 
+	if (player.obj->flags & OBJ_FLAG__JUST_HIT)
+	{
+		Player_HandleHurt();
+		player.obj->flags &= ~OBJ_FLAG__JUST_HIT;
+	}
+
 	Sprite* gun_sprite = &player.gun_sprites[player.gun];
 	GunInfo* gun_info = player.gun_info;
+
+	if (player.obj->flags & OBJ_FLAG__JUST_ATTACKED)
+	{
+		gun_sprite->frame = 0;
+		gun_sprite->playing = true;
+
+		player.obj->flags &= ~OBJ_FLAG__JUST_ATTACKED;
+	}
+	//make sure to reset the frame
+	if (!gun_sprite->playing)
+	{
+		gun_sprite->frame = 0;
+	}
 
 	Player_UpdateListener();
 	Sprite_UpdateAnimation(gun_sprite, delta);
@@ -901,16 +939,10 @@ void Player_LerpUpdate(double lerp, double delta)
 		Render_SetExtraLightFrame(extra_light);
 	}
 
-	//make sure to reset the frame
-	if (!gun_sprite->playing)
-	{
-		gun_sprite->frame = 0;
-	}
-
 	//bob gun
 	if (player.move_x != 0 || player.move_y != 0 || player.shake_timer > 0)
 	{
-		float bob_amp = 0.003;
+		const float bob_amp = 0.003;
 		float bob_freq = 16;
 
 		if (player.slow_move == 1) bob_freq *= 0.5;
@@ -997,78 +1029,68 @@ void Player_MouseCallback(float x, float y)
 	}
 }
 
-void Player_Draw(Image* image, FontData* font, int start_x, int end_x)
-{
-	//emit hurt shader
-	if (player.hurt_timer > 0)
-	{
-		Video_Shade(image, Shader_HurtSimple, start_x, 0, end_x, image->height);
-	}
-	else if (player.godmode_timer > 0)
-	{
-		Video_Shade(image, Shader_Godmode, start_x, 0, end_x, image->height);
-	}
-	else if (player.quad_timer > 0)
-	{
-		Video_Shade(image, Shader_Quad, start_x, 0, end_x, image->height);
-	}
-	if (player.obj->hp <= 0)
-	{
-		//draw crazy death stuff
-		Video_Shade(image, Shader_Hurt, start_x, 0, end_x, image->height);
-		Video_Shade(image, Shader_Dead, start_x, 0, end_x, image->height);
-	}
-}
-
 void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 {
+	Render_LockObjectMutex(false);
+
+	//keep on stack
+	GunType gun = player.gun;
+	float hurt_timer = player.hurt_timer;
+	float hit_timer = player.hit_timer;
+	float god_timer = player.godmode_timer;
+	float quad_timer = player.quad_timer;
+	int hp = player.obj->hp;
 	int visual_map_mode = VisualMap_GetMode();
+	Vec3_u16 light = player.obj->sprite.light;
+	Sprite gun_sprite = player.gun_sprites[player.gun];
+	float gun_offset_x = player.gun_offset_x;
+	float gun_offset_y = player.gun_offset_y;
+	int bullet_ammo = player.bullet_ammo;
+	int buck_ammo = player.buck_ammo;
+	int rocket_ammo = player.rocket_ammo;
+	int sector_index = player.obj->sector_index;
+
+	Render_UnlockObjectMutex(false);
 
 	//draw gun
-	if (player.obj->hp > 0)
+	if (hp > 0)
 	{
-		Vec3_u16 light = player.obj->sprite.light;
-
 #ifdef DISABLE_LIGHTMAPS
 
-		if (player.obj->sector_index >= 0)
+		if (sector_index >= 0)
 		{
-			Sector* sector = Map_GetSector(player.obj->sector_index);
+			Sector* sector = Map_GetSector(sector_index);
 
 			light.r = sector->light_level;
 			light.g = sector->light_level;
 			light.b = sector->light_level;
 		}
 #endif
-		Sprite sprite = player.gun_sprites[player.gun];
 
 		//check for gunshot light
-		if (sprite.frame == sprite.action_frame)
+		if (gun_sprite.frame == gun_sprite.action_frame)
 		{
 			light.r += 255;
 			light.g += 255;
 			light.b += 255;
 		}
-		
-		sprite.light = light;
 
-		float old_x = sprite.x;
-		float old_y = sprite.y;
+		gun_sprite.light = light;
 
-		sprite.x += player.gun_offset_x;
-		sprite.y += player.gun_offset_y;
+		gun_sprite.x += gun_offset_x;
+		gun_sprite.y += gun_offset_y;
 
-		Video_DrawScreenSprite(image, &sprite, start_x, end_x);
+		Video_DrawScreenSprite(image, &gun_sprite, start_x, end_x);
 	}
 	if (visual_map_mode > 0)
 	{
 		return;
 	}
 	//draw hud text
-	if (player.obj->hp > 0)
+	if (hp > 0)
 	{
 		//pseudo crosshair
-		if (player.hit_timer > 0)
+		if (hit_timer > 0)
 		{
 			Text_DrawColor(image, font, 0.5, 0.49, 0.3, 0.3, start_x, end_x, 255, 0, 0, 255, "+");
 		}
@@ -1080,16 +1102,16 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 		//hp
 		int hp_color[3] = { 255, 255, 255 };
 
-		if (player.obj->hp > PLAYER_MAX_HP)
+		if (hp > PLAYER_MAX_HP)
 		{
 			hp_color[0] = 128;
 			hp_color[1] = 128;
 		}
 
-		Text_DrawColor(image, font, 0.02, 0.95, 1, 1, start_x, end_x, hp_color[0], hp_color[1], hp_color[2], 255, "HP %i", player.obj->hp);
+		Text_DrawColor(image, font, 0.02, 0.95, 1, 1, start_x, end_x, hp_color[0], hp_color[1], hp_color[2], 255, "HP %i", hp);
 
 
-		if (player.gun == GUN__PISTOL)
+		if (gun == GUN__PISTOL)
 		{
 			Text_Draw(image, font, 0.75, 0.95, 1, 1, start_x, end_x, "AMMO INF");
 		}
@@ -1097,7 +1119,7 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 		{
 			int ammo = 0;
 			//ammo
-			switch (player.gun)
+			switch (gun)
 			{
 			case GUN__PISTOL:
 			{
@@ -1105,17 +1127,17 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 			}
 			case GUN__MACHINEGUN:
 			{
-				ammo = player.bullet_ammo;
+				ammo = bullet_ammo;
 				break;
 			}
 			case GUN__SHOTGUN:
 			{
-				ammo = player.buck_ammo;
+				ammo = buck_ammo;
 				break;
 			}
 			case GUN__DEVASTATOR:
 			{
-				ammo = player.rocket_ammo;
+				ammo = rocket_ammo;
 				break;
 			}
 			default:
@@ -1129,6 +1151,26 @@ void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 	{
 		Text_Draw(image, font, 0.45, 0.2, 1, 1, start_x, end_x, "DEAD");
 		Text_Draw(image, font, 0.2, 0.5, 1, 1, start_x, end_x, "PRESS FIRE TO CONTINUE...");
+	}
+
+	//SHADERS
+	if (hurt_timer > 0)
+	{
+		Video_Shade(image, Shader_HurtSimple, start_x, 0, end_x, image->height);
+	}
+	else if (god_timer > 0)
+	{
+		Video_Shade(image, Shader_Godmode, start_x, 0, end_x, image->height);
+	}
+	else if (quad_timer > 0)
+	{
+		Video_Shade(image, Shader_Quad, start_x, 0, end_x, image->height);
+	}
+	if (hp <= 0)
+	{
+		//draw crazy death stuff
+		Video_Shade(image, Shader_Hurt, start_x, 0, end_x, image->height);
+		Video_Shade(image, Shader_Dead, start_x, 0, end_x, image->height);
 	}
 }
 

@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <stb_image/stb_image.h>
 
-
 bool Image_Create(Image* img, int p_width, int p_height, int p_numChannels)
 {	
 	memset(img, 0, sizeof(Image));
@@ -113,7 +112,10 @@ void Image_Resize(Image* img, int p_width, int p_height)
 
 void Image_Destruct(Image* img)
 {
-	assert(img->data);
+	if (!img->data)
+	{
+		return;
+	}
 
 	free(img->data);
 

@@ -17,6 +17,57 @@ static void Move_CreateClipLine(float p_x, float p_y, float p_moveX, float p_mov
 	dest->dx = dest->x1 - dest->x0;
 	dest->dy = dest->y1 - dest->y0;
 }
+static bool Move_MovePlatformEntity(Object* obj, Sector* sector, float next_ceil, float next_floor, bool p_crush)
+{
+	float obj_box[2][2];
+	Math_SizeToBbox(obj->x, obj->y, obj->size, obj_box);
+
+	if (obj->sector_index != sector->index || !Math_BoxIntersectsBox(sector->bbox, obj_box))
+	{
+		return true;
+	}
+
+	Move_SetPosition(obj, obj->x, obj->y, obj->size);
+	Move_ZMove(obj, GRAVITY_SCALE);
+	
+	if (obj->hp <= 0)
+	{
+		if (obj->type == OT__PLAYER)
+		{
+			//return false;
+		}
+
+		return true;
+	}
+
+	//obj will be not be crushed
+	if (next_ceil - next_floor >= obj->height)
+	{
+		return true;
+	}
+
+	if (p_crush)
+	{
+		//can't crash this so don't move any further
+		if (!Object_Crush(obj))
+		{
+			return false;
+		}
+
+		//dont move any further if we crashed player
+		if (obj->type == OT__PLAYER)
+		{
+			//return false;
+		}
+	}
+	else
+	{
+		//dont move' any further
+		return false;
+	}
+	return true;
+}
+
 static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 {
 	Map* map = Map_GetMap();
@@ -159,7 +210,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 {
 	Map* map = Map_GetMap();
 
-	if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size * 1.5))
+	if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
 	{
 		return true;
 	}
@@ -242,8 +293,14 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 					{
 						if (Move_SetPosition(obj, obj->x, obj->y + p_moveY, obj->size))
 						{
-							return true;
+							obj->vel_x = 0;
+							obj->vel_y = p_moveY;
 						}
+					}
+					else
+					{
+						obj->vel_x = p_moveX;
+						obj->vel_y = 0;
 					}
 				}
 				else
@@ -252,14 +309,30 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 					{
 						if (Move_SetPosition(obj, obj->x + p_moveX, obj->y, obj->size))
 						{
-							return true;
+							obj->vel_x = p_moveX;
+							obj->vel_y = 0;
 						}
+					}
+					else
+					{
+						obj->vel_x = 0;
+						obj->vel_y = p_moveY;
 					}
 				}
 			
 			}
+			else
+			{
+				obj->vel_x = p_moveX;
+				obj->vel_y = p_moveY;
+			}
 
 			return true;
+		}
+
+		if (best_frac <= 0)
+		{
+			break;
 		}
 
 
@@ -314,6 +387,7 @@ void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Linedef* clip
 {
 	float dx = *r_dx;
 	float dy = *r_dy;
+	const float bias = -0.025;
 
 	if (clip_line->dx == 0)
 	{
@@ -322,7 +396,7 @@ void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Linedef* clip
 	}
 	if (clip_line->dy == 0)
 	{
-		*r_dy = 0;
+		*r_dy = 0;	
 		return;
 	}
 
@@ -612,8 +686,10 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 		obj->vel_x += (p_moveX * accel) * delta;
 		obj->vel_y += (p_moveY * accel) * delta;
 
-		obj->vel_x *= PLAYER_FRICTION;
-		obj->vel_y *= PLAYER_FRICTION;
+		float friction = PLAYER_FRICTION;
+
+		obj->vel_x *= friction;
+		obj->vel_y *= friction;
 	}
 	else
 	{
@@ -660,8 +736,9 @@ bool Move_Teleport(Object* obj, float x, float y)
 	obj->vel_y = 0;
 	obj->vel_z = 0;
 
-	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.25);
-
+	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.10);
+	Object_Spawn(OT__PARTICLE, SUB__PARTICLE_EXPLOSION, obj->x, obj->y, obj->z);
+	
 	return true;
 }
 bool Move_Unstuck(Object* obj)
@@ -707,10 +784,6 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 		return false;
 	}
 
-	//get all objects
-	int num_objs = Trace_SectorObjects(sector);
-	int* indices = Trace_GetHitObjects();
-
 	float next_floor = sector->floor + p_moveFloor;
 	float next_ceil = sector->ceil + p_moveCeil;
 
@@ -722,52 +795,23 @@ bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_mi
 		return true;
 	}
 
-	for (int i = 0; i < num_objs; i++)
-	{
-		int index = indices[i];
-		if (index < 0 || sector->sector_object == index)
-		{
-			continue;
-		}
-
-		Object* obj = Map_GetObject(index);
-
-		if (obj->sector_index != sector->index)
-		{
-			continue;
-		}
-
-		Move_SetPosition(obj, obj->x, obj->y, obj->size);
-
-		if (obj->hp <= 0)
-		{
-			continue;
-		}
-
-		//obj will be not be crushed
-		if (next_ceil - next_floor >= obj->height)
-		{
-			continue;
-		}
-
-		if (p_crush)
-		{
-			//can't crash this so don't move any further
-			if (!Object_Crush(obj))
-			{
-				return false;
-			}
-		}
-		else
-		{
-			//dont move' any further
-			return false;
-		}
-	}
 
 	sector->floor = next_floor;
 	sector->ceil = next_ceil;
 
+	int num_objs = Trace_SectorObjects(sector);
+	int* indices = Trace_GetHitObjects();
+
+	for (int i = 0; i < num_objs; i++)
+	{
+		int index = indices[i];
+		Object* obj = Map_GetObject(index);
+
+		if (!Move_MovePlatformEntity(obj, sector, next_ceil, next_floor, p_crush))
+		{
+			return false;
+		}
+	}
 
 	return true;
 }

@@ -166,7 +166,7 @@ int BSP_GetNodeSide(BSPNode* node, float p_x, float p_y)
 	return 1;
 }
 
-static int PointSide(float line_dx, float line_dy, float line_x, float line_y, float p_x, float p_y)
+static int PointSide(float line_dx, float line_dy, float line_x, float line_y, float p_x, float p_y, float bias)
 {
 	return (p_y - line_y) * line_dx + (line_x - p_x) * line_dy < MATH_EQUAL_EPSILON;
 }
@@ -210,13 +210,13 @@ static int BoxOnPointSide(float line_dx, float line_dy, float line_x, float line
 	}
 	else if (line_dx * line_dy >= 0)
 	{
-		p1 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[0][0], p_bbox[1][1]);
-		p2 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[1][0], p_bbox[0][1]);
+		p1 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[0][0], p_bbox[1][1], MATH_EQUAL_EPSILON);
+		p2 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[1][0], p_bbox[0][1], MATH_EQUAL_EPSILON);
 	}
 	else
 	{
-		p1 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[1][0], p_bbox[1][1]);
-		p2 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[0][0], p_bbox[0][1]);
+		p1 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[1][0], p_bbox[1][1], MATH_EQUAL_EPSILON);
+		p2 = PointSide(line_dx, line_dy, line_x, line_y, p_bbox[0][0], p_bbox[0][1], MATH_EQUAL_EPSILON);
 	}
 
 	return (p1 == p2) ? p1 : -1;
@@ -224,7 +224,11 @@ static int BoxOnPointSide(float line_dx, float line_dy, float line_x, float line
 
 int Line_PointSide(Linedef* line, float p_x, float p_y)
 {
-	return PointSide(line->dx, line->dy, line->x0, line->y0, p_x, p_y);
+	return PointSide(line->dx, line->dy, line->x0, line->y0, p_x, p_y, MATH_EQUAL_EPSILON);
+}
+int Line_PointSideBias(Linedef* line, float p_x, float p_y, float bias)
+{
+	return PointSide(line->dx, line->dy, line->x0, line->y0, p_x, p_y, bias);
 }
 int Line_BoxOnPointSide(Linedef* line, float p_bbox[2][2])
 {

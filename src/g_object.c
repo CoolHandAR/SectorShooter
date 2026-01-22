@@ -312,7 +312,7 @@ bool Object_CheckLineToTarget(Object* obj, Object* target)
 	return Trace_CheckLineToTarget(obj, target);
 }
 
-bool Object_CheckSight(Object* obj, Object* target)
+bool Object_CheckSight(Object* obj, Object* target, bool check_angle)
 {
 	if (!obj || !target)
 	{
@@ -331,15 +331,18 @@ bool Object_CheckSight(Object* obj, Object* target)
 	float x_point = obj->x - target->x;
 	float y_point = obj->y - target->y;
 
-	//make sure the object is facing the target
-	float target_to_obj_angle = Math_XY_Angle(target->x - obj->x, target->y - obj->y);
-	float obj_angle = Math_XY_Angle(obj->dir_x, obj->dir_y);
-
-	int rot = Math_RadToDeg(target_to_obj_angle - obj_angle);
-
-	if (rot < -90 || rot > 90)
+	if (check_angle)
 	{
-		return false;
+		//make sure the object is facing the target
+		float target_to_obj_angle = Math_XY_Angle(target->x - obj->x, target->y - obj->y);
+		float obj_angle = Math_XY_Angle(obj->dir_x, obj->dir_y);
+
+		int rot = Math_RadToDeg(target_to_obj_angle - obj_angle);
+
+		if (rot < -90 || rot > 90)
+		{
+			return false;
+		}
 	}
 
 	//check direct line, 
@@ -526,6 +529,8 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive)
 		if (explosive)
 		{
 			obj->flags |= OBJ_FLAG__EXPLODING;
+
+			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_EXPLOSION, obj->x + Math_randf() * 2.0 - 1.0, obj->y + Math_randf() * 2.0 - 1.0, (obj->z + obj->height * 0.5) + Math_randf() * 2.0 - 1.0);
 		}
 
 		Monster_SetState(obj, MS__DIE);
@@ -545,7 +550,7 @@ bool Object_Crush(Object* obj)
 {
 	if (obj->hp <= 0)
 	{
-		//return true;
+		return true;
 	}
 
 	if (obj->type == OT__PLAYER || obj->type == OT__MONSTER)
@@ -600,7 +605,7 @@ Object* Object_Missile(Object* obj, Object* target, int type)
 	missile->step_height = 0;
 	missile->sprite.playing = true;
 
-	missile->sound_id = Sound_EmitWorld(SOUND__FIRE, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
+	missile->sound_id = Sound_EmitWorld(SOUND__FIREBALL_FOLLOW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 0.025);
 
 	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
 
@@ -744,20 +749,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 				obj->sprite.frame = rand() % obj->sprite.frame_count - 1;
 			}
 		}
-		else if (sub_type == SUB__PARTICLE_WALL_HIT)
+		else
 		{
-			obj->sprite.anim_speed_scale = 2;
 			obj->sprite.playing = true;
-		}
-		else if (sub_type == SUB__PARTICLE_BLOOD_EXPLOSION)
-		{
-			obj->sprite.anim_speed_scale = 3.0;
-			obj->sprite.playing = true;
-		}
-		else if (sub_type == SUB__PARTICLE_FIRE_SPARKS)
-		{
-			obj->sprite.anim_speed_scale = 0.5;
-			obj->sprite.playing = true;
+			obj->sprite.anim_speed_scale = particle_info->anim_speed_scale;
 		}
 			 
 
@@ -788,14 +783,13 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.scale_y = decal_info->sprite_scale;
 		obj->sprite.anim_speed_scale = 0;
 
-		obj->sprite.playing = true;
-
 		if (obj->sprite.frame_count > 0)
 		{
-			obj->sprite.frame = rand() & (obj->sprite.frame_count - 1);
+			obj->sprite.frame = rand() % (obj->sprite.frame_count - 1);
 		}
 
 		obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;
+		obj->flags |= OBJ_FLAG__FULL_BRIGHT;
 		zmove = 0;
 
 		break;

@@ -2,13 +2,9 @@
 #define R_COMMON_H
 #pragma once
 
-#include "engine_common.h"
 #include <stdbool.h>
-#include <string.h>
-#include <math.h>
 #include <stdint.h>
 #include <windows.h>
-#include <assert.h>
 #include "u_math.h"
 
 #define MAX_IMAGE_MIPMAPS 8
@@ -16,9 +12,6 @@
 
 #define BASE_RENDER_WIDTH 640
 #define BASE_RENDER_HEIGHT 360
-
-#define LIGHT_LOW 0
-#define LIGHT_HIGH 1
 
 #define DEPTH_SHADING_SCALE 0.25
 #define VIEW_FOV 90
@@ -538,17 +531,18 @@ void Video_DrawLine(Image* image, int x0, int y0, int x1, int y1, unsigned char*
 void Video_DrawRectangle(Image* image, int p_x, int p_y, int p_w, int p_h, unsigned char* p_color);
 void Video_DrawCircle(Image* image, int p_x, int p_y, float radius, unsigned char* p_color);
 void Video_DrawBoxLines(Image* image, float box[2][2], unsigned char* color);
-void Video_DrawBox(Image* image, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float tan_sin, float tan_cos, float v_fov, int x_start, int x_end);
+void Video_DrawBox(Image* image, float* depth_buffer, float box[2][3], float view_x, float view_y, float view_z, float view_cos, float view_sin, float tan_sin, float tan_cos, float v_fov, int x_start, int x_end, Vec3_u16* light);
 void Video_DrawScreenTexture(Image* image, Image* texture, float p_x, float p_y, float p_scaleX, float p_scaleY);
 void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x);
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, Vec3_u16 light, int height_mask, Lightmap* lm);
-void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int light, int height_mask);
+void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, Vec3_u16 light, int height_mask);
 void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);
+void Video_DrawThreadSlice(Image* image, int x1, int x2, Vec3_u16* color);
 
-typedef void (*ShaderFun)(Image* image, int x, int y, int tx, int ty);
+typedef void (*ShaderFun)(Image* image, int x, int y);
 void Video_Shade(Image* image, ShaderFun shader_fun, int x0, int y0, int x1, int y1);
 
 typedef enum
@@ -564,6 +558,7 @@ typedef enum
 
 	TWT__SHADER,
 	TWT__DRAW_LEVEL,
+	TWT__DRAW_HUD,
 	TWT__EXIT
 } ThreadWorkType;
 
@@ -617,7 +612,7 @@ void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, Li
 bool Scene_RenderLine(Image* image, struct Map* map, struct Sector* sector, struct Line* line, DrawingArgs* args);
 void Scene_ProcessSubsector(Image* image, struct Map* map, struct Subsector* sub_sector, DrawingArgs* args);
 int Scene_ProcessBSPNode(Image* image, struct Map* map, int node_index, DrawingArgs* args);
-void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer);
+void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer, DrawingArgs* args);
 
 #define MAX_FONT_GLYPHS 100
 
@@ -667,5 +662,11 @@ FontGlyphData* FontData_GetGlyphData(const FontData* font_data, char ch);
 void Text_DrawStr(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, int r, int g, int b, int a, const char* str);
 void Text_Draw(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, const char* fmt, ...);
 void Text_DrawColor(Image* image, const FontData* font_data, float _x, float _y, float scale_x, float scale_y, int start_x, int end_x, int r, int g, int b, int a, const char* fmt, ...);
+
+void Shader_Hurt(Image* img, int x, int y);
+void Shader_HurtSimple(Image* img, int x, int y);
+void Shader_Dead(Image* img, int x, int y);
+void Shader_Godmode(Image* img, int x, int y);
+void Shader_Quad(Image* img, int x, int y);
 
 #endif
