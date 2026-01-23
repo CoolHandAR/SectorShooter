@@ -141,6 +141,11 @@ typedef enum
 	SOUND__FIRE,
 	SOUND__WINTER_WIND,
 
+	SOUND__TEMPLAR_ALERT,
+	SOUND__TEMPLAR_HIT,
+	SOUND__TEMPLAR_DIE,
+	SOUND__TEMPLAR_ATTACK,
+
 	SOUND__MAX
 } SoundType;
 
@@ -250,6 +255,18 @@ static const char* SOUND_INFO[SOUND__MAX] =
 
 	//WINTER WIND
 	"assets/sfx/winter_wind.mp3",
+
+	//TEMPLAR ALERT
+	"assets/sfx/templar_act.wav",
+
+	//TEMPLAR HIT
+	"assets/sfx/templar_pain.wav",
+
+	//TEMPLAR  DIE
+	"assets/sfx/templar_death.wav",
+
+	//TEMPLAR  ATTACK
+	"assets/sfx/templar_attack.wav"
 };
 
 

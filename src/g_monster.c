@@ -116,6 +116,11 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 			index = SOUND__BRUISER_ALERT;
 			break;
 		}
+		case SUB__MOB_TEMPLAR:
+		{
+			index = SOUND__TEMPLAR_ALERT;
+			break;
+		}
 		default:
 			break;
 		}
@@ -138,6 +143,11 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 		case SUB__MOB_BRUISER:
 		{
 			index = SOUND__BRUISER_HIT;
+			break;
+		}
+		case SUB__MOB_TEMPLAR:
+		{
+			index = SOUND__TEMPLAR_HIT;
 			break;
 		}
 		default:
@@ -164,6 +174,11 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 			index = SOUND__BRUISER_DIE;
 			break;
 		}
+		case SUB__MOB_TEMPLAR:
+		{
+			index = SOUND__TEMPLAR_DIE;
+			break;
+		}
 		default:
 			break;
 		}
@@ -186,6 +201,11 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 		case SUB__MOB_BRUISER:
 		{
 			index = SOUND__BRUISER_ATTACK;
+			break;
+		}
+		case SUB__MOB_TEMPLAR:
+		{
+			index = SOUND__TEMPLAR_ATTACK;
 			break;
 		}
 		default:
@@ -300,12 +320,12 @@ void Monster_UpdateSpriteAnimation(Object* obj, float delta)
 	if (anim_info->action_fun)
 	{
 		s->action_frame = anim_info->action_frame;
-
-		if (s->action_loop != s->loops)
+		if (s->action_frame_triggered)
 		{
 			anim_info->action_fun(obj);
-			s->action_loop = s->loops;
+			s->action_frame_triggered = false;
 		}
+
 	}
 
 	if (obj->state == MS__DIE && s->finished && s->frame == s->frame_count - 1)
@@ -317,6 +337,7 @@ void Monster_UpdateSpriteAnimation(Object* obj, float delta)
 		s->playing = true;
 	}
 
+	//hack!
 	if (obj->state == MS__IDLE)
 	{
 		s->frame_count = 1;
@@ -622,6 +643,10 @@ void Monster_Spawn(Object* obj)
 	{
 		obj->sprite.img = &assets->bruiser_texture;
 	}
+	else if (obj->sub_type == SUB__MOB_TEMPLAR)
+	{
+		obj->sprite.img = &assets->templar_texture;
+	}
 
 	obj->sprite.scale_x = monster_info->sprite_scale;
 	obj->sprite.scale_y = monster_info->sprite_scale;
@@ -663,7 +688,7 @@ void Monster_SetState(Object* obj, int state)
 			hit_chance *= 0.5;
 		}
 
-		if (rand() % 100 > monster_info->hit_chance)
+		if (rand() % 100 > hit_chance)
 		{
 			return;
 		}
@@ -695,7 +720,7 @@ void Monster_SetState(Object* obj, int state)
 	obj->state = state;
 	
 	//make sure to reset the animation
-	obj->sprite.action_loop = 0;
+	obj->sprite.action_frame_triggered = false;
 	obj->sprite.frame = 0;
 	obj->sprite._anim_frame_progress = 0;
 	obj->sprite.playing = false;
@@ -717,6 +742,8 @@ void Monster_SetTarget(Object* obj, Object* target)
 
 void Monster_Update(Object* obj, float delta)
 {
+	Monster_UpdateSpriteAnimation(obj, delta);
+
 	Monster_CheckForPushBack(obj, delta);
 
 	obj->stop_timer -= delta;
@@ -886,6 +913,51 @@ void Monster_Bruiser_FireBall(Object* obj)
 		missile->z = obj->z + z_offset;
 
 		missile->owner = obj;
+	}
+}
+
+void Monster_Templar_StarStrike(Object* obj)
+{
+	Object* target = obj->target;
+
+	if (!target || target->hp <= 0)
+	{
+		return;
+	}
+
+	Monster_FaceTarget(obj);
+
+	//play action sound
+	Monster_EmitSound(obj, MSOUND__ATTACK);
+
+	if (obj->flags & OBJ_FLAG__SUPER_MOB)
+	{
+		const int NUM_MISSILES = 24;
+
+		//shoot circle of missiles around the caster
+		for (int i = 0; i < NUM_MISSILES; i++)
+		{
+			Object* missile = Object_Missile(obj, NULL, SUB__MISSILE_STARSTRIKE);
+			if (!missile)
+			{
+				break;
+			}
+
+			missile->owner = obj;
+			
+			float angle = Math_DegToRad(NUM_MISSILES) * i;
+			missile->dir_x = cos(angle);
+			missile->dir_y = sin(angle);
+
+		}
+	}
+	else
+	{
+		Object* missile = Object_Missile(obj, target, SUB__MISSILE_STARSTRIKE);
+		if (missile)
+		{
+			missile->owner = obj;
+		}
 	}
 }
 

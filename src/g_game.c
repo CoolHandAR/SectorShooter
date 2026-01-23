@@ -6,7 +6,7 @@
 #include "main.h"
 #include "sound.h"
 
-#define START_LEVEL 8
+#define START_LEVEL 5
 
 static Game game;
 static GameAssets assets;
@@ -30,7 +30,7 @@ bool Game_Init()
 	game.level_index = -1;
 	VisualMap_Init();
 
-	//Sound_SetAsMusic(SOUND__MUSIC1);
+	Sound_SetAsMusic(SOUND__MUSIC1);
 
 	return true;
 }
@@ -99,6 +99,10 @@ bool Game_LoadAssets()
 	{
 		return false;
 	}
+	if (!Image_CreateFromPath(&assets.templar_texture, "assets/textures/templar.png"))
+	{
+		return false;
+	}
 	if (!Image_CreateFromPath(&assets.missing_texture.img, "assets/textures/missing_texture.png"))
 	{
 		return false;
@@ -123,17 +127,20 @@ bool Game_LoadAssets()
 	assets.devastator_texture.h_frames = 7;
 	assets.devastator_texture.v_frames = 2;
 
+	assets.missile_textures.h_frames = 5;
+	assets.missile_textures.v_frames = 4;
+
 	assets.imp_texture.h_frames = 9;
 	assets.imp_texture.v_frames = 9;
-
-	assets.missile_textures.h_frames = 5;
-	assets.missile_textures.v_frames = 2;
 
 	assets.pinky_texture.h_frames = 8;
 	assets.pinky_texture.v_frames = 6;
 
 	assets.bruiser_texture.h_frames = 12;
 	assets.bruiser_texture.v_frames = 7;
+
+	assets.templar_texture.h_frames = 10;
+	assets.templar_texture.v_frames = 7;
 
 	assets.particle_textures.h_frames = 4;
 	assets.particle_textures.v_frames = 7;
@@ -147,6 +154,7 @@ bool Game_LoadAssets()
 	Image_GenerateFrameInfo(&assets.missile_textures);
 	Image_GenerateFrameInfo(&assets.pinky_texture);
 	Image_GenerateFrameInfo(&assets.bruiser_texture);
+	Image_GenerateFrameInfo(&assets.templar_texture);
 	Image_GenerateFrameInfo(&assets.particle_textures);
 	Image_GenerateFrameInfo(&assets.decal_textures);
 	Image_GenerateFrameInfo(&assets.machinegun_texture);
@@ -164,6 +172,7 @@ void Game_DestructAssets()
 	Image_Destruct(&assets.missile_textures);
 	Image_Destruct(&assets.pinky_texture);
 	Image_Destruct(&assets.bruiser_texture);
+	Image_Destruct(&assets.templar_texture);
 	Image_Destruct(&assets.particle_textures);
 	Image_Destruct(&assets.decal_textures);
 	Image_Destruct(&assets.menu_texture);

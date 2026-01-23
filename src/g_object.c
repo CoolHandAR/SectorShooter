@@ -568,52 +568,6 @@ bool Object_Crush(Object* obj)
 	return true;
 }
 
-Object* Object_Missile(Object* obj, Object* target, int type)
-{
-	Object* missile = Object_Spawn(OT__MISSILE, type, obj->x, obj->y, obj->z);
-
-	if (!missile)
-	{
-		return NULL;
-	}
-
-	float dir_x = obj->dir_x;
-	float dir_y = obj->dir_y;
-	float dir_z = obj->dir_z;
-
-	//if we have a target calc dir to target
-	if (target)
-	{
-		float point_x = (target->x) - obj->x;
-		float point_y = (target->y) - obj->y;
-		float point_z = (target->z + target->height * 0.5) - (obj->z + obj->height * 0.5);
-
-		Math_XYZ_Normalize(&point_x, &point_y, &point_z);
-
-		dir_x = point_x;
-		dir_y = point_y;
-		dir_z = point_z;
-	}
-	missile->owner = obj;
-	missile->x = (obj->x) + dir_x * 2.0;
-	missile->y = (obj->y) + dir_y * 2.0;
-	missile->z = (obj->z + 64);
-	missile->dir_x = dir_x;
-	missile->dir_y = dir_y;
-	missile->dir_z = dir_z;
-	missile->size = 5;
-	missile->step_height = 0;
-	missile->sprite.playing = true;
-
-	missile->sound_id = Sound_EmitWorld(SOUND__FIREBALL_FOLLOW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 0.025);
-
-	Sound_EmitWorldTemp(SOUND__FIREBALL_THROW, missile->x, missile->y, missile->z, missile->dir_x, missile->dir_y, missile->dir_z, 1);
-
-	Move_SetPosition(missile, missile->x, missile->y, missile->size);
-
-	return missile;
-}
-
 Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float z)
 {
 	GameAssets* assets = Game_GetAssets();
@@ -730,7 +684,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 		obj->sprite.img = &assets->particle_textures;
 		obj->move_timer = particle_info->time;
-		obj->sprite.v_offset = Math_randf();
 		obj->sprite.scale_x = 0.5;
 		obj->sprite.scale_y = 0.5;
 
@@ -770,7 +723,6 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 		obj->sprite.img = &assets->decal_textures;
 		obj->move_timer = decal_info->time;
-		obj->sprite.v_offset = Math_randf();
 		obj->sprite.scale_x = 0.5;
 		obj->sprite.scale_y = 0.5;
 

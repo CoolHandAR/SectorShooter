@@ -30,19 +30,19 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 4, 4, 1,
 
 			//ATTACK FORWARD
-			Monster_Imp_FireBall, 1, 4, 0, 3, 0,
+			Monster_Imp_FireBall, 0, 4, 0, 3, 0,
 
 			//ATTACK FORWARD SIDE
-			Monster_Imp_FireBall, 1, 4, 1, 3, 0,
+			Monster_Imp_FireBall, 0, 4, 1, 3, 0,
 
 			//ATTACK SIDE
-			Monster_Imp_FireBall, 1, 4, 2, 3, 0,
+			Monster_Imp_FireBall, 0, 4, 2, 3, 0,
 
 			//ATTACK BACK SIDE
-			Monster_Imp_FireBall, 1, 4, 3, 3, 0,
+			Monster_Imp_FireBall, 0, 4, 3, 3, 0,
 
 			//ATTACK BACK
-			Monster_Imp_FireBall, 2, 4, 4, 4, 0,
+			Monster_Imp_FireBall, 0, 4, 4, 4, 0,
 
 			//MELEE FORWARD
 			Monster_Melee, 1, 4, 0, 3, 1,
@@ -57,7 +57,7 @@ static const MonsterInfo MONSTER_INFO[] =
 			Monster_Melee, 1, 4, 3, 3, 1,
 
 			//MELEE BACK
-			Monster_Melee, 2, 4, 4, 4, 1,
+			Monster_Melee, 1, 4, 4, 4, 1,
 
 			//HIT FORWARD
 			NULL, 0, 0, 5, 1, 0,
@@ -125,19 +125,19 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 0, 0, 0,
 
 			//MELEE FORWARD
-			Monster_Melee, 1, 4, 0, 3, 1,
+			Monster_Melee, 0, 4, 0, 3, 1,
 
 			//MELEE FORWARD SIDE
-			Monster_Melee, 1, 4, 1, 3, 1,
+			Monster_Melee, 0, 4, 1, 3, 1,
 
 			//MELEE SIDE
-			Monster_Melee, 1, 4, 2, 3, 1,
+			Monster_Melee, 0, 4, 2, 3, 1,
 
 			//MELEE BACK SIDE
-			Monster_Melee, 1, 4, 3, 3, 1,
+			Monster_Melee, 0, 4, 3, 3, 1,
 
 			//MELEE BACK
-			Monster_Melee, 2, 4, 4, 4, 1,
+			Monster_Melee, 0, 4, 4, 4, 1,
 
 			//HIT FORWARD
 			NULL, 0, 0, 0, 0, 0,
@@ -190,19 +190,19 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 4, 4, 1,
 
 			//ATTACK FORWARD
-			Monster_Bruiser_FireBall, 1, 4, 0, 3, 0,
+			Monster_Bruiser_FireBall, 0, 3, 0, 4, 0,
 
 			//ATTACK FORWARD SIDE
-			Monster_Bruiser_FireBall, 1, 4, 1, 3, 0,
+			Monster_Bruiser_FireBall, 0, 3, 1, 4, 0,
 
 			//ATTACK SIDE
-			Monster_Bruiser_FireBall, 1, 4, 2, 3, 0,
+			Monster_Bruiser_FireBall, 0, 3, 2, 4, 0,
 
 			//ATTACK BACK SIDE
-			Monster_Bruiser_FireBall, 1, 4, 3, 3, 0,
+			Monster_Bruiser_FireBall, 0, 3, 3, 4, 0,
 
 			//ATTACK BACK
-			Monster_Bruiser_FireBall, 2, 4, 4, 4, 0,
+			Monster_Bruiser_FireBall, 0, 3, 4, 4, 0,
 
 			//MELEE FORWARD
 			Monster_Melee, 1, 8, 0, 3, 1,
@@ -217,7 +217,7 @@ static const MonsterInfo MONSTER_INFO[] =
 			Monster_Melee, 1, 8, 3, 3, 1,
 
 			//MELEE BACK
-			Monster_Melee, 2, 8, 4, 3, 1,
+			Monster_Melee, 1, 8, 4, 3, 1,
 
 			//HIT FORWARD
 			NULL, 0, 7, 0, 1, 0,
@@ -247,6 +247,86 @@ static const MonsterInfo MONSTER_INFO[] =
 		0, //SPRITE Y OFFSET
 		150, //SPRITE Z OFFSET
 	},
+	//TEMPLAR
+	{
+		//ANIM
+		{
+			//IDLE
+			NULL, 0, 0, 0, 2, 1,
+
+			//WALK FORWARD
+			NULL, 0, 0, 0, 2, 1,
+
+			//WALK FORWARD SIDE
+			NULL, 0, 0, 1, 2, 1,
+
+			//WALK SIDE
+			NULL, 0, 0, 2, 2, 1,
+
+			//WALK BACK SIDE
+			NULL, 0, 0, 3, 2, 1,
+
+			//WALK BACK
+			NULL, 0, 0, 4, 2, 1,
+
+			//ATTACK FORWARD
+			Monster_Templar_StarStrike, 4, 2, 0, 8, 0,
+
+			//ATTACK FORWARD SIDE
+			Monster_Templar_StarStrike, 4, 2, 1, 8, 0,
+
+			//ATTACK SIDE
+			Monster_Templar_StarStrike, 4, 2, 2, 8, 0,
+
+			//ATTACK BACK SIDE
+			Monster_Templar_StarStrike, 4, 2, 3, 8, 0,
+
+			//ATTACK BACK
+			Monster_Templar_StarStrike, 4, 2, 4, 8, 0,
+
+			//MELEE FORWARD
+			Monster_Melee, 4, 2, 0, 8, 0,
+
+			//MELEE FORWARD SIDE
+			Monster_Melee, 4, 2, 1, 8, 0,
+
+			//MELEE SIDE
+			Monster_Melee, 4, 2, 2, 8, 0,
+
+			//MELEE BACK SIDE
+			Monster_Melee, 4, 2, 3, 8, 0,
+
+			//MELEE BACK
+			Monster_Melee, 4, 2, 4, 8, 0,
+
+			//HIT FORWARD
+			NULL, 0, 2, 0, 1, 0,
+
+			//HIT SIDE
+			NULL, 0, 2, 2, 1, 0,
+
+			//HIT BACK
+			NULL, 0, 2, 4, 1, 0,
+
+			//DIE
+			NULL, 0, 0, 5, 18, 0,
+
+			//EXPLODE
+			NULL, 0, 0, 5, 18, 0,
+		},
+		150, //SPAWN HP
+		40, //SPEED,
+		35, //MELEE DAMAGE
+		20, //SIZE,
+		150, //HEIGHT
+		50, //WEIGHT
+		25, //HIT CHANCE
+		1, //HIT TIME
+		60, //SPRITE SCALE
+		0, //SPRITE X OFFSET
+		0, //SPRITE Y OFFSET
+		123, //SPRITE Z OFFSET
+	}
 };
 
 static const MissileInfo MISSILE_INFO[] =
@@ -262,8 +342,8 @@ static const MissileInfo MISSILE_INFO[] =
 		//EXPLODE
 		NULL, 0, 2, 0, 3, 0,
 	},
-	8, //SPEED
-	0.25, //SIZE,
+	256, //SPEED
+	5, //SIZE,
 	0, //EXPLOSION DAMAGE
 	0, //EXPLOSION SIZE
 	10, //DIRECT HIT DAMAGE
@@ -280,12 +360,30 @@ static const MissileInfo MISSILE_INFO[] =
 		//EXPLODE
 		NULL, 0, 2, 1, 3, 0,
 	},
-	12, //SPEED
-	2, //SIZE,
+	384, //SPEED
+	5, //SIZE,
 	24, //EXPLOSION DAMAGE
 	256, //EXPLOSION SIZE
 	40, //DIRECT HIT DAMAGE
 	64, //SPRITE SCALE
+	},
+	//START STRIKE
+	{
+	SUB__MISSILE_STARSTRIKE,
+	//ANIM
+	{
+		//FLY
+		NULL, 0, 0, 2, 2, 1,
+
+		//EXPLODE
+		NULL, 0, 2, 2, 6, 0,
+	},
+	128, //SPEED
+	8, //SIZE,
+	0, //EXPLOSION DAMAGE
+	0, //EXPLOSION SIZE
+	40, //DIRECT HIT DAMAGE
+	32, //SPRITE SCALE
 	},
 };
 static const ObjectInfo OBJECT_INFOS[] =

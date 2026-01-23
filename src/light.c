@@ -1074,6 +1074,16 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 
 				tx = u;
 
+				Lightmap* lightmap = &global->line_back_lightmaps[linedef->index];
+
+				if (lightmap->data)
+				{
+					int lx = Math_Clamp(tx / LIGHTMAP_LUXEL_SIZE, 0, lightmap->width - 1);
+					int ly = Math_Clamp(ty / LIGHTMAP_LUXEL_SIZE, 0, lightmap->height - 1);
+
+					light_sample = &lightmap->float_data[lx + ly * lightmap->width];
+				}
+
 				tx += sidedef->x_offset;
 				ty += sidedef->y_offset;
 
@@ -1115,16 +1125,6 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 					{
 						texture_sample = Image_Get(&sidedef->middle_texture->img, tx & sidedef->middle_texture->width_mask, ty & sidedef->middle_texture->height_mask);
 					}
-				}
-
-				Lightmap* lightmap = &global->line_back_lightmaps[linedef->index];
-
-				if (lightmap->data)
-				{
-					int lx = Math_Clamp(tx / LIGHTMAP_LUXEL_SIZE, 0, lightmap->width - 1);
-					int ly = Math_Clamp(ty / LIGHTMAP_LUXEL_SIZE, 0, lightmap->height - 1);
-
-					light_sample = &lightmap->float_data[lx + ly * lightmap->width];
 				}
 			}
 		}
@@ -1298,12 +1298,8 @@ static void Lightmap_CopyLightmap(Lightmap* dest, Lightmap* source)
 	memcpy(dest->data, source->data, sizeof(Vec4) * source->width * source->height);
 }
 
-static void Lightmap_ApplyAoToFinalLightmap(Lightmap* lm)
+static void Lightmap_FilterLightmap(Lightmap* lm)
 {
-#ifdef DISABLE_AO
-	return;
-#endif
-
 	Vec4* cast_data = lm->float_data;
 
 	//filter
@@ -1313,8 +1309,9 @@ static void Lightmap_ApplyAoToFinalLightmap(Lightmap* lm)
 		{
 			Vec4* sample = &cast_data[x + y * lm->width];
 
-			float avg = sample->a;
+			Vec4 avg = *sample;
 			float smp = 1.0;
+			float ao_smp = 1.0;
 
 			for (int fx = (x - 1); fx <= (x + 1); fx++)
 			{
@@ -1332,28 +1329,38 @@ static void Lightmap_ApplyAoToFinalLightmap(Lightmap* lm)
 
 					Vec4* sample_2 = &cast_data[fx + fy * lm->width];
 
-					if (sample_2->a >= 1.0)
+					//color
+					if (sample_2->r + sample_2->g + sample_2->b > 0.0)
 					{
-						continue;
+						avg.r += sample_2->r;
+						avg.g += sample_2->g;
+						avg.b += sample_2->b;
+						smp += 1.0;
 					}
-
-					avg += sample_2->a;
-					smp += 1.0;
-				}
-
-				if (smp <= 0.0)
-				{
-					break;
+					//ao
+					if (sample_2->a < 1.0)
+					{
+						avg.a += sample_2->a;
+						ao_smp += 1.0;
+					}
+					
 				}
 			}
-			if (smp <= 0.0)
-			{
-				break;
-			}
-
-			sample->a = avg / smp;
+			sample->r = avg.r / smp;
+			sample->g = avg.g / smp;
+			sample->b = avg.b / smp;
+			sample->a = avg.a / ao_smp;
 		}
 	}
+}
+
+static void Lightmap_ApplyAoToFinalLightmap(Lightmap* lm)
+{
+#ifdef DISABLE_AO
+	return;
+#endif
+
+	Vec4* cast_data = lm->float_data;
 
 	//apply
 	for (int x = 0; x < lm->width; x++)
@@ -1474,6 +1481,7 @@ static void Lightmap_SwapLightmaps(LightGlobal* global, Map* map)
 }
 static void Lightmap_CopyFinalLightmaps(Map* map)
 {
+	float s = glfwGetTime();
 	for (int i = 0; i < map->num_sectors; i++)
 	{
 		Sector* sector = Map_GetSector(i);
@@ -1483,11 +1491,13 @@ static void Lightmap_CopyFinalLightmaps(Map* map)
 
 		if (floor_lightmap->data)
 		{
+			Lightmap_FilterLightmap(floor_lightmap);
 			Lightmap_ApplyAoToFinalLightmap(floor_lightmap);
 			Lightmap_ConvertFloatingToShort(floor_lightmap);
 		}
 		if (ceil_lightmap->data)
 		{
+			Lightmap_FilterLightmap(ceil_lightmap);
 			Lightmap_ApplyAoToFinalLightmap(ceil_lightmap);
 			Lightmap_ConvertFloatingToShort(ceil_lightmap);
 		}
@@ -1499,10 +1509,15 @@ static void Lightmap_CopyFinalLightmaps(Map* map)
 
 		if (linedef->lightmap.data)
 		{
+			Lightmap_FilterLightmap(&linedef->lightmap);
 			Lightmap_ApplyAoToFinalLightmap(&linedef->lightmap);
 			Lightmap_ConvertFloatingToShort(&linedef->lightmap);
 		}
 	}
+
+	float e = glfwGetTime();
+
+	printf("%f test\n", e - s);
 }
 static bool Lightmap_CheckIfFullDark(Lightmap* lm, int x, int y)
 {

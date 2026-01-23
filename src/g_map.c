@@ -309,7 +309,7 @@ void Map_SmoothUpdate(double lerp, double delta)
 
 			if (obj->type == OT__MONSTER)
 			{
-				Monster_UpdateSpriteAnimation(obj, delta);
+				//Monster_UpdateSpriteAnimation(obj, delta);
 			}
 			if (obj->sprite.frame_count > 0 && obj->sprite.anim_speed_scale > 0)
 			{

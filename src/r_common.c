@@ -596,7 +596,6 @@ void Sprite_UpdateAnimation(Sprite* sprite, float delta)
 				{
 					if (sprite->looping)
 					{
-						sprite->loops++;
 						sprite->finished = true;
 						frame = 0;
 					}
@@ -611,8 +610,8 @@ void Sprite_UpdateAnimation(Sprite* sprite, float delta)
 				else
 				{
 					sprite->finished = false;
-					frame++;
 					Sprite_CheckForActionFunction(sprite, frame);
+					frame++;
 				}
 				sprite->_anim_frame_progress = 0.0;
 			}
@@ -643,7 +642,7 @@ void Sprite_CheckForActionFunction(Sprite* sprite, int frame)
 {
 	if (sprite->action_frame == frame)
 	{
-		sprite->action_loop = sprite->loops;
+		sprite->action_frame_triggered = true;
 	}
 }
 

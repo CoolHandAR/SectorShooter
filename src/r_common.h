@@ -311,8 +311,6 @@ typedef struct
 	float x, y, z;
 	float offset_x, offset_y, offset_z;
 	float scale_x, scale_y;
-	float dist;
-	float v_offset;
 	bool flip_h, flip_v;
 
 	//modifiers
@@ -327,12 +325,11 @@ typedef struct
 	bool looping;
 	bool playing;
 	bool finished;
+	bool action_frame_triggered;
 
 	//for decals only
 	int decal_line_index;
 
-	int loops;
-	int action_loop;
 	int action_frame;
 
 	int frame_offset_x;

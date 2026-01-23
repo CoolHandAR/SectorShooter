@@ -10,7 +10,7 @@
 #include "u_math.h"
 #include "utility.h"
 
-#define NO_MONSTERS
+//#define NO_MONSTERS
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -298,7 +298,9 @@ typedef enum
     THING__SUPER_BRUISER = 10041,
     THING__SFX_WINTER_WIND = 10042,
     THING__FALLING_SAND = 10043,
-    THING__FALLING_SNOW = 10044
+    THING__FALLING_SNOW = 10044,
+    THING__TEMPLAR = 10045,
+    THING__SUPER_TEMPLAR = 10046
 } thingtypes;
 
 
@@ -1256,6 +1258,19 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         {
             type = OT__THING;
             sub_type = SUB__THING_FALLING_SNOW;
+            break;
+        }
+        case THING__TEMPLAR:
+        {
+            type = OT__MONSTER;
+            sub_type = SUB__MOB_TEMPLAR;
+            break;
+        }
+        case THING__SUPER_TEMPLAR:
+        {
+            type = OT__MONSTER;
+            sub_type = SUB__MOB_TEMPLAR;
+            is_super = true;
             break;
         }
         default:

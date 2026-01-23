@@ -10,7 +10,7 @@
 #include "r_common.h"
 #include "sound.h"
 
-#define DONT_FILE_LIGHTMAPS
+//#define DONT_FILE_LIGHTMAPS
 //#define DISABLE_LIGHTMAPS
 #define TRACE_NO_HIT INT_MAX
 
@@ -91,6 +91,7 @@ typedef struct
 	Image imp_texture;
 	Image pinky_texture;
 	Image bruiser_texture;
+	Image templar_texture;
 	Image particle_textures;
 	Image decal_textures;
 	Image menu_texture;
@@ -192,6 +193,7 @@ typedef enum
 	SUB__MOB_IMP,
 	SUB__MOB_PINKY,
 	SUB__MOB_BRUISER,
+	SUB__MOB_TEMPLAR,
 	SUB__MOB_MAX,
 
 	//pickups
@@ -209,6 +211,7 @@ typedef enum
 	//missiles
 	SUB__MISSILE_FIREBALL,
 	SUB__MISSILE_MEGASHOT,
+	SUB__MISSILE_STARSTRIKE,
 	SUB__MISSILE_MAX,
 
 	//TRIGGER
@@ -659,9 +662,9 @@ void Player_SetSensitivity(float sens);
 
 
 //Movement stuff
-float Move_GetLineDot(float x, float y, Line* line);
+float Move_GetLineDot(float x, float y, Linedef* line);
 void Move_Accelerate(Object* obj, float p_moveX, float p_moveY, float p_moveZ);
-void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Line* clip_line);
+void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Linedef* clip_line);
 bool Move_CheckPosition(Object* obj, float x, float y, float size, int* r_sectorIndex, float* r_floorZ, float* r_ceilZ);
 bool Move_SetPosition(Object* obj, float x, float y, float size);
 bool Move_CheckStep(Object* obj, float p_stepX, float p_stepY, float p_size);
@@ -693,7 +696,6 @@ int Trace_SectorObjects(Sector* sector);
 int Trace_SectorLines(Sector* sector, bool front_only);
 int Trace_SectorAll(Sector* sector);
 int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, bool ignore_sky_plane, int* r_hits, int max_hit_count, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
-int Trace_FindLineAtPoint(float x, float y, float z, int* r_hits, int max_hit_count);
 
 //Object stuff
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
@@ -758,6 +760,7 @@ void Monster_UpdateSpriteAnimation(Object* obj, float delta);
 void Monster_Update(Object* obj, float delta);
 void Monster_Imp_FireBall(Object* obj);
 void Monster_Bruiser_FireBall(Object* obj);
+void Monster_Templar_StarStrike(Object* obj);
 void Monster_Melee(Object* obj);
 void Monster_WakeAll(Object* waker);
 void Monster_CheckForPushBack(Object* obj, float delta);
