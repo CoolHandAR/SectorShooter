@@ -362,10 +362,10 @@ LightCompilerInfo* Info_GetLightCompilerInfo(int index);
 
 static const char* LEVELS[] =
 {
-	"ourmap00.WAD",
-	"ourmap01.WAD",
-	"ourmap02.WAD",
-	"ourmap03.WAD"
+	"assets/maps/ourmap00.WAD",
+	"assets/maps/ourmap01.WAD",
+	"assets/maps/ourmap02.WAD",
+	"assets/maps/ourmap03.WAD"
 
 };
 static const char* SKIES[] =

@@ -47,7 +47,7 @@ bool Game_LoadAssets()
 {
 	memset(&assets, 0, sizeof(assets));
 
-	if (!Load_DoomIWAD("OURWAD.wad"))
+	if (!Load_DoomIWAD("assets/OURWAD.wad"))
 	{
 		return false;
 	}

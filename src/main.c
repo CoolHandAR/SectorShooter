@@ -45,7 +45,7 @@ static void LoadExeIcon(GLFWwindow* window)
 {
 	GLFWimage image[1];
 
-	image[0].pixels = stbi_load("icon.png", &image[0].width, &image[0].height, 0, 4);
+	image[0].pixels = stbi_load("assets/icon.png", &image[0].width, &image[0].height, 0, 4);
 
 	if (!image[0].pixels)
 	{
