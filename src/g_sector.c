@@ -26,6 +26,122 @@ static Sector* Sector_GetLineOtherSector(Linedef* line, int sector_index)
 	return Map_GetSector(line->front_sector);
 }
 
+void Sector_UpdateSortedList(Sector* sector)
+{
+	dynamic_array* sorted_list = sector->sorted_render_object_list;
+	Object_Pool* list = sector->render_object_list;
+
+	if (!sorted_list || !list)
+	{
+		return;
+	}
+
+	dA_clear(sorted_list);
+
+	int num_objects =  Object_Pool_Size(list);
+	for (int i = 0; i < num_objects; i++)
+	{
+		ObjectID* id = dA_at(list->pool, i);
+
+		if (*id >= 0)
+		{
+			ObjectID* sorted_id = dA_emplaceBack(sorted_list);
+
+			*sorted_id = *id;
+		}
+
+		if (dA_size(sorted_list) >= Object_Pool_UsedSize(list))
+		{
+			break;
+		}
+	}
+}
+
+void Sector_RemoveObjectFromRenderList(Sector* sector, Object* object)
+{
+	Object_Pool* list = sector->render_object_list;
+
+	if (!list)
+	{
+		return;
+	}
+
+	int num_objects = Object_Pool_Size(list);
+	
+	for (int i = 0; i < num_objects; i++)
+	{
+		ObjectID* id = dA_at(list->pool, i);
+
+		if (*id == object->id)
+		{
+			*id = -1;
+			Object_Pool_Free(list, i, false);
+			break;
+		}
+	}
+
+	if(Object_Pool_UsedSize(list) == 0)
+	{
+		Object_Pool_Destruct(sector->render_object_list);
+		sector->render_object_list = NULL;
+
+		if (sector->sorted_render_object_list)
+		{
+			dA_Destruct(sector->sorted_render_object_list);
+			sector->sorted_render_object_list = NULL;
+		}
+
+		return;
+	}	
+	
+	Sector_UpdateSortedList(sector);
+}
+
+void Sector_AddObjectToRenderList(Sector* sector, Object* object)
+{
+	if (!sector->sorted_render_object_list)
+	{
+		sector->sorted_render_object_list = dA_INIT(ObjectID, 0);
+	}
+
+	if (!sector->render_object_list)
+	{
+		sector->render_object_list = Object_Pool_INIT(ObjectID, 1);
+	}
+	else
+	{
+#ifdef _DEBUG
+		//check if it exists already
+		//this should not happen, since we remove all linked sectors in the object function
+		int total = 0;
+		for (int i = 0; i < dA_size(sector->render_object_list->pool); i++)
+		{
+			ObjectID* id = dA_at(sector->render_object_list->pool, i);
+
+			assert(*id != object->id);
+
+			if (*id >= 0)
+			{
+				total++;
+			}
+
+			if (total >= Object_Pool_UsedSize(sector->render_object_list))
+			{
+				break;
+			}
+		}
+#endif //_DEBUG
+	}
+
+	unsigned index = Object_Pool_Request(sector->render_object_list);
+
+	ObjectID* id = dA_at(sector->render_object_list->pool, index);
+
+	*id = object->id;
+
+	Sector_UpdateSortedList(sector);
+}
+
 void Sector_Secret(Sector* sector)
 {
 	if (sector->special != SECTOR_SPECIAL__SECRET)

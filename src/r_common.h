@@ -18,8 +18,6 @@
 
 #define MAX_LIGHT_VALUE 255 * 6
 
-typedef float DepthValue;
-
 typedef struct
 {
 	uint8_t light;
@@ -351,7 +349,6 @@ typedef struct
 
 	float x, y, z;
 	float scale_x, scale_y;
-	float dist;
 
 	short frame;
 
@@ -361,7 +358,7 @@ typedef struct
 	short sprite_rect_width;
 	short sprite_rect_height;
 
-	float transparency;
+	//float transparency;
 
 	Vec3_u16 light;
 
@@ -371,9 +368,6 @@ typedef struct
 	bool flip_v;
 } DrawSprite;
 
-
-#define MAX_CLIPSEGMENTS 2000
-
 typedef struct
 {
 	short first;
@@ -382,31 +376,11 @@ typedef struct
 
 typedef struct
 {
-	Cliprange solidsegs[MAX_CLIPSEGMENTS];
+	Cliprange* solidsegs;
 	Cliprange* newend;
+
+	//int num_allocated;
 } ClipSegments;
-
-#define MAX_DRAW_COLLUMNS 2000
-typedef struct
-{
-	unsigned char light;
-	short x;
-	short y1;
-	short y2;
-	short tx;
-	float depth;
-	float ty_pos;
-	float ty_step;
-	struct Texture* texture;
-	struct Lightmap* lightmap;
-} DrawCollumn;
-
-typedef struct
-{
-	DrawCollumn* collumns;
-	int index;
-	int size;
-} DrawCollumns;
 
 typedef struct
 {
@@ -420,24 +394,6 @@ typedef struct
 
 	bool visible;
 } DrawPlane;
-
-#define MAX_DRAWSPRITES 1024
-
-typedef struct
-{
-	DrawSprite draw_sprites[MAX_DRAWSPRITES];
-	int num_draw_sprites;
-
-	ClipSegments clip_segs;
-	DrawCollumns draw_collums;
-
-	uint64_t* visited_sectors_bitset;
-	size_t bitset_size;
-
-	DrawPlane floor_plane;
-	DrawPlane ceil_plane;
-	short* span_end;
-} RenderData;
 
 typedef struct
 {
@@ -463,7 +419,7 @@ typedef struct
 
 	float* yslope;
 
-	RenderData* render_data;
+	struct RenderData* render_data;
 
 	float* depth_buffer;
 
@@ -522,6 +478,39 @@ typedef struct
 	DrawingArgs* draw_args;
 } LineDrawArgs;
 
+typedef struct
+{
+	LineDrawArgs line_draw_args;
+	short first, last;
+	short light;
+} DrawSeg;
+
+#define MAX_DRAWSEGS 32
+
+typedef struct
+{
+	DrawSeg segs[MAX_DRAWSEGS];
+	int index;
+} DrawSegList;
+
+#define MAX_DRAWSPRITES 1024
+
+typedef struct
+{
+	DrawSprite draw_sprites[MAX_DRAWSPRITES];
+	int num_draw_sprites;
+
+	ClipSegments clip_segs;
+	DrawSegList draw_segs;
+
+	uint64_t* visited_sectors_bitset;
+	size_t bitset_size;
+
+	DrawPlane floor_plane;
+	DrawPlane ceil_plane;
+	short* span_end;
+} RenderData;
+
 void Video_Setup();
 bool Video_ClipLine(int xmin, int xmax, int ymin, int ymax, int* r_x0, int* r_y0, int* r_x1, int* r_y1);
 void Video_DrawLine(Image* image, int x0, int y0, int x1, int y1, unsigned char* color);
@@ -534,7 +523,7 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite);
 void Video_DrawWallCollumn(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, float depth, int tx, float ty_pos, float ty_step, int lx, float ly_pos, Vec3_u16 light, int height_mask, Lightmap* lm);
-void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, Vec3_u16 light, int height_mask);
+void Video_DrawWallCollumnDepth(Image* image, struct Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int lx, float ly_pos, Vec3_u16 light, int height_mask);
 void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, struct Texture* texture, int x, int y1, int y2, LineDrawArgs* args);
 void Video_DrawPlaneSpan(Image* image, DrawPlane* plane, LineDrawArgs* args, int y, int x1, int x2);
 void Video_DrawThreadSlice(Image* image, int x1, int x2, Vec3_u16* color);
@@ -609,7 +598,7 @@ void Scene_ClipAndDraw(ClipSegments* p_clip, int first, int last, bool solid, Li
 bool Scene_RenderLine(Image* image, struct Map* map, struct Sector* sector, struct Line* line, DrawingArgs* args);
 void Scene_ProcessSubsector(Image* image, struct Map* map, struct Subsector* sub_sector, DrawingArgs* args);
 int Scene_ProcessBSPNode(Image* image, struct Map* map, int node_index, DrawingArgs* args);
-void Scene_DrawDrawCollumns(Image* image, DrawCollumns* collumns, float* depth_buffer, DrawingArgs* args);
+void Scene_DrawDrawSegs(Image* image, DrawSegList* seg_list, float* depth_buffer, DrawingArgs* args);
 
 #define MAX_FONT_GLYPHS 100
 

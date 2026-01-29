@@ -355,6 +355,79 @@ bool Object_CheckSight(Object* obj, Object* target, bool check_angle)
 }
 
 
+void Object_RemoveSectorsFromLinkedArray(Object* obj)
+{
+	if (!obj->linked_sector_array)
+	{
+		return;
+	}
+
+	for (int i = 0; i < dA_size(obj->linked_sector_array); i++)
+	{
+		short* id = dA_at(obj->linked_sector_array, i);
+
+		if (*id >= 0)
+		{
+			Sector* sector = Map_GetSector(*id);
+
+			Sector_RemoveObjectFromRenderList(sector, obj);
+		}
+	}
+
+	dA_clear(obj->linked_sector_array);
+}
+
+void Object_AddSectorToLinkedArray(Object* obj, Sector* sector)
+{
+	if (!obj->linked_sector_array)
+	{
+		obj->linked_sector_array = dA_INIT(short, 1);
+	}
+
+	short* id = dA_emplaceBack(obj->linked_sector_array);
+
+	*id = (short)sector->index;
+}
+
+void Object_UpdateRenderSectors(Object* obj)
+{
+	//no need to link invisible objects
+	if (obj->sector_index < 0 || !obj->sprite.img)
+	{
+		return;
+	}
+
+	Object_RemoveSectorsFromLinkedArray(obj);
+
+	float bbox[2][2];
+
+	float width = obj->sprite.scale_x / 2.0;
+	float height = obj->sprite.scale_y / 2.0;
+
+	bbox[0][0] = obj->x - width;
+	bbox[0][1] = obj->y - height;
+
+	bbox[1][0] = obj->x + width;
+	bbox[1][1] = obj->y + height;
+
+	int sectors_found = Trace_FindSectors(obj->sector_index, bbox);
+	int* hits = Trace_GetHitObjects();
+
+	for (int i = 0; i < sectors_found; i++)
+	{
+		if (obj->sector_index == hits[i])
+		{
+			continue;
+		}
+
+		Sector* sector = Map_GetSector(hits[i]);
+
+		Sector_AddObjectToRenderList(sector, obj);
+		Object_AddSectorToLinkedArray(obj, sector);
+	}
+
+}
+
 bool Object_ZPassCheck(Object* obj, Object* col_obj)
 {
 	//our bottom will not hit top of their body,
@@ -531,6 +604,15 @@ void Object_Hurt(Object* obj, Object* src_obj, int damage, bool explosive)
 			obj->flags |= OBJ_FLAG__EXPLODING;
 
 			Object_Spawn(OT__PARTICLE, SUB__PARTICLE_EXPLOSION, obj->x + Math_randf() * 2.0 - 1.0, obj->y + Math_randf() * 2.0 - 1.0, (obj->z + obj->height * 0.5) + Math_randf() * 2.0 - 1.0);
+
+			const int NUM_BLOOD_TRACES = 12;
+
+			for (int i = 0; i < NUM_BLOOD_TRACES; i++)
+			{
+				float angle = Math_DegToRad(NUM_BLOOD_TRACES) * i;
+				
+				Decal_BloodTrace(obj, obj->x, obj->y, obj->z + obj->height * 0.5, cos(angle), sin(angle), Math_randf() * 2.0 - 1.0);
+			}
 		}
 
 		Monster_SetState(obj, MS__DIE);
@@ -659,8 +741,10 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 
 		if (type == OT__LIGHT)
 		{
-			obj->sound_id = Sound_EmitWorld(SOUND__FIRE, obj->x, obj->y, obj->z, 0, 0, 0, 1);
-			Sound_SetRolloff(obj->sound_id, 2);
+			obj->sound_id = Sound_EmitWorld(SOUND__FIRE, obj->x, obj->y, obj->z, 0, 0, 0, 0.025);
+			Sound_SetRolloff(obj->sound_id, 0.5);
+
+			obj->flags |= OBJ_FLAG__FULL_BRIGHT;
 		}
 
 		break;
@@ -754,7 +838,7 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.img = &assets->missile_textures;
 		obj->size = 5.25;
 
-		//Oject_missile will hand the position
+		//Object_missile will hand the position
 		handle_position = false;
 		break;
 	}
@@ -809,13 +893,27 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		}
 	}
 
-
 	if (obj->flags & OBJ_FLAG__FULL_BRIGHT)
 	{
-		obj->sprite.light.r = 255;
-		obj->sprite.light.g = 255;
-		obj->sprite.light.b = 255;
+		if (obj->type == OT__LIGHT)
+		{
+			LightInfo* light_info = Info_GetLightInfo(obj->sub_type);
+
+			if (light_info)
+			{
+				obj->sprite.light.r = light_info->color[0];
+				obj->sprite.light.g = light_info->color[1];
+				obj->sprite.light.b = light_info->color[2];
+			}
+		}
+		else
+		{
+			obj->sprite.light.r = 255;
+			obj->sprite.light.g = 255;
+			obj->sprite.light.b = 255;
+		}
 	}
+
 
 	obj->sprite.x = obj->x;
 	obj->sprite.y = obj->y;
@@ -836,13 +934,24 @@ void Object_ConsumePickup(Object* obj)
 		return;
 	}
 
-	Render_LockObjectMutex(true);
+	if (Object_IsSectorLinked(obj) || obj->linked_sector_array)
+	{
+		Render_LockObjectMutex(true);
 
-	Object_UnlinkSector(obj);
+		Object_UnlinkSector(obj);
+
+		if (obj->linked_sector_array)
+		{
+			Object_RemoveSectorsFromLinkedArray(obj);
+
+			dA_Destruct(obj->linked_sector_array);
+			obj->linked_sector_array = NULL;
+		}
+
+		Render_UnlockObjectMutex(true);
+	}
 
 	//keep for the save file
 	obj->hp = 0;
 	obj->sprite.img = NULL;
-	
-	Render_UnlockObjectMutex(true);
 }

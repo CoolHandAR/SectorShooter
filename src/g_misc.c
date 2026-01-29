@@ -44,6 +44,37 @@ void Particle_Update(Object* obj, float delta)
 		Map_DeleteObject(obj);
 	}
 }
+void Decal_BloodTrace(Object* obj, float x, float y, float z, float p_dir_x, float p_dir_y, float dir_z)
+{
+	p_dir_x *= BLOOD_SPLATTER_TRACE_DIST;
+	p_dir_y *= BLOOD_SPLATTER_TRACE_DIST;
+
+	float frac = 0;
+	float inter_x = 0;
+	float inter_y = 0;
+	float inter_z = 0;
+
+	int hit = Trace_AttackLine(obj, x, y, x + p_dir_x, y + p_dir_y, z, BLOOD_SPLATTER_TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
+
+	if (hit == TRACE_NO_HIT || hit >= 0)
+	{
+		return;
+	}
+
+	float dist = Math_XY_Distance(inter_x, inter_y, x, y);
+
+	//way too far away
+	if (dist >= BLOOD_SPLATTER_TRACE_DIST)
+	{
+		return;
+	}
+
+	//hit a wall
+	//spawn blood decal
+	Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_BLOOD_SPLATTER, inter_x, inter_y, inter_z);
+
+	if (decal) decal->sprite.decal_line_index = -(hit + 1);
+}
 void Decal_Update(Object* obj, float delta)
 {
 	obj->move_timer -= delta;

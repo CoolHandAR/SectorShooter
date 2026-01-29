@@ -536,6 +536,13 @@ static void Load_ParseObj(SaveHeader* header, FILE* file, Map* map)
 			else
 			{
 				Object_UnlinkSector(obj);
+				Object_RemoveSectorsFromLinkedArray(obj);
+				if (obj->linked_sector_array)
+				{
+					dA_Destruct(obj->linked_sector_array);
+					obj->linked_sector_array = NULL;
+				}
+
 				obj->sprite.img = NULL;
 			}
 		}
@@ -579,7 +586,6 @@ static void Load_ParsePlayer(SaveHeader* header, FILE* file, Map* map)
 	pdata->buck_ammo = Num_LittleLong(player_lump->buck_ammo);
 	pdata->bullet_ammo = Num_LittleLong(player_lump->bullet_ammo);
 	pdata->rocket_ammo = Num_LittleLong(player_lump->rocket_ammo);
-	pdata->gun = Num_LittleLong(player_lump->held_gun);
 
 	for (int k = 0; k < GUN__MAX; k++)
 	{
@@ -592,6 +598,8 @@ static void Load_ParsePlayer(SaveHeader* header, FILE* file, Map* map)
 
 	Player_Rotate(Math_DegToRad(Num_LittleLong(player_lump->angle)));
 	Move_SetPosition(pdata->obj, pdata->obj->x, pdata->obj->y, pdata->obj->size);
+
+	Player_SetGun(Num_LittleLong(player_lump->held_gun));
 
 	if (player_lump) free(player_lump);
 }

@@ -343,11 +343,19 @@ void Map_DeleteObject(Object* obj)
 		Sound_DeleteSound(obj->sound_id);
 	}
 
-	if (Object_IsSectorLinked(obj))
+	if (Object_IsSectorLinked(obj) || obj->linked_sector_array)
 	{
 		Render_LockObjectMutex(true);
 
 		Object_UnlinkSector(obj);
+
+		if (obj->linked_sector_array)
+		{
+			Object_RemoveSectorsFromLinkedArray(obj);
+
+			dA_Destruct(obj->linked_sector_array);
+			obj->linked_sector_array = NULL;
+		}
 
 		Render_UnlockObjectMutex(true);
 	}
@@ -539,7 +547,10 @@ void Map_UpdateObjectsLight()
 			continue;
 		}
 
-		Map_CalcBlockLight(obj->x, obj->y, obj->z, &obj->sprite.light);
+		if (!(obj->flags & OBJ_FLAG__FULL_BRIGHT))
+		{
+			Map_CalcBlockLight(obj->x, obj->y, obj->z, &obj->sprite.light);
+		}
 	}
 }
 
@@ -604,6 +615,10 @@ void Map_CalcBlockLight(float p_x, float p_y, float p_z, Vec3_u16* dest)
 		{
 			continue;
 		}
+		if (data->light.r == 0xffff && data->light.g == 0xffff && data->light.b == 0xffff)
+		{
+			continue;
+		}
 
 		total_factor += factor;
 
@@ -638,6 +653,14 @@ void Map_Destruct()
 		{
 			free(sector->ceil_lightmap.data);
 		}
+		if (sector->render_object_list)
+		{
+			Object_Pool_Destruct(sector->render_object_list);
+		}
+		if (sector->sorted_render_object_list)
+		{
+			dA_Destruct(sector->sorted_render_object_list);
+		}
 	}
 	for (int i = 0; i < s_map.num_linedefs; i++)
 	{
@@ -646,6 +669,17 @@ void Map_Destruct()
 		if (linedef->lightmap.data)
 		{
 			free(linedef->lightmap.data);
+		}
+	}
+
+	for (int i = 0; i < MAX_OBJECTS; i++)
+	{
+		Object* obj = Map_GetObject(i);
+
+		if (obj->linked_sector_array)
+		{
+			dA_Destruct(obj->linked_sector_array);
+			obj->linked_sector_array = NULL;
 		}
 	}
 

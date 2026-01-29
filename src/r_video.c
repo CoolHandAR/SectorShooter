@@ -464,8 +464,10 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 	const int h_frames = sprite->img->h_frames;
 	const int v_frames = sprite->img->v_frames;
 
-	int offset_x = (h_frames > 0) ? frame % h_frames : 0;
-	int offset_y = (v_frames > 0) ? frame / h_frames : 0;
+	int offset_x = (h_frames > 0) ? (frame + sprite->frame_offset_x) % h_frames : 0;
+	int offset_y = (v_frames > 0) ? (frame + sprite->frame_offset_x) / h_frames : 0;
+
+	offset_y += sprite->frame_offset_y;
 
 	int rect_width = (h_frames > 0) ? sprite->img->width / h_frames : sprite->img->width;
 	int rect_height = (v_frames > 0) ? sprite->img->height / v_frames : sprite->img->height;
@@ -636,9 +638,9 @@ void Video_DrawSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		return;
 	}
 	//completely transparent
-	if (sprite->transparency >= 1)
+	//if (sprite->transparency >= 1)
 	{
-		return;
+		//return;
 	}
 
 	//translate sprite position to relative to camera
@@ -1105,22 +1107,14 @@ void Video_DrawDecalSprite(Image* image, DrawingArgs* args, DrawSprite* sprite)
 		float z = sprite->z;
 		line_ty = (z - frontsector->floor) / (frontsector->ceil - frontsector->floor);
 
-		float texwidth = sqrt(line->dx * line->dx + line->dy * line->dy) * 2;
-
 		float u = 0;
 		float t = 0;
 
-		if (fabs(line->dx) > fabs(line->dy))
-		{
-			t = (sprite->x - line->x0) / line->dx;
-		}
-		else
-		{
-			t = (sprite->y - line->y0) / line->dy;
-		}
+		t = frac;
+
 		u = t + u * t;
 		u = fabs(u);
-		u *= texwidth;
+		u *= line->width * 2;
 
 		line_tx = u;
 
@@ -1397,29 +1391,20 @@ void Video_DrawWallCollumn(Image* image, float* depth_buffer, Texture* texture, 
 
 }
 
-void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, Vec3_u16 light, int height_mask)
+void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, float* depth_buffer, int x, int y1, int y2, float z, int tx, float ty_pos, float ty_step, int lx, float ly_pos, Vec3_u16 light, int height_mask)
 {
 	unsigned char* dest = image->data;
-	size_t index = (size_t)x + (size_t)(y1 + 1) * (size_t)image->width;
-
-	float depth_shade_scale = (z * DEPTH_SHADING_SCALE);
-
-	if (light.r + light.g + light.b > 0)
-	{
-		light.r = Math_Clampl(light.r - depth_shade_scale, 0, MAX_LIGHT_VALUE - 1);
-		light.g = Math_Clampl(light.g - depth_shade_scale, 0, MAX_LIGHT_VALUE - 1);
-		light.b = Math_Clampl(light.b - depth_shade_scale, 0, MAX_LIGHT_VALUE - 1);
-	}
+	size_t index = (size_t)x + (size_t)(y1) * (size_t)image->width;
 
 	//optimized lightmap only loop
 	if (lm && lm->data)
 	{
-		float flx = Math_Clamp((float)tx * LIGHTMAP_INV_LUXEL_SIZE, 0, lm->width - 1);
+		float flx = Math_Clamp((float)lx * LIGHTMAP_INV_LUXEL_SIZE, 0, lm->width - 1);
 		float flx_frac = flx - (int)flx;
 
 		float next_flx = Math_Clampl(flx + 1, 0, lm->width - 1);
 
-		float fly = (ty_pos * LIGHTMAP_INV_LUXEL_SIZE);
+		float fly = (ly_pos * LIGHTMAP_INV_LUXEL_SIZE);
 		int prev_ly = -1;
 
 		float fly_step = ty_step * LIGHTMAP_INV_LUXEL_SIZE;
@@ -1493,7 +1478,7 @@ void Video_DrawWallCollumnDepth(Image* image, Texture* texture, Lightmap* lm, fl
 	else
 	{
 		tx &= texture->width_mask;
-		for (int y = y1 + 1; y < y2; y++)
+		for (int y = y1; y < y2; y++)
 		{
 			int ty = (int)ty_pos & height_mask;
 

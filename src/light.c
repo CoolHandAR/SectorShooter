@@ -22,7 +22,7 @@
 #define RADIOSITY_TRACE_DIST 1024 
 #define RADIOSITY_SAMPLES 64
 #define RADIOSITY_RADIUS 512
-#define RADIOSITY_ATTENUATION 0.25
+#define RADIOSITY_ATTENUATION 0.5
 #define RADIOSITY_SCALE 2
 
 #define DEVIANCE_SAMPLES 4
@@ -31,7 +31,7 @@
 
 #define SKY_SCALE 0.25
 
-#define LIGHTGRID_RADIOSITY_SCALE 2.0
+#define LIGHTGRID_RADIOSITY_SCALE 1.5
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88
@@ -390,15 +390,13 @@ static bool LightGlobal_SetupLights(LightGlobal* global, LightCompilerInfo* ligh
 {
 	global->light_list = dA_INIT(LightDef, 0);
 
+#ifndef ONLY_SUN
+
 	int light_iter_index = 0;
 	Object* light_obj = NULL;
 	//add object lights
 	while (light_obj = Map_GetNextObjectByType(&light_iter_index, OT__LIGHT))
 	{
-#ifdef ONLY_SUN
-		break;
-#endif // ONLY_SUN
-
 		LightInfo* light_info = Info_GetLightInfo(light_obj->sub_type);
 
 		if (!light_info)
@@ -446,6 +444,8 @@ static bool LightGlobal_SetupLights(LightGlobal* global, LightCompilerInfo* ligh
 			LightGlobal_AddLinedefAreaLight(global, linedef);
 		}
 	}
+#endif // !ONLY_SUN
+
 	//add sun light, (always add last)
 	if (map->has_sun_entity)
 	{
@@ -484,6 +484,7 @@ static bool LightGlobal_SetupLights(LightGlobal* global, LightCompilerInfo* ligh
 		return false;
 	}
 
+	//count all 
 	int num_area_lights = 0;
 	int num_point_lights = 0;
 	int num_sun_lights = 0;
@@ -1040,10 +1041,9 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 		result->normal[2] = 0;
 		result->hit_type = LST__WALL;
 
-		if (need_color_info)
+		Sidedef* sidedef = Map_GetSideDef(hit_line->sides[side]);
+		if (need_color_info || sidedef->middle_texture)
 		{
-			Sidedef* sidedef = Map_GetSideDef(hit_line->sides[side]);
-
 			if (sidedef)
 			{
 				int tx = 0;
@@ -1052,7 +1052,7 @@ static bool TraceLine(LightGlobal* global, LightTraceThread* thread, LightTraceR
 				float z = result->hit[2];
 				ty = (z - sector->floor) / (sector->ceil - sector->floor);
 
-				float texwidth = sqrt(linedef->dx * linedef->dx + linedef->dy * linedef->dy) * 2;
+				float texwidth = linedef->width * 2;
 
 				float u = 0;
 				float t = 0;
@@ -1309,6 +1309,8 @@ static void Lightmap_FilterLightmap(Lightmap* lm)
 		{
 			Vec4* sample = &cast_data[x + y * lm->width];
 
+			float max_light = max(sample->r, max(sample->g, sample->b));
+
 			Vec4 avg = *sample;
 			float smp = 1.0;
 			float ao_smp = 1.0;
@@ -1330,7 +1332,7 @@ static void Lightmap_FilterLightmap(Lightmap* lm)
 					Vec4* sample_2 = &cast_data[fx + fy * lm->width];
 
 					//color
-					if (sample_2->r + sample_2->g + sample_2->b > 0.0)
+					//if (sample->r + sample->g + sample->b > 0)
 					{
 						avg.r += sample_2->r;
 						avg.g += sample_2->g;
@@ -2055,14 +2057,50 @@ static Vec4 Lightmap_CalcRadiosity(LightGlobal* global, LightTraceThread* thread
 	return total_light;
 }
 
-static bool Lightmap_CheckForLeakingLineSide(LightGlobal* global, Sector* sector, float position[3])
+static bool Lightmap_CheckForLeakingLineSide(LightGlobal* global, Sector* sector, LightDef* light, float position[3], LightSurfType surf_type, int* r_backsector)
 {
+	if(r_backsector) *r_backsector = -1;
+
 	float point[2] = { position[0], position[1] };
+	float z = position[2];
 
 	if (!Math_BoxContainsPoint(sector->bbox, point))
 	{
 		return false;
 	}
+
+	if (surf_type == LST__FLOOR_AND_CEIL)
+	{
+		Sector* bsp_sector = Map_FindSector(point[0], point[1]);
+
+		if (bsp_sector && bsp_sector != sector)
+		{
+			if (!Math_BoxContainsPoint(bsp_sector->bbox, point))
+			{
+				return false;
+			}
+		}
+
+		if (!light)
+		{
+			return true;
+		}
+	}
+
+	float size = LIGHTMAP_LUXEL_SIZE;
+
+	if (AA_SAMPLES > 1)
+	{
+		size /= (float)AA_SAMPLES / 2.0;
+	}
+
+	if (surf_type == LST__POINT)
+	{
+		size = 1;
+	}
+
+	float tile_box[2][2];
+	Math_SizeToBbox(point[0], point[1], size, tile_box);
 
 	LinedefList* list = &global->linedef_list[sector->index];
 
@@ -2074,24 +2112,41 @@ static bool Lightmap_CheckForLeakingLineSide(LightGlobal* global, Sector* sector
 		{
 			continue;
 		}
-		//ignore invis lines
 		if (line->back_sector >= 0)
 		{
+			//ignore invis lines
 			Sector* backsector = Map_GetSector(line->back_sector);
 
 			if (sector->floor == backsector->floor && sector->ceil == backsector->ceil)
 			{
 				continue;
 			}
+
+			float open_low = max(sector->floor, backsector->floor);
+			float open_high = min(sector->ceil, backsector->ceil);
+			float open_range = open_high - open_low;
+
+			if (open_range > 0 && open_low < open_high)
+			{
+				if (open_low < z && open_high > z)
+				{
+					continue;
+				}
+			}
 		}
 
-		if (!Math_BoxContainsPoint(line->bbox, point))
+		if (!Math_BoxIntersectsBox(line->bbox, tile_box))
 		{
 			continue;
 		}
 
 		if (Line_PointSide(line, point[0], point[1]))
 		{
+			if (line->back_sector >= 0)
+			{
+				if(r_backsector) *r_backsector = line->back_sector;
+			}
+
 			return false;
 		}
 	}
@@ -2106,32 +2161,55 @@ static void Lightmap_SampleFloorAndCeilAtPoint(LightGlobal* global, LightTraceTh
 
 	float sample_pos[3] = { position[0], position[1], position[2] };
 
-	//fixes annoying sun leaking
-	if (light && light->type == LDT__SUN)
+	bool calc_floor = true;
+	bool calc_ceil = true;
+
+	int leak_backsector_index = -1;
+	if (!Lightmap_CheckForLeakingLineSide(global, sector, light, sample_pos, LST__FLOOR_AND_CEIL, &leak_backsector_index))
 	{
-		if (!Lightmap_CheckForLeakingLineSide(global, sector, sample_pos))
+		if (light && light->type == LDT__SUN)
+		{
+			return;
+		}
+		else if (leak_backsector_index >= 0)
+		{
+			Sector* leak_backsector = Map_GetSector(leak_backsector_index);
+
+			if (sector->floor != leak_backsector->floor)
+			{
+				calc_floor = false;
+			}
+			if (sector->ceil != leak_backsector->ceil)
+			{
+				calc_ceil = false;
+			}
+		}
+		else
 		{
 			return;
 		}
 	}
 
-	//floor
-	sample_pos[2] = sector->floor;
-	Vec4 floor_result = Vec4_Zero();
-
-	if (light)
+	if (calc_floor)
 	{
-		floor_result = Lightmap_CalcDirectLight(global, thread, NULL, light, sample_pos, floor_normal, LST__FLOOR);
-	}
-	else
-	{
-		floor_result = Lightmap_CalcRadiosity(global, thread, sample_pos, floor_normal, NULL, LST__FLOOR);
-	}
+		//floor
+		sample_pos[2] = sector->floor;
+		Vec4 floor_result = Vec4_Zero();
 
-	Vec4_Add(floor_light, floor_result);
+		if (light)
+		{
+			floor_result = Lightmap_CalcDirectLight(global, thread, NULL, light, sample_pos, floor_normal, LST__FLOOR);
+		}
+		else
+		{
+			floor_result = Lightmap_CalcRadiosity(global, thread, sample_pos, floor_normal, NULL, LST__FLOOR);
+		}
+
+		Vec4_Add(floor_light, floor_result);
+	}
 
 	//ceil
-	if (!sector->is_sky)
+	if (!sector->is_sky && calc_ceil)
 	{
 		sample_pos[2] = sector->ceil;
 		Vec4 ceil_result = Vec4_Zero();
@@ -2681,7 +2759,7 @@ void Lightmap_Create(LightGlobal* global, Map* map)
 	printf("Finished creating lightmaps. Time: %f \n", end - start);
 }
 
-void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3])
+bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3])
 {
 	Map* map = Map_GetMap();
 
@@ -2690,12 +2768,17 @@ void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightbloc
 
 	if (!sector)
 	{
-		return;
+		return false;
 	}
 
 	if (!Math_BoxContainsPoint(sector->bbox, position))
 	{
-		return;
+		return false;
+	}
+
+	if (!Lightmap_CheckForLeakingLineSide(global, sector, NULL, position, LST__POINT, NULL))
+	{
+		return false;
 	}
 
 	Vec4 total_light = Vec4_Zero();
@@ -2728,6 +2811,8 @@ void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightbloc
 	block->light.r = Math_Clampl(total_light.r, 0, MAX_LIGHT_VALUE - 255);
 	block->light.g = Math_Clampl(total_light.g, 0, MAX_LIGHT_VALUE - 255);
 	block->light.b = Math_Clampl(total_light.b, 0, MAX_LIGHT_VALUE - 255);
+
+	return true;
 }
 
 void Lightblocks_Create(LightGlobal* global, Map* map)
@@ -2771,7 +2856,13 @@ void Lightblocks_Create(LightGlobal* global, Map* map)
 					position[1] = lightgrid->origin[1] + (y * lightgrid->size[1]);
 					position[2] = lightgrid->origin[2] + (z * lightgrid->size[2]);
 
-					Lightblock_Process(global, global->thread, block, position);
+					if (!Lightblock_Process(global, global->thread, block, position))
+					{
+						//mark as out of bounds, so that the sample will be ignored
+						block->light.r = 0xffff;
+						block->light.g = 0xffff;
+						block->light.b = 0xffff;
+					}
 				}
 			}
 		}

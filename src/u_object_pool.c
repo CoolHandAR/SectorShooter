@@ -54,6 +54,11 @@ size_t Object_Pool_Size(Object_Pool* const p_pool)
 	return dA_size(p_pool->pool);
 }
 
+unsigned Object_Pool_UsedSize(Object_Pool* const p_pool)
+{
+	return p_pool->used_pool_size;
+}
+
 void* Object_Pool_At(Object_Pool* const p_pool, unsigned p_index)
 {
 	return dA_at(p_pool->pool, p_index);

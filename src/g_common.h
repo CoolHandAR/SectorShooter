@@ -5,10 +5,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <GLFW/glfw3.h>
-#include "BVH_Tree2D.h"
 
+#include "BVH_Tree2D.h"
 #include "r_common.h"
 #include "sound.h"
+
+#include "u_object_pool.h"
 
 //#define DONT_FILE_LIGHTMAPS
 //#define DISABLE_LIGHTMAPS
@@ -28,13 +30,14 @@
 #define PLAYER_FRICTION 0.88
 #define PLAYER_HEIGHT 100
 #define PLAYER_GRAVITY_SCALE 0.5
+#define BLOOD_SPLATTER_TRACE_DIST 170
 
 #define MAX_RENDER_SCALE 3
 
 #define MAX_MAP_NAME 32
 #define MAX_STATUS_MESSAGE 32 
 #define STATUS_TIME 5
-#define LIGHTMAP_LUXEL_SIZE 16.0
+#define LIGHTMAP_LUXEL_SIZE 8.0
 #define LIGHTMAP_INV_LUXEL_SIZE 1.0 / LIGHTMAP_LUXEL_SIZE
 #define LIGHT_GRID_SIZE 64.0
 #define LIGHT_GRID_Z_SIZE 128.0
@@ -138,6 +141,8 @@ void Menu_LevelEnd_Update(float delta, int secret_goal, int secret_max, int mons
 void Menu_LevelEnd_Draw(Image* image, FontData* fd);
 void Menu_Finale_Update(float delta);
 void Menu_Finale_Draw(Image* image, FontData* fd);
+void Menu_DrawBackGround(Image* image);
+void Menu_Init();
 
 typedef enum
 {
@@ -320,6 +325,8 @@ typedef enum
 	OBJ_FLAG__IGNORE_SOUND = 1 << 9,
 	OBJ_FLAG__FULL_BRIGHT = 1 << 10,
 	OBJ_FLAG__SUPER_MOB = 1 << 11,
+	OBJ_FLAG__MINI_MISSILE = 1 << 12,
+	OBJ_FLAG__JUST_TELEPORTED = 1 << 13,
 } ObjectFlag;
 
 typedef struct
@@ -359,6 +366,9 @@ typedef struct
 	//for rendering when traversing through the subsectors
 	struct Object* sector_next;
 	struct Object* sector_prev;
+
+	//for rendering when object sprite crosses multiple sectors
+	dynamic_array* linked_sector_array;
 
 	//for various collision checks
 	int collision_hit;
@@ -414,6 +424,8 @@ typedef struct
 	float dx, dy;
 	float dot;
 
+	float width;
+
 	float bbox[2][2];
 
 	int front_sector;
@@ -455,6 +467,8 @@ typedef struct
 typedef struct
 {
 	Object* object_list;
+	Object_Pool* render_object_list;
+	dynamic_array* sorted_render_object_list;
 
 	Texture* floor_texture;
 	Texture* ceil_texture;
@@ -464,7 +478,7 @@ typedef struct
 
 	int sector_tag;
 	int special;
-	int sector_object;
+	ObjectID sector_object;
 
 	int sound_propogation_check;
 	
@@ -482,7 +496,6 @@ typedef struct
 
 	int index;
 	bool is_sky;
-
 } Sector;
 
 typedef struct
@@ -659,6 +672,7 @@ void Player_MouseCallback(float x, float y);
 void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x);
 float Player_GetSensitivity();
 void Player_SetSensitivity(float sens);
+void Player_SetGun(GunType gun_type);
 
 
 //Movement stuff
@@ -673,7 +687,6 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 bool Move_Unstuck(Object* obj);
 bool Move_Teleport(Object* obj, float x, float y);
 bool Move_Sector(Sector* sector, float p_moveFloor, float p_moveCeil, float p_minFloorClamp, float p_maxFloorFlamp, float p_minCeilClamp, float p_maxCeilClamp, bool p_crush);
-
 
 //Checking
 bool Check_CanObjectFitInSector(Object* obj, Sector* sector, Sector* backsector);
@@ -696,8 +709,12 @@ int Trace_SectorObjects(Sector* sector);
 int Trace_SectorLines(Sector* sector, bool front_only);
 int Trace_SectorAll(Sector* sector);
 int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, float end_y, float end_z, bool ignore_sky_plane, int* r_hits, int max_hit_count, float* r_hitX, float* r_hitY, float* r_hitZ, float* r_frac);
+int Trace_FindSectors(int ignore_sector_index, float bbox[2][2]);
 
 //Object stuff
+void Object_RemoveSectorsFromLinkedArray(Object* obj);
+void Object_AddSectorToLinkedArray(Object* obj, Sector* sector);
+void Object_UpdateRenderSectors(Object* obj);
 bool Object_ZPassCheck(Object* obj, Object* col_obj);
 void Object_UnlinkSector(Object* obj);
 void Object_LinkSector(Object* obj);
@@ -729,6 +746,9 @@ typedef enum
 void Event_TriggerSpecialLine(Object* obj, int side, Linedef* line, EventLineTriggerType trigger_type);
 void Event_CreateExistingSectorObject(int type, int sub_type, int state, float stop_timer, int sector_index);
 
+void Sector_UpdateSortedList(Sector* sector);
+void Sector_RemoveObjectFromRenderList(Sector* sector, Object* object);
+void Sector_AddObjectToRenderList(Sector* sector, Object* object);
 void Sector_Secret(Sector* sector);
 void Sector_CreateLightStrober(Sector* sector, SubType light_type);
 float Sector_FindHighestNeighbourCeilling(Sector* sector);
@@ -750,6 +770,7 @@ void Particle_Spawn(int sub_type, float x, float y, float z);
 void Particle_Update(Object* obj, float delta);
 
 //Decal stuff
+void Decal_BloodTrace(Object* obj, float x, float y, float z, float p_dir_x, float p_dir_y, float dir_z);
 void Decal_Update(Object* obj, float delta);
 
 //Monster stuff

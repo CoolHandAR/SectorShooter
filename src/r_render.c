@@ -198,9 +198,9 @@ static void Render_Level(Map* map, RenderData* render_data, int start_x, int end
 	//draw lines and add sprites to draw list
 	int nodes_drawn = Scene_ProcessBSPNode(&s_renderCore.framebuffer, map, map->num_nodes - 1, &drawing_args);
 
-	//draw draw collumns
-	Scene_DrawDrawCollumns(&s_renderCore.framebuffer, &drawing_args.render_data->draw_collums, s_renderCore.depth_buffer, &drawing_args);
-	
+	//draw draw segs
+	Scene_DrawDrawSegs(&s_renderCore.framebuffer, &render_data->draw_segs, s_renderCore.depth_buffer, &drawing_args);
+
 	//draw sprites and decals
 	for (int i = 0; i < render_data->num_draw_sprites; i++)
 	{
@@ -285,8 +285,15 @@ static void Render_DrawLightGrid()
 				int flat_index = ((int)grid->bounds[0] * (int)grid->bounds[1] * z) + ((int)grid->bounds[0] * y) + x;
 				Lightblock* block = &grid->blocks[flat_index];
 
+				Vec3_u16 light = block->light;
+
+				if (block->light.r == 0xffff && block->light.g == 0xffff && block->light.b == 0xffff)
+				{
+					light = Vec3_u16_Zero();
+				}
+
 				Video_DrawBox(&s_renderCore.framebuffer, s_renderCore.depth_buffer, box, s_renderCore.view_x, s_renderCore.view_y, s_renderCore.view_z, s_renderCore.view_cos, s_renderCore.view_sin, view_sin, view_cos, s_renderCore.vfov * (float)s_renderCore.h,
-					0, s_renderCore.framebuffer.width, &block->light);
+					0, s_renderCore.framebuffer.width, &light);
 			}
 		}
 	}
@@ -907,6 +914,8 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
 
 		//Render_DrawAllObjectBoxes();
+
+		//Render_DrawLightGrid();
 
 	}
 	else

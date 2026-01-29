@@ -75,7 +75,7 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 7, 8, 0,
 		},
 		60, //SPAWN HP
-		24, //SPEED,
+		34, //SPEED,
 		14, //MELEE DAMAGE
 		12, //SIZE,
 		120, //HEIGHT
@@ -362,9 +362,9 @@ static const MissileInfo MISSILE_INFO[] =
 	},
 	384, //SPEED
 	5, //SIZE,
-	24, //EXPLOSION DAMAGE
-	256, //EXPLOSION SIZE
-	40, //DIRECT HIT DAMAGE
+	0, //EXPLOSION DAMAGE
+	0, //EXPLOSION SIZE
+	80, //DIRECT HIT DAMAGE
 	64, //SPRITE SCALE
 	},
 	//START STRIKE
@@ -1197,8 +1197,8 @@ static const GunInfo GUN_INFOs[GUN__MAX] =
 		1.2, //SCALE
 		1, //LIGHT FRAME
 		{128, 93, 73}, //LIGHT COLOR
-		0.46, //SHAKE SCALE,
-		0.15 //SHAKE TIME
+		0.56, //SHAKE SCALE,
+		0.12 //SHAKE TIME
 	},
 	//DEVASTATOR
 	{
@@ -1315,7 +1315,7 @@ static const DecalInfo DECAL_INFOS[] =
 		{
 			NULL, 0, 2, 1, 3, 0,
 		},
-		5.5, //time
+		8.5, //time
 		32, //sprite scale
 	},
 };
@@ -1417,31 +1417,6 @@ static const SFXInfo SFX_INFOS[] =
 
 static const LightCompilerInfo LIGHT_COMPILER_INFOS[] =
 {
-	{
-		0.2, //SKY SCALE
-		2, //SUN Z
-		{255, 255, 255}, //SUN COLOR
-	},
-	{
-		0.2, //SKY SCALE
-		2, //SUN Z
-		{255, 255, 255}, //SUN COLOR
-	},
-	{
-		0.2, //SKY SCALE
-		2, //SUN Z
-		{255, 255, 255}, //SUN COLOR
-	},
-	{
-		0.2, //SKY SCALE
-		2, //SUN Z
-		{255, 255, 255}, //SUN COLOR
-	},
-	{
-		0.2, //SKY SCALE
-		2, //SUN Z
-		{255, 255, 255}, //SUN COLOR
-	},
 	//MAP00
 	{
 		0.3, //SKY SCALE

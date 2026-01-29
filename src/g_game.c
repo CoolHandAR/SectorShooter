@@ -6,7 +6,7 @@
 #include "main.h"
 #include "sound.h"
 
-#define START_LEVEL 5
+#define START_LEVEL 2
 
 static Game game;
 static GameAssets assets;
@@ -29,8 +29,9 @@ bool Game_Init()
 
 	game.level_index = -1;
 	VisualMap_Init();
+	Menu_Init();
 
-	Sound_SetAsMusic(SOUND__MUSIC1);
+	//Sound_SetAsMusic(SOUND__MUSIC1);
 
 	return true;
 }
@@ -284,10 +285,9 @@ void Game_SmoothUpdate(double lerp, double delta)
 
 		Player_LerpUpdate(lerp, delta);
 		Map_SmoothUpdate(lerp, delta);
+		VisualMap_Update(window, delta);
 
 		Render_UnlockObjectMutex(true);
-
-		VisualMap_Update(window, delta);
 		break;
 	}
 	case GS__LEVEL_END:

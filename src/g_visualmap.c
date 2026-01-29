@@ -122,8 +122,6 @@ void VisualMap_Update(GLFWwindow* window, double delta)
 		return;
 	}
 
-	Render_LockObjectMutex(true);
-
 	//update some timers and make sure limits are set
 	if (s_visualMap.zoom_level <= 0 || s_visualMap.zoom_level > MAX_ZOOM_LEVEL)
 	{
@@ -193,7 +191,6 @@ void VisualMap_Update(GLFWwindow* window, double delta)
 	s_visualMap.w_offset = width;
 	s_visualMap.h_offset = height;
 
-	Render_UnlockObjectMutex(true);
 }
 
 void VisualMap_Draw(Image* image, FontData* font)

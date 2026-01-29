@@ -4,6 +4,7 @@
 
 #include "main.h"
 #include "sound.h"
+#include "game_info.h"
 
 #define SUB_MENU_MAIN 0
 #define SUB_MENU_LOAD 1
@@ -21,7 +22,7 @@
 #define X_HELPTEXT_START 0.05
 #define Y_HELPTEXT_START 0.1
 #define X_HELPTEXT_STEP 0.23
-#define Y_HELPTEXT_STEP 0.15
+#define Y_HELPTEXT_STEP 0.12
 
 #define RENDERSCALE_ID 0
 #define SOUND_ID 1
@@ -31,10 +32,13 @@
 #define SENS_OPTION_STEP 0.5
 #define SOUND_OPTION_STEP 0.1
 #define LEVEL_END_COUNTER_SPEED 10
-
+#define NUM_SPRITES 2
 
 typedef struct
 {
+	//bg stuff
+	Sprite sprites[NUM_SPRITES];
+
 	//menu data
 	float help_x;
 	float help_y;
@@ -42,6 +46,7 @@ typedef struct
 	int index;
 	int sub_menu;
 	int id;
+	int max_index;
 
 	//level end data
 	float secret_counter;
@@ -54,6 +59,16 @@ typedef struct
 } MenuCore;
 
 static MenuCore menu_core;
+
+static void Menu_UpdateSprites(float delta)
+{
+	for (int i = 0; i < NUM_SPRITES; i++)
+	{
+		Sprite* sprite = &menu_core.sprites[i];
+
+		Sprite_UpdateAnimation(sprite, delta);
+	}
+}
 
 static bool Menu_CheckInput(int key, int state)
 {
@@ -213,6 +228,8 @@ void Menu_Update(float delta)
 		return;
 	}
 
+	Menu_UpdateSprites(delta);
+
 	if (menu_core.input_timer > 0) menu_core.input_timer -= delta;
 	
 	//handle sub menu
@@ -280,18 +297,47 @@ void Menu_Update(float delta)
 	}
 	else if (Menu_CheckInput(GLFW_KEY_ESCAPE, GLFW_PRESS))
 	{
-		if (menu_core.sub_menu > 0) menu_core.sub_menu = 0;
-		else if(menu_core.sub_menu == 0)
+		if (menu_core.sub_menu > 0) menu_core.sub_menu = SUB_MENU_MAIN;
+		else if(menu_core.sub_menu == SUB_MENU_MAIN && Game_GetLevelIndex() >= 0)
 		{
 			//Game_SetState(GS__LEVEL);
 		}
 	}
+
+	//get max index, we could do this by incrementing id in menu_text function
+	//but it's called by render thread and that causes sync issues
+	switch (menu_core.sub_menu)
+	{
+		case SUB_MENU_MAIN:
+		{
+			menu_core.max_index = SUB_MENU_EXIT;
+			break;
+		}
+		case SUB_MENU_OPTIONS:
+		{
+			menu_core.max_index = 3;
+			break;
+		}
+		case SUB_MENU_LOAD:
+			//fallthrough
+		case SUB_MENU_SAVE:
+		{
+			menu_core.max_index = MAX_SAVE_SLOTS - 1;
+			break;
+		}
+		default:
+		{
+			menu_core.max_index = 0;
+			break;
+		}
+	}
+
 	
 	if (Menu_CheckInput(GLFW_KEY_UP, GLFW_PRESS)) menu_core.index--;
 	else if (Menu_CheckInput(GLFW_KEY_DOWN, GLFW_PRESS)) menu_core.index++;
 
-	if (menu_core.index < 0) menu_core.index = SUB_MENU_EXIT;
-	else if (menu_core.index > SUB_MENU_EXIT) menu_core.index = 0;
+	if (menu_core.index < 0) menu_core.index = menu_core.max_index;
+	else if (menu_core.index > menu_core.max_index) menu_core.index = 0;
 
 }
 
@@ -305,7 +351,7 @@ void Menu_Draw(Image* image, FontData* fd)
 	menu_core.help_x = 0;
 	menu_core.help_y = 0;
 
-	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 2, 2);
+	Menu_DrawBackGround(image);
 
 	switch (menu_core.sub_menu)
 	{
@@ -379,6 +425,7 @@ void Menu_Draw(Image* image, FontData* fd)
 		Menu_HelpText(image, fd, true, "INTERACT = E");
 		Menu_HelpText(image, fd, true, "SLOW WALK = SHIFT");
 		Menu_HelpText(image, fd, true, "MENU = ESC");
+		Menu_HelpText(image, fd, true, "TAB = VISUAL MAP");
 
 		Menu_HelpText(image, fd, true, "1 = PISTOL");
 		Menu_HelpText(image, fd, false, "2 = SHOTGUN");
@@ -395,6 +442,8 @@ void Menu_Draw(Image* image, FontData* fd)
 
 void Menu_LevelEnd_Update(float delta, int secret_goal, int secret_max, int monster_goal, int monster_max)
 {
+	Menu_UpdateSprites(delta);
+
 	if (menu_core.input_timer > 0) menu_core.input_timer -= delta;
 
 	menu_core.secret_max = secret_max;
@@ -439,7 +488,7 @@ void Menu_LevelEnd_Draw(Image* image, FontData* fd)
 {
 	Render_LockObjectMutex(false);
 
-	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 2, 2);
+	Menu_DrawBackGround(image);
 
 	Text_Draw(image, fd, 0.25, 0.2, 1, 1, 0, image->width, "SECRETS %i/%i", (int)menu_core.secret_counter, menu_core.secret_max);
 	Text_Draw(image, fd, 0.25, 0.5, 1, 1, 0, image->width, "KILLS %i/%i", (int)menu_core.monster_counter, menu_core.monster_max);
@@ -450,6 +499,8 @@ void Menu_LevelEnd_Draw(Image* image, FontData* fd)
 
 void Menu_Finale_Update(float delta)
 {
+	Menu_UpdateSprites(delta);
+
 	if (menu_core.input_timer > 0) menu_core.input_timer = 0;
 
 	if (Menu_CheckInput(GLFW_KEY_ENTER, GLFW_PRESS))
@@ -461,9 +512,57 @@ void Menu_Finale_Update(float delta)
 
 void Menu_Finale_Draw(Image* image, FontData* fd)
 {
-	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 2, 2);
-
+	Menu_DrawBackGround(image);
+	
 	Text_Draw(image, fd, 0.15, 0.2, 1, 1, 0, image->width, "THE END");
 	Text_Draw(image, fd, 0.15, 0.5, 1, 1, 0, image->width, "THANKS FOR PLAYING");
 	Text_Draw(image, fd, 0.15, 0.7, 1, 1, 0, image->width, "PRESS ENTER TO CONTINUE");
+}
+
+void Menu_DrawBackGround(Image* image)
+{
+	Video_DrawScreenTexture(image, &Game_GetAssets()->menu_texture, 0, 0, 1.5, 1.5);
+
+	for (int i = 0; i < 2; i++)
+	{
+		Sprite* sprite = &menu_core.sprites[i];
+
+		Video_DrawScreenSprite(image, sprite, 0, image->width);
+	}
+}
+
+void Menu_Init()
+{
+	//setup sprites
+	{
+		GameAssets* assets = Game_GetAssets();
+		ObjectInfo* obj_info = Info_GetObjectInfo(OT__THING, SUB__THING_SPINNING_PYRAMID);
+		for (int i = 0; i < NUM_SPRITES; i++)
+		{
+			Sprite* sprite = &menu_core.sprites[i];
+			AnimInfo* anim_info = &obj_info->anim_info;
+
+			sprite->anim_speed_scale = obj_info->anim_speed;
+			sprite->frame_count = anim_info->frame_count;
+			sprite->looping = true;
+			sprite->playing = true;
+			sprite->img = &assets->object_textures;
+			sprite->scale_x = 1;
+			sprite->scale_y = 1;
+			sprite->light.r = 255;
+			sprite->light.g = 255;
+			sprite->light.b = 255;
+			sprite->frame_offset_x = anim_info->x_offset;
+			sprite->frame_offset_y = anim_info->y_offset;
+		}
+
+		Sprite* sprite0 = &menu_core.sprites[0];
+		Sprite* sprite1 = &menu_core.sprites[1];
+
+		sprite0->x = 0.0;
+		sprite0->y = 0.6;
+
+		sprite1->x = 0.8;
+		sprite1->y = 0.6;
+	}
 }

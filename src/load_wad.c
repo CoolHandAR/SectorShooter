@@ -10,7 +10,7 @@
 #include "u_math.h"
 #include "utility.h"
 
-//#define NO_MONSTERS
+#define NO_MONSTERS
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -604,6 +604,8 @@ static void Load_Linedefs(maplinedef_t* mlinedefs, int num, mapvertex_t* vertice
         {
             os->back_sector = -1;
         }
+
+        os->width = sqrt(os->dx * os->dx + os->dy * os->dy);
 
         os->flags = ms->flags;
         os->sector_tag = ms->tag;

@@ -230,6 +230,11 @@ void* dA_at(dynamic_array* const p_dA, size_t p_index)
 {
     _dA_assertSetData(p_dA);
 
+    if (p_index >= p_dA->elements_size)
+    {
+        float s = 0;
+    }
+
     assert(p_index < p_dA->elements_size && "Index out of bounds");
 
     void* ptr = (char*)p_dA->data + (p_index * p_dA->alloc_size);

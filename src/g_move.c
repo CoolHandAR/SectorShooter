@@ -8,6 +8,39 @@
 #define MAX_BUMPS 5
 #define MAX_CLIP_OBJECTS 4
 
+static void Move_ClipVelocity2(float x, float y, float* r_dx, float* r_dy, Linedef* clip_line)
+{
+	float normal[2];
+
+	normal[0] = (clip_line->y1 - clip_line->y0);
+	normal[1] = -(clip_line->x1 - clip_line->x0);
+
+	Math_XY_Normalize(&normal[0], &normal[1]);
+
+	float vel_x = *r_dx;
+	float vel_y = *r_dy;
+
+	float backoff = Math_XY_Dot(vel_x, vel_y, normal[0], normal[1]);
+
+	float over_clip = 1.001;
+
+	if (backoff < 0)
+	{
+		backoff *= over_clip;
+	}
+	else
+	{
+		backoff /= over_clip;
+	}
+
+
+	float change_x = normal[0] * backoff;
+	float change_y = normal[1] * backoff;
+
+	*r_dx = vel_x - change_x;
+	*r_dy = vel_y - change_y;
+}
+
 static void Move_CreateClipLine(float p_x, float p_y, float p_moveX, float p_moveY, Linedef* dest)
 {
 	dest->x0 = p_x;
@@ -27,7 +60,10 @@ static bool Move_MovePlatformEntity(Object* obj, Sector* sector, float next_ceil
 		return true;
 	}
 
-	Move_SetPosition(obj, obj->x, obj->y, obj->size);
+	//Move_SetPosition(obj, obj->x, obj->y, obj->size);
+
+	obj->floor_clamp = next_floor;
+	obj->ceil_clamp = next_ceil;
 	Move_ZMove(obj, GRAVITY_SCALE);
 	
 	if (obj->hp <= 0)
@@ -77,6 +113,11 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 		return false;
 	}
 
+	if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
+	{
+		return true;
+	}
+
 	Linedef* clip_hits[MAX_CLIP_OBJECTS];
 	int num_clips = 0;
 
@@ -84,12 +125,12 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 
 	int bump_count = 0;
 
-	float time_left = 1;
+	float time_left = Engine_GetDeltaTime();
 
 	Linedef start_vel_line;
 	Move_CreateClipLine(obj->x, obj->y, p_moveX, p_moveY, &start_vel_line);
 
-	//clip_hits[num_clips++] = &start_vel_line;
+	clip_hits[num_clips++] = &start_vel_line;
 
 	for (bump_count = 0; bump_count < MAX_BUMPS; bump_count++)
 	{
@@ -106,13 +147,42 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 		float start_x = obj->x;
 		float start_y = obj->y;
 
-		float end_x = obj->x + c_dx;
-		float end_y = obj->y + c_dy;
+		float end_x = obj->x + p_moveX;
+		float end_y = obj->y + p_moveY;
 
-		Linedef vel_line;
-		Move_CreateClipLine(start_x, start_y, c_dx, c_dy, &vel_line);
-		int hit = Trace_FindSlideHit(obj, start_x, start_y, end_x, end_y, obj->size, &best_frac);
+		float lead_x = 0;
+		float lead_y = 0;
+		float trail_x = 0;
+		float trail_y = 0;
 
+		if (p_moveX > 0)
+		{
+			lead_x = obj->x + obj->size;
+			trail_x = obj->x - obj->size;
+		}
+		else
+		{
+			lead_x = obj->x - obj->size;
+			trail_x = obj->x + obj->size;
+		}
+		if (p_moveY > 0)
+		{
+			lead_y = obj->y + obj->size;
+			trail_y = obj->y - obj->size;
+		}
+		else
+		{
+			lead_y = obj->y - obj->size;
+			trail_y = obj->y + obj->size;
+		}
+
+		start_x = lead_x;
+		start_y = lead_y;
+
+		end_x = lead_x + p_moveX;
+		end_y = lead_y + p_moveY;
+
+		int hit = Trace_FindSlideHit(obj, start_x, start_y, end_x, end_y, obj->size * 2.0, &best_frac);
 
 		float trace_end_x = start_x + best_frac * (end_x - start_x);
 		float trace_end_y = start_y + best_frac * (end_y - start_y);
@@ -122,10 +192,6 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 			if(Move_SetPosition(obj, trace_end_x, trace_end_y, obj->size))
 			{
 				moved = true;
-			}
-			else
-			{
-				break;
 			}
 		}
 
@@ -141,8 +207,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 			break;
 		}
 
-		clip_hits[num_clips++] = &map->line_segs[-(hit + 1)];
-
+		clip_hits[num_clips++] = Map_GetLineDef(-(hit + 1));
 
 		for (int i = 0; i < num_clips; i++)
 		{
@@ -156,7 +221,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 				continue;
 			}
 
-			Move_ClipVelocity(obj->x, obj->y, &clip_dx, &clip_dy, line0);
+			Move_ClipVelocity2(obj->x, obj->y, &clip_dx, &clip_dy, line0);
 
 			for (int j = 0; j < num_clips; j++)
 			{
@@ -171,7 +236,7 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 					continue;
 				}
 
-				Move_ClipVelocity(obj->x, obj->y, &clip_dx, &clip_dy, line1);
+				Move_ClipVelocity2(obj->x, obj->y, &clip_dx, &clip_dy, line1);
 
 				if (Move_GetLineDot(clip_dx, clip_dy, line0) >= 0.1)
 				{
@@ -192,6 +257,8 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 						continue;
 					}
 
+					obj->vel_x = 0;
+					obj->vel_y = 0;
 					return false;
 				}
 			}
@@ -203,17 +270,23 @@ static bool Move_ClipMove2(Object* obj, float p_moveX, float p_moveY)
 
 	}
 
+	obj->vel_x = p_moveX;
+	obj->vel_y = p_moveY;
+
 
 	return moved;
 }
 static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 {
-	Map* map = Map_GetMap();
+	//return Move_ClipMove2(obj, p_moveX, p_moveY);
 
 	if (Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
 	{
 		return true;
 	}
+	
+	const float SHRINK_SCALE = 0.9;
+	float shrinked_size = obj->size * SHRINK_SCALE;
 
 	if (p_moveX == 0 && p_moveY == 0)
 	{
@@ -285,13 +358,23 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 
 		if (hit == TRACE_NO_HIT || best_frac >= 1)
 		{
-			if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, obj->size))
-			{	
+			Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, shrinked_size);
+
+			obj->vel_x = p_moveX;
+			obj->vel_y = p_moveY;
+
+			return true;
+		}
+		else if (hit >= 0)
+		{
+			//side against objects
+			if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y + p_moveY, shrinked_size))
+			{
 				if (fabs(p_moveX) > fabs(p_moveY))
 				{
-					if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y, obj->size))
+					if (!Move_SetPosition(obj, obj->x + p_moveX, obj->y, shrinked_size))
 					{
-						if (Move_SetPosition(obj, obj->x, obj->y + p_moveY, obj->size))
+						if (Move_SetPosition(obj, obj->x, obj->y + p_moveY, shrinked_size))
 						{
 							obj->vel_x = 0;
 							obj->vel_y = p_moveY;
@@ -305,9 +388,9 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 				}
 				else
 				{
-					if (!Move_SetPosition(obj, obj->x, obj->y + p_moveY, obj->size))
+					if (!Move_SetPosition(obj, obj->x, obj->y + p_moveY, shrinked_size))
 					{
-						if (Move_SetPosition(obj, obj->x + p_moveX, obj->y, obj->size))
+						if (Move_SetPosition(obj, obj->x + p_moveX, obj->y, shrinked_size))
 						{
 							obj->vel_x = p_moveX;
 							obj->vel_y = 0;
@@ -319,7 +402,7 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 						obj->vel_y = p_moveY;
 					}
 				}
-			
+
 			}
 			else
 			{
@@ -330,14 +413,20 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 			return true;
 		}
 
+		if (hit >= 0)
+		{
+			continue;
+		}
+
 		if (best_frac <= 0)
 		{
 			break;
 		}
 
-
 		int line_index = -(hit + 1);
 		Linedef* line0 = Map_GetLineDef(line_index);
+
+		float dot = Move_GetLineDot(p_moveX, p_moveY, line0);
 
 		float clip_dx = p_moveX;
 		float clip_dy = p_moveY;
@@ -356,26 +445,20 @@ static bool Move_ClipMove(Object* obj, float p_moveX, float p_moveY)
 		}
 	}
 
+
 	return true;
 }
 
 float Move_GetLineDot(float x, float y, Linedef* line)
 {
-	if (line->dot == 0)
-	{
-		return 0;
-	}
+	float normal[2];
 
-	float den = (x * line->dx + line->dy * y);
+	normal[0] = (line->y1 - line->y0);
+	normal[1] = -(line->x1 - line->x0);
+	
+	Math_XY_Normalize(&normal[0], &normal[1]);
 
-	if (den == 0)
-	{
-		return 0;
-	}
-
-	den = den / line->dot;
-
-	return den;
+	return Math_XY_Dot(x, y, normal[0], normal[1]);
 }
 
 void Move_Accelerate(Object* obj, float p_moveX, float p_moveY, float p_moveZ)
@@ -387,7 +470,6 @@ void Move_ClipVelocity(float x, float y, float* r_dx, float* r_dy, Linedef* clip
 {
 	float dx = *r_dx;
 	float dy = *r_dy;
-	const float bias = -0.025;
 
 	if (clip_line->dx == 0)
 	{
@@ -549,25 +631,43 @@ bool Move_SetPosition(Object* obj, float x, float y, float size)
 	obj->ceil_clamp = ceil_z;
 	obj->floor_clamp = floor_z;
 
-	//setup sector links
-	if (new_sector_index != obj->sector_index)
+	if (obj->sprite.img)
 	{
 		Render_LockObjectMutex(true);
 
-		Object_UnlinkSector(obj);
+		if (new_sector_index != obj->sector_index)
+		{
+			Object_UnlinkSector(obj);
 
-		obj->sector_index = new_sector_index;
-		Object_LinkSector(obj);
+			obj->sector_index = new_sector_index;
+			Object_LinkSector(obj);
+
+			sector_changed = true;
+		}
+
+		Object_UpdateRenderSectors(obj);
+
+		//update light
+		if (!(obj->flags & OBJ_FLAG__FULL_BRIGHT))
+		{
+			Map_CalcBlockLight(obj->x, obj->y, obj->z + obj->height * 0.5, &obj->sprite.light);
+		}
 
 		Render_UnlockObjectMutex(true);
-
-		sector_changed = true;
 	}
-	
-	//update light
-	if (!(obj->flags & OBJ_FLAG__FULL_BRIGHT))
+	else
 	{
-		Map_CalcBlockLight(obj->x, obj->y, obj->z + obj->height * 0.5, &obj->sprite.light);
+		if (new_sector_index != obj->sector_index)
+		{
+			sector_changed = true;
+			obj->sector_index = new_sector_index;
+		}
+		
+		//should only be triggered by player
+		if (!(obj->flags & OBJ_FLAG__FULL_BRIGHT))
+		{
+			Map_CalcBlockLight(obj->x, obj->y, obj->z + obj->height * 0.5, &obj->sprite.light);
+		}
 	}
 
 	//update bvh
@@ -717,6 +817,8 @@ bool Move_Object(Object* obj, float p_moveX, float p_moveY, float delta, bool p_
 		moved = Move_SetPosition(obj, obj->x + obj->vel_x, obj->y + obj->vel_y, obj->size);
 	}
 
+	//printf("%f %f\n", obj->vel_x, obj->vel_y);
+
 	return moved;
 }
 
@@ -736,9 +838,11 @@ bool Move_Teleport(Object* obj, float x, float y)
 	obj->vel_y = 0;
 	obj->vel_z = 0;
 
-	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.10);
+	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.025);
 	Object_Spawn(OT__PARTICLE, SUB__PARTICLE_EXPLOSION, obj->x, obj->y, obj->z);
 	
+	obj->flags |= OBJ_FLAG__JUST_TELEPORTED;
+
 	return true;
 }
 bool Move_Unstuck(Object* obj)

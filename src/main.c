@@ -287,7 +287,7 @@ int main()
 	while (!glfwWindowShouldClose(s_engine.window) && Game_GetState() != GS__EXIT)
 	{
 		currentTime = glfwGetTime();
-		float delta = currentTime - lastTime;
+		double delta = currentTime - lastTime;
 		lastTime = currentTime;
 
 		delta *= s_engine.time_scale;

@@ -23,6 +23,7 @@ typedef enum
 	LST__NONE,
 	LST__CEIL,
 	LST__FLOOR,
+	LST__FLOOR_AND_CEIL,
 	LST__WALL,
 	LST__SKY,
 	LST__POINT,
@@ -131,6 +132,6 @@ void LightGlobal_Destruct(struct LightGlobal* global);
 void Lightmap_Create(struct LightGlobal* global, Map* map);
 void Lightblocks_Create(struct LightGlobal* global, Map* map);
 void Lightmap_Sector(LightGlobal* global, LightTraceThread* thread, Sector* sector, int bounce);
-void Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3]);
+bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3]);
 
 #endif // !LIGHT_H

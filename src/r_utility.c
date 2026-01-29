@@ -42,31 +42,27 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	}
 
 	data->num_draw_sprites = 0;
-	data->draw_collums.index = 0;
-	
+	data->draw_segs.index = 0;
+
 	RenderUtl_ResetClip(&data->clip_segs, 0, width);
 
 	if (x_start > 0)
 	{
-		//Scene_ClipAndDraw(&data->clip_segs, 0, x_start, true, NULL, NULL);
+		Scene_ClipAndDraw(&data->clip_segs, 0, x_start, true, NULL, NULL);
 	}
 	if (x_end < width)
 	{
-		//Scene_ClipAndDraw(&data->clip_segs, x_end, width, true, NULL, NULL);
+		Scene_ClipAndDraw(&data->clip_segs, x_end, width, true, NULL, NULL);
 	}
 }
 
 void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int x_end)
 {
-	//resize the collumns
-	if (data->draw_collums.collumns)
+	//resize clip segs
+	if (data->clip_segs.solidsegs)
 	{
-		free(data->draw_collums.collumns);
+		free(data->clip_segs.solidsegs);
 	}
-
-	int num_collumns = ((x_end - x_start)) * 4;
-	data->draw_collums.collumns = calloc(num_collumns, sizeof(DrawCollumn));
-	data->draw_collums.size = num_collumns;
 
 	//resize the span ends array
 	if (data->span_end)
@@ -75,13 +71,14 @@ void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int 
 	}
 
 	data->span_end = calloc(height + 2, sizeof(short));
+	data->clip_segs.solidsegs = calloc((x_end - x_start) + 32, sizeof(Cliprange));
 }
 
 void RenderUtl_DestroyRenderData(RenderData* data)
 {
 	if (data->visited_sectors_bitset) free(data->visited_sectors_bitset);
-	if (data->draw_collums.collumns) free(data->draw_collums.collumns);
 	if (data->span_end) free(data->span_end);
+	if (data->clip_segs.solidsegs) free(data->clip_segs.solidsegs);
 
 	data->visited_sectors_bitset = NULL;
 }
@@ -119,6 +116,13 @@ void RenderUtl_SetVisitedSectorBitset(RenderData* data, int sector)
 void RenderUtl_AddSpriteToQueue(RenderData* data, Sprite* sprite, int sector_light, Vec3_u16 extra_light, bool is_decal)
 {
 	if (data->num_draw_sprites >= MAX_DRAWSPRITES)
+	{
+		return;
+	}
+
+	assert(sprite->img);
+
+	if (!sprite->img)
 	{
 		return;
 	}

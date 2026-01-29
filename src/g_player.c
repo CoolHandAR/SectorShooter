@@ -9,7 +9,6 @@
 #include "u_math.h"
 
 #define TRACE_DIST 1024
-#define BLOOD_SPLATTER_TRACE_DIST 128
 #define HIT_TIME 0.1
 #define USE_TIME 0.7
 #define SAVE_TIME 2
@@ -38,34 +37,7 @@ static void Player_GiveAll()
 
 static void Player_TraceBloodSplat(Object* hit_obj, float hit_x, float hit_y, float hit_z, float p_dir_x, float p_dir_y, float dir_z)
 {
-	p_dir_x *= BLOOD_SPLATTER_TRACE_DIST;
-	p_dir_y *= BLOOD_SPLATTER_TRACE_DIST;
-
-	float frac = 0;
-	float inter_x = 0;
-	float inter_y = 0;
-	float inter_z = 0;
-
-	int hit = Trace_AttackLine(hit_obj, hit_x, hit_y, hit_x + p_dir_x, hit_y + p_dir_y, hit_z, BLOOD_SPLATTER_TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
-
-	if (hit == TRACE_NO_HIT || hit >= 0)
-	{
-		return;
-	}
-
-	float dist = Math_XY_Distance(inter_x, inter_y, hit_x, hit_y);
-
-	//way too far away
-	if (dist >= BLOOD_SPLATTER_TRACE_DIST)
-	{
-		return;
-	}
-
-	//hit a wall
-	//spawn blood decal
-	Object* decal = Object_Spawn(OT__DECAL, SUB__DECAL_BLOOD_SPLATTER, inter_x, inter_y, inter_z);
-
-	if(decal) decal->sprite.decal_line_index = -(hit + 1);
+	Decal_BloodTrace(hit_obj, hit_x, hit_y, hit_z, p_dir_x, p_dir_y, dir_z);
 }
 
 static void Player_TraceBullet(float p_x, float p_y, float p_dirX, float p_dirY)
@@ -184,13 +156,13 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 
 	static int PREV_HIT = TRACE_NO_HIT;
 
-	for (int i = 0; i < 40; i++)
+	for (int i = -5; i < 5; i++)
 	{
-		float angle = player.angle - Math_DegToRad(90.0) / 2.0 + (Math_DegToRad(90.0) / 40.0 * i);
+		float angle = player.angle - Math_DegToRad(2) * i;
 
 		hit = Trace_AttackLine(player.obj, p_x, p_y, p_x + (cos(angle) * TRACE_DIST), p_y + (sin(angle) * TRACE_DIST), player.obj->z + player.obj->height, TRACE_DIST, &inter_x, &inter_y, &inter_z, &frac);
 
-		if (hit != TRACE_NO_HIT && hit >= 0 && hit != PREV_HIT)
+		if (hit != TRACE_NO_HIT && hit != PREV_HIT && hit >= 0)
 		{
 			Object* trace_obj = Map_GetObject(hit);
 
@@ -200,7 +172,6 @@ static void Player_ShootMissile(float p_x, float p_y, float p_dirX, float p_dirY
 			}
 		}
 	}
-
 	if (hit == TRACE_NO_HIT || hit < 0)
 	{
 		Object* missile = Object_Missile(player.obj, NULL, SUB__MISSILE_MEGASHOT);
@@ -242,30 +213,6 @@ static void Player_Use()
 	Event_TriggerSpecialLine(player.obj, 0, special_line, EVENT_TRIGGER__LINE_USE);
 
 	player.use_timer = USE_TIME;
-}
-
-static void Player_SetGun(GunType gun_type)
-{
-	if (player.gun == gun_type)
-	{
-		return;
-	}
-	if (!player.gun_check[gun_type])
-	{
-		return;
-	}
-	if (player.gun_timer > 0)
-	{
-		return;
-	}
-
-	Sprite_ResetAnimState(&player.gun_sprites[player.gun]);
-	Sprite_ResetAnimState(&player.gun_sprites[gun_type]);
-
-	GunInfo* gun_info = Info_GetGunInfo(gun_type);
-
-	player.gun = gun_type;
-	player.gun_info = gun_info;
 }
 static void Player_ShootGun()
 {
@@ -362,17 +309,7 @@ static void Player_ShootGun()
 			return;
 		}
 
-		int loops = 4;
-
-		if (player.quad_timer > 0)
-		{
-			loops = 8;
-		}
-
-		for (int i = 0; i < loops; i++)
-		{
-			Player_ShootMissile(player.obj->x, player.obj->y, dir_x, dir_y);
-		}										
+		Player_ShootMissile(player.obj->x, player.obj->y, dir_x, dir_y);
 		
 		player.rocket_ammo--;
 		break;
@@ -966,6 +903,7 @@ void Player_LerpUpdate(double lerp, double delta)
 
 	player.view_z = Math_lerpClamped(player.view_z, z, delta * Z_VIEW_LERP);
 
+
 	//do a fake, but cheap camera shake effect
 	if (player.shake_timer > 0 && player.shake_scale > 0)
 	{
@@ -1191,4 +1129,27 @@ void Player_SetSensitivity(float sens)
 	}
 
 	player.sensitivity = sens;
+}
+void Player_SetGun(GunType gun_type)
+{
+	if (player.gun == gun_type)
+	{
+		return;
+	}
+	if (!player.gun_check[gun_type])
+	{
+		return;
+	}
+	if (player.gun_timer > 0)
+	{
+		return;
+	}
+
+	Sprite_ResetAnimState(&player.gun_sprites[player.gun]);
+	Sprite_ResetAnimState(&player.gun_sprites[gun_type]);
+
+	GunInfo* gun_info = Info_GetGunInfo(gun_type);
+
+	player.gun = gun_type;
+	player.gun_info = gun_info;
 }

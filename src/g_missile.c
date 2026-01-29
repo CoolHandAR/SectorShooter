@@ -112,6 +112,42 @@ void Missile_Explode(Object* obj)
 			decal->sprite.decal_line_index = line_index;
 		}
 	}
+	//spawn mini versions of the missile if we hit object
+	else if (obj->collision_hit >= 0 && obj->sub_type == SUB__MISSILE_MEGASHOT && !(obj->flags & OBJ_FLAG__MINI_MISSILE))
+	{
+		Object* coll_object = Map_GetObject(obj->collision_hit);
+
+		if (coll_object && coll_object->type == OT__MONSTER)
+		{
+			const int NUM_MISSILES = 24;
+
+			for (int i = 0; i < NUM_MISSILES; i++)
+			{
+				Object* missile = Object_Missile(obj, NULL, SUB__MISSILE_MEGASHOT);
+				if (!missile)
+				{
+					break;
+				}
+
+				float angle = Math_DegToRad(NUM_MISSILES) * i;
+				missile->dir_x = cos(angle);
+				missile->dir_y = sin(angle);
+
+				missile->z = obj->z;
+				missile->sprite.z = missile->z;
+
+				//scale to half
+				missile->size *= 0.5;
+				missile->speed *= 0.5;
+				missile->sprite.scale_x *= 0.5;
+				missile->sprite.scale_y *= 0.5;
+
+				missile->flags |= OBJ_FLAG__MINI_MISSILE;
+
+				missile->owner = obj->owner;
+			}
+		}
+	}
 
 	obj->flags |= OBJ_FLAG__EXPLODING;
 
