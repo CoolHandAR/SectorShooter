@@ -101,14 +101,14 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	{
 		switch (obj->sub_type)
 		{
-		case SUB__MOB_IMP:
+		case SUB__MOB_BLOOD_IMP:
 		{
-			index = SOUND__IMP_ALERT;
+			index = SOUND__BLOOD_IMP_ALERT;
 			break;
 		}
-		case SUB__MOB_PINKY:
+		case SUB__MOB_BOAR:
 		{
-			index = SOUND__PINKY_ALERT;
+			index = SOUND__BOAR_ALERT;
 			break;
 		}
 		case SUB__MOB_BRUISER:
@@ -130,14 +130,14 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	{
 		switch (obj->sub_type)
 		{
-		case SUB__MOB_IMP:
+		case SUB__MOB_BLOOD_IMP:
 		{
-			index = SOUND__IMP_HIT;
+			index = SOUND__BLOOD_IMP_HIT;
 			break;
 		}
-		case SUB__MOB_PINKY:
+		case SUB__MOB_BOAR:
 		{
-			index = SOUND__PINKY_HIT;
+			index = SOUND__BOAR_HIT;
 			break;
 		}
 		case SUB__MOB_BRUISER:
@@ -159,14 +159,14 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	{
 		switch (obj->sub_type)
 		{
-		case SUB__MOB_IMP:
+		case SUB__MOB_BLOOD_IMP:
 		{
-			index = SOUND__IMP_DIE;
+			index = SOUND__BLOOD_IMP_DIE;
 			break;
 		}
-		case SUB__MOB_PINKY:
+		case SUB__MOB_BOAR:
 		{
-			index = SOUND__PINKY_DIE;
+			index = SOUND__BOAR_DIE;
 			break;
 		}
 		case SUB__MOB_BRUISER:
@@ -188,14 +188,14 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 	{
 		switch (obj->sub_type)
 		{
-		case SUB__MOB_IMP:
+		case SUB__MOB_BLOOD_IMP:
 		{
-			index = SOUND__IMP_ATTACK;
+			index = SOUND__BLOOD_IMP_ATTACK;
 			break;
 		}
-		case SUB__MOB_PINKY:
+		case SUB__MOB_BOAR:
 		{
-			index = SOUND__PINKY_ATTACK;
+			index = SOUND__BOAR_ATTACK;
 			break;
 		}
 		case SUB__MOB_BRUISER:
@@ -219,7 +219,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 
 	if (index >= 0)
 	{
-		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, obj->dir_x, obj->dir_y, obj->dir_z, 1);
+		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, obj->dir_x, obj->dir_y, obj->dir_z, 1.5);
 	}
 }
 static MonsterAnimState Monster_GetAnimState(Object* obj)
@@ -407,7 +407,7 @@ static bool Monster_CheckIfMeleePossible(Object* obj)
 
 static bool Monster_CheckIfMissilesPossible(Object* obj)
 {
-	if (obj->sub_type == SUB__MOB_PINKY)
+	if (obj->sub_type == SUB__MOB_BOAR)
 	{
 		return false;
 	}
@@ -631,13 +631,13 @@ void Monster_Spawn(Object* obj)
 	
 	assert(monster_info->speed >= monster_info->size && "This can cause monsters to walk through walls\n");
 
-	if (obj->sub_type == SUB__MOB_IMP)
+	if (obj->sub_type == SUB__MOB_BLOOD_IMP)
 	{
-		obj->sprite.img = &assets->imp_texture;
+		obj->sprite.img = &assets->blood_imp_texture;
 	}
-	else if (obj->sub_type == SUB__MOB_PINKY)
+	else if (obj->sub_type == SUB__MOB_BOAR)
 	{
-		obj->sprite.img = &assets->pinky_texture;
+		obj->sprite.img = &assets->boar_texture;
 	}
 	else if (obj->sub_type == SUB__MOB_BRUISER)
 	{
@@ -696,7 +696,7 @@ void Monster_SetState(Object* obj, int state)
 		//play hit sound
 		Monster_EmitSound(obj, MSOUND__HIT);
 
-		if (obj->sub_type == SUB__MOB_PINKY || obj->sub_type == SUB__MOB_BRUISER)
+		if (obj->sub_type == SUB__MOB_BOAR || obj->sub_type == SUB__MOB_BRUISER)
 		{
 			return;
 		}
@@ -816,7 +816,7 @@ void Monster_Update(Object* obj, float delta)
 	obj->move_timer -= delta;
 }
 
-void Monster_Imp_FireBall(Object* obj)
+void Monster_BloodImp_FireBall(Object* obj)
 {
 	Object* target = obj->target;
 

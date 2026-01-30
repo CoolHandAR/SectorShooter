@@ -1162,40 +1162,44 @@ int Trace_FindSectors(int ignore_sector_index, float bbox[2][2])
 			backsector = Map_GetSector(line->back_sector);
 		}
 
-		int sector_index_to_add = -1;
-
 		if (num_sectors < MAX_HIT_OBJECTS && ignore_sector_index != frontsector->index && frontsector->index != prev_sector_added && Math_BoxIntersectsBox(frontsector->bbox, bbox))
 		{
-			sector_index_to_add = frontsector->index;
-		}
-		if (backsector)
-		{
-			if (num_sectors < MAX_HIT_OBJECTS && ignore_sector_index != backsector->index && backsector->index != prev_sector_added && Math_BoxIntersectsBox(backsector->bbox, bbox))
-			{
-				sector_index_to_add = backsector->index;
-			}
-		}
-
-		if (sector_index_to_add >= 0 && sector_index_to_add != prev_sector_added)
-		{
 			bool match = false;
-
 			for (int k = 0; k < num_sectors; k++)
 			{
-				if (s_traceCore.hit_objects[k] == sector_index_to_add)
+				if (s_traceCore.hit_objects[k] == frontsector->index)
 				{
 					match = true;
 					break;
 				}
 			}
-
 			if (!match)
 			{
-				s_traceCore.hit_objects[num_sectors++] = sector_index_to_add;
-				prev_sector_added = sector_index_to_add;
+				s_traceCore.hit_objects[num_sectors++] = frontsector->index;
+				prev_sector_added = frontsector->index;
 			}
+
 		}
-		
+		if (backsector)
+		{
+			if (num_sectors < MAX_HIT_OBJECTS && ignore_sector_index != backsector->index && backsector->index != prev_sector_added && Math_BoxIntersectsBox(backsector->bbox, bbox))
+			{
+				bool match = false;
+				for (int k = 0; k < num_sectors; k++)
+				{
+					if (s_traceCore.hit_objects[k] == backsector->index)
+					{
+						match = true;
+						break;
+					}
+				}
+				if (!match)
+				{
+					s_traceCore.hit_objects[num_sectors++] = backsector->index;
+					prev_sector_added = backsector->index;
+				}
+			}
+		}	
 	}
 
 	return num_sectors;

@@ -838,7 +838,7 @@ bool Move_Teleport(Object* obj, float x, float y)
 	obj->vel_y = 0;
 	obj->vel_z = 0;
 
-	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.025);
+	Sound_EmitWorldTemp(SOUND__TELEPORT, obj->x, obj->y, obj->z, 0, 0, 0, 0.15);
 	Object_Spawn(OT__PARTICLE, SUB__PARTICLE_EXPLOSION, obj->x, obj->y, obj->z);
 	
 	obj->flags |= OBJ_FLAG__JUST_TELEPORTED;

@@ -99,15 +99,15 @@ typedef enum
 	SOUND__FIREBALL_EXPLODE,
 	SOUND__FIREBALL_FOLLOW,
 	
-	SOUND__IMP_ALERT,
-	SOUND__IMP_HIT,
-	SOUND__IMP_DIE,
-	SOUND__IMP_ATTACK,
+	SOUND__BLOOD_IMP_ALERT,
+	SOUND__BLOOD_IMP_HIT,
+	SOUND__BLOOD_IMP_DIE,
+	SOUND__BLOOD_IMP_ATTACK,
 
-	SOUND__PINKY_ALERT,
-	SOUND__PINKY_HIT,
-	SOUND__PINKY_DIE,
-	SOUND__PINKY_ATTACK,
+	SOUND__BOAR_ALERT,
+	SOUND__BOAR_HIT,
+	SOUND__BOAR_DIE,
+	SOUND__BOAR_ATTACK,
 
 	SOUND__BRUISER_ALERT,
 	SOUND__BRUISER_HIT,
@@ -163,29 +163,29 @@ static const char* SOUND_INFO[SOUND__MAX] =
 	//FIREBALL FOLLOW
 	"assets/sfx/fireball_follow.wav",
 
-	//IMP ALERT
-	"assets/sfx/imp_alert.wav",
+	//BLOOD IMP ALERT
+	"assets/sfx/blood_imp_alert.wav",
 
-	//IMP HIT
-	"assets/sfx/imp_hit.wav",
+	//BLOOD IMP HIT
+	"assets/sfx/blood_imp_hit.wav",
 
-	//IMP DIE
-	"assets/sfx/imp_die.wav",
+	//BLOOD IMP DIE
+	"assets/sfx/blood_imp_die.wav",
 
-	//IMP ATTACK
-	"assets/sfx/imp_attack.wav",
+	//BLOOD IMP ATTACK
+	"assets/sfx/blood_imp_attack.wav",
 
-	//PINKY ALERT
-	"assets/sfx/pinky_alert.wav",
+	//BOAR ALERT
+	"assets/sfx/boar_alert.wav",
 
-	//PINKY HIT
-	"assets/sfx/pinky_hit.wav",
+	//BOAR HIT
+	"assets/sfx/boar_hit.wav",
 
-	//PINKY  DIE
-	"assets/sfx/pinky_die.wav",
+	//BOAR  DIE
+	"assets/sfx/boar_die.wav",
 
-	//PINKY  ATTACK
-	"assets/sfx/pinky_attack.wav",
+	//BOAR  ATTACK
+	"assets/sfx/boar_attack.wav",
 
 	//BRUISER ALERT
 	"assets/sfx/bruiser_act.wav",
@@ -364,16 +364,14 @@ static const char* LEVELS[] =
 {
 	"assets/maps/ourmap00.WAD",
 	"assets/maps/ourmap01.WAD",
-	"assets/maps/ourmap02.WAD",
-	"assets/maps/ourmap03.WAD"
+	"assets/maps/ourmap02.WAD"
 
 };
 static const char* SKIES[] =
 {
 	"SKYPNG1",
 	"SKYPNG2",
-	"SKYPNG3",
-	"SKYPNG1",
+	"SKYPNG3"
 };
 
 //SPECIAL ENUMS

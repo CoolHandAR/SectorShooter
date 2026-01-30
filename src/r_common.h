@@ -61,10 +61,10 @@ typedef struct
 	FrameInfo* frame_info;
 
 	//mipmap stuff
-	int num_mipmaps;
-	struct Image* mipmaps[MAX_IMAGE_MIPMAPS];
-	float x_scale;
-	float y_scale;
+	//int num_mipmaps;
+	//struct Image* mipmaps[MAX_IMAGE_MIPMAPS];
+	//float x_scale;
+	//float y_scale;
 
 	bool is_collumn_stored;
 } Image;
@@ -186,50 +186,7 @@ inline unsigned char* Image_GetFast(Image* img, int x, int y)
 	return &img->data[index];
 }
 
-//unfinished
-inline unsigned char* Image_GetMipmapped(Image* img, int x, int y, float dist)
-{
-	dist = fabs(dist);
-
-	int mipmap_index = (int)dist;
-
-	if (dist >= img->num_mipmaps - 1)
-	{
-		mipmap_index = img->num_mipmaps - 1;
-	}
-
-	if (mipmap_index == 0)
-	{
-		return Image_Get(img, x, y);
-	}
-
-	Image* mip_map = img->mipmaps[mipmap_index];
-
-	x *= mip_map->x_scale;
-	y *= mip_map->y_scale;
-
-	if (x < 0)
-	{
-		x = 0;
-	}
-	else if (x >= mip_map->width)
-	{
-		x = mip_map->width - 1;
-	}
-	if (y < 0)
-	{
-		y = 0;
-	}
-	else if (y >= mip_map->height)
-	{
-		y = mip_map->height - 1;
-	}
-
-	return mip_map->data + (x + y * mip_map->width) * mip_map->numChannels;
-}
-
 void Image_Blur(Image* img, int size, float scale);
-void Image_GenerateMipmaps(Image* img);
 void Image_GenerateFrameInfo(Image* img);
 
 FrameInfo* Image_GetFrameInfo(Image* img, int frame);
@@ -393,6 +350,7 @@ typedef struct
 	int light;
 
 	bool visible;
+	bool is_sky;
 } DrawPlane;
 
 typedef struct

@@ -431,6 +431,9 @@ void Menu_Draw(Image* image, FontData* fd)
 		Menu_HelpText(image, fd, false, "2 = SHOTGUN");
 		Menu_HelpText(image, fd, false, "3 = MACHINE GUN");
 		Menu_HelpText(image, fd, false, "4 = DEVASTATOR");
+
+		Menu_HelpText(image, fd, true, "F5 = QUICKSAVE");
+		Menu_HelpText(image, fd, false, "F9 = QUICKLOAD");
 		break;
 	}
 	default:

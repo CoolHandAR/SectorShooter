@@ -254,8 +254,8 @@ typedef enum
     THING__LAMP = 2028,
     THING__ROCKETS = 2046,
     THING__AMMO = 2048,
-    THING__IMP = 3001,
-    THING__PINKY = 3002,
+    THING__BLOOD_IMP = 3001,
+    THING__BOAR = 3002,
     THING__BRUISER = 3003,
     THING__SUN = 10003,
     THING__RED_COLLUMN = 10004,
@@ -293,8 +293,8 @@ typedef enum
     THING__WINTER_TREE3 = 10036,
     THING__ROCK0 = 10037,
     THING__ROCK1 = 10038,
-    THING__SUPER_IMP = 10039,
-    THING__SUPER_PINKY = 10040,
+    THING__SUPER_BLOOD_IMP = 10039,
+    THING__SUPER_BOAR = 10040,
     THING__SUPER_BRUISER = 10041,
     THING__SFX_WINTER_WIND = 10042,
     THING__FALLING_SAND = 10043,
@@ -929,16 +929,16 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             sub_type = SUB__PICKUP_SMALLHP;
             break;
         }
-        case THING__IMP:
+        case THING__BLOOD_IMP:
         {
             type = OT__MONSTER;
-            sub_type = SUB__MOB_IMP;
+            sub_type = SUB__MOB_BLOOD_IMP;
             break;
         }
-        case THING__PINKY:
+        case THING__BOAR:
         {
             type = OT__MONSTER;
-            sub_type = SUB__MOB_PINKY;
+            sub_type = SUB__MOB_BOAR;
             break;
         }
         case THING__BRUISER:
@@ -1210,17 +1210,17 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             sub_type = SUB__THING_ROCK1;
             break;
         }
-        case THING__SUPER_IMP:
+        case THING__SUPER_BLOOD_IMP:
         {
             type = OT__MONSTER;
-            sub_type = SUB__MOB_IMP;
+            sub_type = SUB__MOB_BLOOD_IMP;
             is_super = true;
             break;
         }
-        case THING__SUPER_PINKY:
+        case THING__SUPER_BOAR:
         {
             type = OT__MONSTER;
-            sub_type = SUB__MOB_PINKY;
+            sub_type = SUB__MOB_BOAR;
             is_super = true;
             break;
         }

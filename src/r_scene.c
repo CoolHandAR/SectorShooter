@@ -219,6 +219,24 @@ static void Scene_DrawPlane(Image* image, DrawPlane* plane, LineDrawArgs* args, 
 		return;
 	}
 
+	if (plane->is_sky)
+	{
+		for (int x = x1; x < x2; x++)
+		{
+			int y1 = plane->ytop[x];
+			int y2 = plane->ybottom[x];
+
+			if (y2 <= y1)
+			{
+				continue;
+			}
+
+			Video_DrawSkyPlaneStripe(image, args->draw_args->depth_buffer, plane->texture, x, y1, y2, args);
+		}
+
+		return;
+	}
+
 	//set depth and set image to black
 	if (plane->light <= 0)
 	{
@@ -458,7 +476,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 	float tz1 = args->tz1;
 	float tz2 = args->tz2;
 
-	float line_offset = line->offset;
+	//float line_offset = line->offset;
 
 	//precompute some stuff
 	float x_pos = fabs(first - args->x1);
@@ -467,6 +485,8 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 	DrawPlane* floor_plane = &render_data->floor_plane;
 	DrawPlane* ceil_plane = &render_data->ceil_plane;
+
+	ceil_plane->is_sky = sector->is_sky;
 
 	//check for middle texture
 	if (is_backsector && sidedef->middle_texture)
@@ -487,7 +507,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 		int tx = (u0 * (x_pos2 * tz2) + u1 * (x_pos * tz1)) / (x_pos2 * tz2 + x_pos * tz1);
 		int lx = tx;
 
-		tx += sidedef->x_offset + line_offset;
+		tx += sidedef->x_offset;
 
 		short ctop = draw_args->yclip_top[x];
 		short cbot = draw_args->yclip_bottom[x];
@@ -522,21 +542,13 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 		if (ceil_texture)
 		{
-			if (sector->is_sky)
-			{
-				Video_DrawSkyPlaneStripe(image, args->draw_args->depth_buffer, ceil_texture, x, ctop, c_yceil, args);
-			}
-			else
-			{
-				ceil_plane->ytop[x] = ctop;
-				ceil_plane->ybottom[x] = c_yceil;
+			ceil_plane->ytop[x] = ctop;
+			ceil_plane->ybottom[x] = c_yceil;
 
-				if (ceil_plane->ytop[x] < ceil_plane->ybottom[x])
-				{
-					ceil_plane->visible = true;
-				}
+			if (ceil_plane->ytop[x] < ceil_plane->ybottom[x])
+			{
+				ceil_plane->visible = true;
 			}
-			
 		}
 		if (floor_texture)
 		{
@@ -872,6 +884,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	floor_plane->lightmap = &sector->floor_lightmap;
 	floor_plane->light = sector->light_level;
 	floor_plane->visible = false;
+	floor_plane->is_sky = false;
 	floor_plane->texture = sector->floor_texture;
 	floor_plane->viewheight = yfloor;
 
@@ -881,6 +894,7 @@ bool Scene_RenderLine(Image* image, Map* map, Sector* sector, Line* line, Drawin
 	ceil_plane->lightmap = &sector->ceil_lightmap;
 	ceil_plane->light = sector->light_level;
 	ceil_plane->visible = false;
+	ceil_plane->is_sky = false;
 	ceil_plane->texture = sector->ceil_texture;
 	ceil_plane->viewheight = yceil;
 

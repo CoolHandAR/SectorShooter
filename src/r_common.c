@@ -36,8 +36,6 @@ bool Image_Create(Image* img, int p_width, int p_height, int p_numChannels)
 
 	img->data = data;
 
-	img->x_scale = 1;
-	img->y_scale = 1;
 
 	img->half_width = img->width / 2;
 	img->half_height = img->height / 2;
@@ -60,8 +58,6 @@ bool Image_CreateFromPath(Image* img, const char* path)
 
 	img->data = data;
 	
-	img->x_scale = 1;
-	img->y_scale = 1;
 
 	img->half_width = img->width / 2;
 	img->half_height = img->height / 2;
@@ -141,26 +137,6 @@ void Image_Destruct(Image* img)
 
 		free(img->frame_info);
 	}
-
-	if (img->num_mipmaps > 0)
-	{
-		for (int i = 0; i < img->num_mipmaps; i++)
-		{
-			Image* mip_map = img->mipmaps[i];
-
-			if (!mip_map)
-			{
-				continue;
-			}
-
-			Image_Destruct(mip_map);
-
-			free(mip_map);
-
-			img->mipmaps[i] = NULL;
-		}
-	}
-
 }
 
 void Image_Clear(Image* img, int c)
@@ -262,105 +238,6 @@ void Image_Blur(Image* img, int size, float scale)
 
 	Image_Destruct(&blur_image);
 
-}
-
-void Image_GenerateMipmaps(Image* img)
-{
-	int mip_width = img->width;
-	int mip_height = img->height;
-
-	float scale = 1;
-
-	for (int i = 0; i < MAX_IMAGE_MIPMAPS; i++)
-	{
-		mip_width >>= 1;
-		mip_height >>= 1;
-
-		scale /= 2;
-
-		//check for valid mip size
-		if (mip_width < 1)
-		{
-			mip_width = 1;
-		}
-		if (mip_height < 1)
-		{
-			mip_height = 1;
-		}
-
-		if (img->num_mipmaps >= MAX_IMAGE_MIPMAPS)
-		{
-			break;
-		}
-
-		Image* mip_image = malloc(sizeof(Image));
-
-		if (!mip_image)
-		{
-			return;
-		}
-
-		Image_Create(mip_image, mip_width, mip_height, img->numChannels);
-
-		mip_image->x_scale = (float)mip_width / (float)img->width;
-		mip_image->y_scale = (float)mip_height / (float)img->height;
-		
-		mip_image->x_scale = scale;
-		mip_image->y_scale = scale;
-
-		int mip = i + 1;
-
-		for (int x = 0; x < mip_width; x++)
-		{
-			for (int y = 0; y < mip_height; y++)
-			{
-				//4 samples per channel
-				for (int c = 0; c < img->numChannels; c++)
-				{
-					unsigned char* samp0 = Image_Get(img, (x << mip) + 0, (y << mip) + 0);
-					unsigned char* samp1 = Image_Get(img, (x << mip) + 1, (y << mip) + 0);
-					unsigned char* samp2 = Image_Get(img, (x << mip) + 1, (y << mip) + 1);
-					unsigned char* samp3 = Image_Get(img, (x << mip) + 0, (y << mip) + 1);
-
-					int avg = 0;
-					int samples = 0;
-
-					if (samp0) { avg += samp0[c]; samples++; }
-					if (samp1) { avg += samp1[c]; samples++; }
-					if (samp2) { avg += samp2[c]; samples++; }
-					if (samp3) { avg += samp3[c]; samples++; }
-
-					if (samples > 0)
-					{
-						avg /= samples;
-
-						if (avg < 0)
-						{
-							avg = 0;
-						}
-						if (avg > 255)
-						{
-							avg = 255;
-						}
-
-						unsigned char* mip_color = Image_Get(mip_image, x, y);
-
-						if (mip_color)
-						{
-							mip_color[c] = (unsigned char)avg;
-						}
-					}
-
-					
-
-				}
-			}
-		}
-		
-		//Image_Blur(mip_image, 8, 0.5);
-
-		img->mipmaps[img->num_mipmaps++] = mip_image;
-	}
 }
 
 void Image_GenerateFrameInfo(Image* img)

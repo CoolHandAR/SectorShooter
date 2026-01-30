@@ -779,18 +779,8 @@ Object* Object_Spawn(ObjectType type, SubType sub_type, float x, float y, float 
 		obj->sprite.scale_x = particle_info->sprite_scale;
 		obj->sprite.scale_y = particle_info->sprite_scale;
 
-		if (sub_type == SUB__PARTICLE_BLOOD)
-		{
-			if (obj->sprite.frame_count > 0)
-			{
-				obj->sprite.frame = rand() % obj->sprite.frame_count - 1;
-			}
-		}
-		else
-		{
-			obj->sprite.playing = true;
-			obj->sprite.anim_speed_scale = particle_info->anim_speed_scale;
-		}
+		obj->sprite.playing = true;
+		obj->sprite.anim_speed_scale = particle_info->anim_speed_scale;
 			 
 
 		obj->flags |= OBJ_FLAG__IGNORE_POSITION_CHECK;

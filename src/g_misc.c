@@ -2,15 +2,6 @@
 
 #include "game_info.h"
 
-void Particle_Spawn(int sub_type, float x, float y, float z)
-{
-	switch (sub_type)
-	{
-	default:
-		break;
-	}
-}
-
 void Particle_Update(Object* obj, float delta)
 {
 	switch (obj->sub_type)

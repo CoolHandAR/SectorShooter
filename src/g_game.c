@@ -6,7 +6,7 @@
 #include "main.h"
 #include "sound.h"
 
-#define START_LEVEL 2
+#define START_LEVEL 0
 
 static Game game;
 static GameAssets assets;
@@ -31,7 +31,7 @@ bool Game_Init()
 	VisualMap_Init();
 	Menu_Init();
 
-	//Sound_SetAsMusic(SOUND__MUSIC1);
+	Sound_SetAsMusic(SOUND__MUSIC1);
 
 	return true;
 }
@@ -72,7 +72,7 @@ bool Game_LoadAssets()
 	{
 		return false;
 	}
-	if (!Image_CreateFromPath(&assets.imp_texture, "assets/textures/blood_imp.png"))
+	if (!Image_CreateFromPath(&assets.blood_imp_texture, "assets/textures/blood_imp.png"))
 	{
 		return false;
 	}
@@ -80,7 +80,7 @@ bool Game_LoadAssets()
 	{
 		return false;
 	}
-	if (!Image_CreateFromPath(&assets.pinky_texture, "assets/textures/pinky_sheet.png"))
+	if (!Image_CreateFromPath(&assets.boar_texture, "assets/textures/boar_sheet.png"))
 	{
 		return false;
 	}
@@ -131,11 +131,11 @@ bool Game_LoadAssets()
 	assets.missile_textures.h_frames = 5;
 	assets.missile_textures.v_frames = 4;
 
-	assets.imp_texture.h_frames = 9;
-	assets.imp_texture.v_frames = 9;
+	assets.blood_imp_texture.h_frames = 7;
+	assets.blood_imp_texture.v_frames = 8;
 
-	assets.pinky_texture.h_frames = 8;
-	assets.pinky_texture.v_frames = 6;
+	assets.boar_texture.h_frames = 8;
+	assets.boar_texture.v_frames = 6;
 
 	assets.bruiser_texture.h_frames = 12;
 	assets.bruiser_texture.v_frames = 7;
@@ -144,16 +144,16 @@ bool Game_LoadAssets()
 	assets.templar_texture.v_frames = 7;
 
 	assets.particle_textures.h_frames = 4;
-	assets.particle_textures.v_frames = 7;
+	assets.particle_textures.v_frames = 11;
 
 	assets.decal_textures.h_frames = 5;
 	assets.decal_textures.v_frames = 3;
 
 	Image_GenerateFrameInfo(&assets.object_textures);
 	Image_GenerateFrameInfo(&assets.shotgun_texture);
-	Image_GenerateFrameInfo(&assets.imp_texture);
+	Image_GenerateFrameInfo(&assets.blood_imp_texture);
 	Image_GenerateFrameInfo(&assets.missile_textures);
-	Image_GenerateFrameInfo(&assets.pinky_texture);
+	Image_GenerateFrameInfo(&assets.boar_texture);
 	Image_GenerateFrameInfo(&assets.bruiser_texture);
 	Image_GenerateFrameInfo(&assets.templar_texture);
 	Image_GenerateFrameInfo(&assets.particle_textures);
@@ -169,9 +169,9 @@ void Game_DestructAssets()
 {
 	Image_Destruct(&assets.object_textures);
 	Image_Destruct(&assets.shotgun_texture);
-	Image_Destruct(&assets.imp_texture);
+	Image_Destruct(&assets.blood_imp_texture);
 	Image_Destruct(&assets.missile_textures);
-	Image_Destruct(&assets.pinky_texture);
+	Image_Destruct(&assets.boar_texture);
 	Image_Destruct(&assets.bruiser_texture);
 	Image_Destruct(&assets.templar_texture);
 	Image_Destruct(&assets.particle_textures);

@@ -232,6 +232,7 @@ static void Player_ShootGun()
 	float dir_x = cosf(player.angle);
 	float dir_y = sinf(player.angle);
 
+	bool no_ammo = false;
 
 	switch (player.gun)
 	{
@@ -256,8 +257,8 @@ static void Player_ShootGun()
 		//no ammo
 		if (player.bullet_ammo <= 0)
 		{
-			//Sound_Emit(SOUND__NO_AMMO);
-			return;
+			no_ammo = true;
+			break;
 		}
 
 		float randomf = Math_randf();
@@ -280,8 +281,8 @@ static void Player_ShootGun()
 		//no ammo
 		if (player.buck_ammo <= 0)
 		{
-			//Sound_Emit(SOUND__NO_AMMO);
-			return;
+			no_ammo = true;
+			break;
 		}
 
 		for (int i = 0; i < 8; i++)
@@ -306,7 +307,8 @@ static void Player_ShootGun()
 		//no ammo
 		if (player.rocket_ammo <= 0)
 		{
-			return;
+			no_ammo = true;
+			break;
 		}
 
 		Player_ShootMissile(player.obj->x, player.obj->y, dir_x, dir_y);
@@ -317,6 +319,14 @@ static void Player_ShootGun()
 	default:
 		break;
 	}
+
+	if (no_ammo)
+	{
+		Sound_Emit(SOUND__NO_AMMO, 0.025);
+		player.gun_timer = 0.5;
+		return;
+	}
+
 
 	GunInfo* gun_info = player.gun_info;
 	player.obj->flags |= OBJ_FLAG__JUST_ATTACKED;
@@ -332,19 +342,19 @@ static void Player_ShootGun()
 	{
 	case GUN__PISTOL:
 	{
-		volume = 0.003;
+		volume = 0.004;
 		sound_index = SOUND__PISTOL_SHOOT;
 		break;
 	}
 	case GUN__SHOTGUN:
 	{
-		volume = 0.01;
+		volume = 0.015;
 		sound_index = SOUND__SHOTGUN_SHOOT;
 		break;
 	}
 	case GUN__MACHINEGUN:
 	{
-		volume = 0.009;
+		volume = 0.01;
 		sound_index = SOUND__MACHINEGUN_SHOOT;
 		break;
 	}
@@ -654,7 +664,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_AMMO:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.025);
 		Game_SetStatusMessage("AMMO PACK PICKED UP!");
 
 		player.buck_ammo += PICKUP_AMMO_GIVE / 2;
@@ -663,7 +673,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_ROCKETS:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.025);
 		Game_SetStatusMessage("ROCKETS PICKED UP!");
 
 		player.rocket_ammo += PICKUP_ROCKETS_GIVE;
@@ -671,7 +681,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_SHOTGUN:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.025);
 		Game_SetStatusMessage("SHOTGUN PICKED UP!");
 
 		bool just_picked = false;
@@ -694,7 +704,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_MACHINEGUN:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.025);
 		Game_SetStatusMessage("MACHINE GUN PICKED UP!");
 
 		bool just_picked = false;
@@ -717,7 +727,7 @@ void Player_HandlePickup(Object* obj)
 	}
 	case SUB__PICKUP_DEVASTATOR:
 	{
-		Sound_Emit(SOUND__PICKUP_AMMO, 0.035);
+		Sound_Emit(SOUND__PICKUP_AMMO, 0.025);
 		Game_SetStatusMessage("DEVASTATOR PICKED UP!");
 
 		bool just_picked = false;

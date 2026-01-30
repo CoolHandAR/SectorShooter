@@ -1,13 +1,13 @@
 #include "game_info.h"
 
 extern void Monster_Bruiser_FireBall(struct Object* obj);
-extern void Monster_Imp_FireBall(struct Object* obj);
+extern void Monster_BloodImp_FireBall(struct Object* obj);
 extern void Monster_Melee(struct Object* obj);
 
 
 static const MonsterInfo MONSTER_INFO[] =
 {
-	//IMP
+	//BLOOD IMP
 	{
 		//ANIM
 		{
@@ -30,19 +30,19 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 4, 4, 1,
 
 			//ATTACK FORWARD
-			Monster_Imp_FireBall, 0, 4, 0, 3, 0,
+			Monster_BloodImp_FireBall, 0, 4, 0, 3, 0,
 
 			//ATTACK FORWARD SIDE
-			Monster_Imp_FireBall, 0, 4, 1, 3, 0,
+			Monster_BloodImp_FireBall, 0, 4, 1, 3, 0,
 
 			//ATTACK SIDE
-			Monster_Imp_FireBall, 0, 4, 2, 3, 0,
+			Monster_BloodImp_FireBall, 0, 4, 2, 3, 0,
 
 			//ATTACK BACK SIDE
-			Monster_Imp_FireBall, 0, 4, 3, 3, 0,
+			Monster_BloodImp_FireBall, 0, 4, 3, 3, 0,
 
 			//ATTACK BACK
-			Monster_Imp_FireBall, 0, 4, 4, 4, 0,
+			Monster_BloodImp_FireBall, 0, 4, 4, 4, 0,
 
 			//MELEE FORWARD
 			Monster_Melee, 1, 4, 0, 3, 1,
@@ -63,16 +63,16 @@ static const MonsterInfo MONSTER_INFO[] =
 			NULL, 0, 0, 5, 1, 0,
 
 			//HIT SIDE
-			NULL, 0, 1, 5, 1, 0,
-
-			//HIT BACK
 			NULL, 0, 2, 5, 1, 0,
 
+			//HIT BACK
+			NULL, 0, 3, 5, 1, 0,
+
 			//DIE
-			NULL, 0, 0, 6, 4, 0,
+			NULL, 0, 4, 5, 5, 0,
 
 			//EXPLODE
-			NULL, 0, 0, 7, 8, 0,
+			NULL, 0, 2, 6, 8, 0,
 		},
 		60, //SPAWN HP
 		34, //SPEED,
@@ -87,7 +87,7 @@ static const MonsterInfo MONSTER_INFO[] =
 		0, //SPRITE Y OFFSET
 		70, //SPRITE Z OFFSET
 	},
-	//PINKY
+	//BOAR
 	{
 		//ANIM
 		{
@@ -1223,18 +1223,18 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		SUB__PARTICLE_BLOOD,
 		//ANIM INFO
 		{
-			NULL, 0, 0, 0, 3, 0,
+			NULL, 0, 0, 0, 20, 0,
 		},
-		0.5, //time
+		4.5, //time
 		18, //sprite scale
-		0 //anim speed scale
+		6 //anim speed scale
 	},
 	//WALL HIT
 	{
 		SUB__PARTICLE_WALL_HIT,
 		//ANIM INFO
 		{
-			NULL, 0, 0, 1, 4, 0,
+			NULL, 0, 0, 5, 4, 0,
 		},
 		0.5, //time
 		10, //sprite scale
@@ -1245,10 +1245,10 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		SUB__PARTICLE_BLOOD_EXPLOSION,
 		//ANIM INFO
 		{
-			NULL, 0, 0, 2, 4, 0,
+			NULL, 0, 0, 6, 4, 0,
 		},
 		0.3, //time
-		8, //sprite scale
+		14, //sprite scale
 		3 //anim speed scale
 	},
 	//FIRE SPARKS
@@ -1256,7 +1256,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		SUB__PARTICLE_FIRE_SPARKS,
 		//ANIM INFO
 		{
-			NULL, 0, 0, 3, 8, 1,
+			NULL, 0, 0, 7, 8, 1,
 		},
 		FLT_MAX, //time
 		7, //sprite scale
@@ -1267,7 +1267,7 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		SUB__PARTICLE_BULLET_IMPACT,
 		//ANIM INFO
 		{
-			NULL, 0, 0, 5, 4, 0,
+			NULL, 0, 0, 9, 4, 0,
 		},
 		0.12, //time
 		12, //sprite scale
@@ -1278,11 +1278,11 @@ static const ParticleInfo PARTICLE_INFOS[] =
 		SUB__PARTICLE_EXPLOSION,
 		//ANIM INFO
 		{
-			NULL, 0, 0, 6, 4, 0,
+			NULL, 0, 0, 10, 4, 0,
 		},
-		0.5, //time
+		0.25, //time
 		14, //sprite scale
-		0.9 //anim speed scale
+		1.9 //anim speed scale
 	},
 };
 
@@ -1461,7 +1461,7 @@ MonsterInfo* Info_GetMonsterInfo(int type)
 	}
 
 	int arr_size = sizeof(MONSTER_INFO) / sizeof(MONSTER_INFO[0]);
-	int index = type - SUB__MOB_IMP;
+	int index = type - SUB__MOB_BLOOD_IMP;
 
 	if (index < 0)
 	{

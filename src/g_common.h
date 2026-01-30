@@ -91,8 +91,8 @@ typedef struct
 	Image devastator_texture;
 	Image object_textures;
 	Image missile_textures;
-	Image imp_texture;
-	Image pinky_texture;
+	Image blood_imp_texture;
+	Image boar_texture;
 	Image bruiser_texture;
 	Image templar_texture;
 	Image particle_textures;
@@ -195,8 +195,8 @@ typedef enum
 	SUB__NONE,
 
 	//monsters
-	SUB__MOB_IMP,
-	SUB__MOB_PINKY,
+	SUB__MOB_BLOOD_IMP,
+	SUB__MOB_BOAR,
 	SUB__MOB_BRUISER,
 	SUB__MOB_TEMPLAR,
 	SUB__MOB_MAX,
@@ -766,7 +766,6 @@ DirEnum DirVectorToRoundedDirEnum(int x, int y);
 void DirEnumToDirEnumVector(DirEnum dir, DirEnum* r_x, DirEnum* r_y);
 
 //Particle stuff
-void Particle_Spawn(int sub_type, float x, float y, float z);
 void Particle_Update(Object* obj, float delta);
 
 //Decal stuff
@@ -779,7 +778,7 @@ void Monster_SetState(Object* obj, int state);
 void Monster_SetTarget(Object* obj, Object* target);
 void Monster_UpdateSpriteAnimation(Object* obj, float delta);
 void Monster_Update(Object* obj, float delta);
-void Monster_Imp_FireBall(Object* obj);
+void Monster_BloodImp_FireBall(Object* obj);
 void Monster_Bruiser_FireBall(Object* obj);
 void Monster_Templar_StarStrike(Object* obj);
 void Monster_Melee(Object* obj);

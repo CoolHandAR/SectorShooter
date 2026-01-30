@@ -1532,7 +1532,7 @@ void Video_DrawSkyPlaneStripe(Image* image, float* depth_buffer, Texture* textur
 
 	for (int y = y1; y < y2; y++)
 	{
-		unsigned char* data = Image_Get(&texture->img, tex_x, (int)tex_y_pos & texture->img.height - 1);
+		unsigned char* data = Image_GetFast(&texture->img, tex_x, (int)tex_y_pos & texture->height_mask);
 
 		size_t i = index * 4;
 
