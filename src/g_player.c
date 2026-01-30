@@ -390,6 +390,7 @@ static void Player_UpdateTimers(float delta)
 	if (player.use_timer > 0) player.use_timer -= delta;
 	if (player.save_timer > 0) player.save_timer -= delta;
 	if (player.shake_timer > 0) player.shake_timer -= delta;
+	if (player.menu_timer > 0) player.menu_timer -= delta;
 
 	if (player.godmode_timer > 0)
 	{
@@ -466,10 +467,6 @@ static void Player_ProcessInput(GLFWwindow* window)
 	{
 		Player_SetGun(GUN__DEVASTATOR);
 	}
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-	{
-		Game_SetState(GS__MENU);
-	}
 	if (player.save_timer <= 0)
 	{
 		if (glfwGetKey(window, GLFW_KEY_F5) == GLFW_PRESS)
@@ -483,11 +480,22 @@ static void Player_ProcessInput(GLFWwindow* window)
 			player.save_timer = SAVE_TIME;
 		}
 	}
-	
-	//use
 	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
 	{
 		Player_Use();
+	}
+
+	if (player.menu_timer <= 0)
+	{
+		if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS)
+		{
+			Render_ToggleFullscreen();
+			player.menu_timer = 1;
+		}
+	}
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	{
+		Game_SetState(GS__MENU);
 	}
 
 	player.move_x = move_x;
@@ -611,7 +619,7 @@ void Player_Init(int keep)
 
 	Player_SetupGunSprites();
 
-	//Player_GiveAll();
+	Player_GiveAll();
 
 	if(!keep)
 		Player_SetGun(GUN__PISTOL);

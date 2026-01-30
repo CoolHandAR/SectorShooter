@@ -639,6 +639,7 @@ typedef struct
 	float hit_timer;
 	float use_timer;
 	float shake_timer;
+	float menu_timer;
 
 	float bob;
 	float gun_offset_x;

@@ -2,7 +2,9 @@
 
 ## Sector based "Doom/Build like" fps game
 
-![SCREENSHOT](image.png)
+![SCREENSHOT](screenshot0.png)
+![SCREENSHOT](screenshot1.png)
+![SCREENSHOT](screenshot2.png)
 
 ## Video
 https://www.youtube.com/watch?v=weuWWwH3QYY
@@ -13,7 +15,7 @@ Offline Lightmapper that precalculates Ambient Occlusion, Direct Light and Globa
 ![SCREENSHOT](lightmaps_preview.png)
 
 #Lightgrid
-Precalculated Light Grid Points spread across the level.Used for quickly lighting dynamic objects.
+Precalculated Light Grid Points spread across the level. Used for quickly lighting dynamic objects.
 
 ![SCREENSHOT](lightgrid_preview.png)
 

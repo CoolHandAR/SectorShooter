@@ -514,16 +514,11 @@ typedef struct
 
 	HANDLE thread_handle;
 
-	CRITICAL_SECTION mutex;
-	HANDLE active_event;
-
 	int x_start, x_end;
 } RenderThread;
 
 bool Render_Init(int width, int height, int scale);
 void Render_ShutDown();
-void Render_LockThreadsMutex();
-void Render_UnlockThreadsMutex();
 void Render_LockObjectMutex(bool writer);
 void Render_UnlockObjectMutex(bool writer);
 void Render_FinishAndStall();

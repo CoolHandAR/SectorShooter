@@ -31,7 +31,7 @@
 
 #define SKY_SCALE 0.25
 
-#define LIGHTGRID_RADIOSITY_SCALE 1.5
+#define LIGHTGRID_RADIOSITY_SCALE 2.5
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88

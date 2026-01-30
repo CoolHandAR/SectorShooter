@@ -315,7 +315,7 @@ void Menu_Update(float delta)
 		}
 		case SUB_MENU_OPTIONS:
 		{
-			menu_core.max_index = 3;
+			menu_core.max_index = BACK_ID;
 			break;
 		}
 		case SUB_MENU_LOAD:
@@ -434,6 +434,7 @@ void Menu_Draw(Image* image, FontData* fd)
 
 		Menu_HelpText(image, fd, true, "F5 = QUICKSAVE");
 		Menu_HelpText(image, fd, false, "F9 = QUICKLOAD");
+		Menu_HelpText(image, fd, false, "F11 = FULLSCREEN ON/OFF");
 		break;
 	}
 	default:

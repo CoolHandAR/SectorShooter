@@ -6,7 +6,7 @@
 #include "main.h"
 #include "sound.h"
 
-#define START_LEVEL 0
+#define START_LEVEL 2
 
 static Game game;
 static GameAssets assets;
@@ -31,7 +31,7 @@ bool Game_Init()
 	VisualMap_Init();
 	Menu_Init();
 
-	Sound_SetAsMusic(SOUND__MUSIC1);
+	//Sound_SetAsMusic(SOUND__MUSIC1);
 
 	return true;
 }

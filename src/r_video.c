@@ -354,7 +354,7 @@ void Video_DrawBox(Image* image, float* depth_buffer, float box[2][3], float vie
 
 	if (light)
 	{
-		unsigned char color[4] = { light->r, light->g, light->b, 255 };
+		unsigned char color[4] = { LIGHT_LUT[255][light->r], LIGHT_LUT[255][light->g], LIGHT_LUT[255][light->b], 255 };
 
 		for (int x = draw_start_x; x < draw_end_x; x++)
 		{

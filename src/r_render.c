@@ -150,15 +150,6 @@ static void Render_SizeChanged()
 	LeaveCriticalSection(&s_renderCore.main_thread_mutex);
 }
 
-static void Render_ThreadMutexLock(RenderThread* thread)
-{
-	EnterCriticalSection(&thread->mutex);
-}
-static void Render_ThreadMutexUnlock(RenderThread* thread)
-{
-	LeaveCriticalSection(&thread->mutex);
-}
-
 static void Render_Level(Map* map, RenderData* render_data, int start_x, int end_x)
 {
 	//setup render data
@@ -261,6 +252,8 @@ static void Render_DrawLightGrid()
 	float view_cos = tangent * s_renderCore.view_cos;
 	float view_sin = tangent * s_renderCore.view_sin;
 
+	float box_size = 3;
+
 	for (int x = 0; x < grid->block_size[0]; x++)
 	{
 		for (int y = 0; y < grid->block_size[1]; y++)
@@ -274,13 +267,13 @@ static void Render_DrawLightGrid()
 				position[2] = grid->origin[2] + (z * grid->size[2]);
 
 				float box[2][3];
-				box[0][0] = position[0] - 5;
-				box[0][1] = position[1] - 5;
-				box[0][2] = position[2] - 5;
+				box[0][0] = position[0] - box_size;
+				box[0][1] = position[1] - box_size;
+				box[0][2] = position[2] - box_size;
 
-				box[1][0] = position[0] + 5;
-				box[1][1] = position[1] + 5;
-				box[1][2] = position[2] + 5;
+				box[1][0] = position[0] + box_size;
+				box[1][1] = position[1] + box_size;
+				box[1][2] = position[2] + box_size;
 
 				int flat_index = ((int)grid->bounds[0] * (int)grid->bounds[1] * z) + ((int)grid->bounds[0] * y) + x;
 				Lightblock* block = &grid->blocks[flat_index];
@@ -380,11 +373,9 @@ static void Render_ThreadLoop(RenderThread* thread)
 		LeaveCriticalSection(&s_renderCore.start_mutex);
 
 		//set active state
-		SetEvent(thread->active_event);
 		thread->state = TS__WORKING;
 
 		//do the work
-		Render_ThreadMutexLock(thread);
 
 		switch (work_type)
 		{
@@ -415,11 +406,6 @@ static void Render_ThreadLoop(RenderThread* thread)
 		}
 
 		//Video_DrawThreadSlice(&s_renderCore.framebuffer, thread->x_start, thread->x_end, NULL);
-
-		Render_ThreadMutexUnlock(thread);
-
-		//set inactive state
-		ResetEvent(thread->active_event);
 
 		EnterCriticalSection(&s_renderCore.end_mutex);
 		s_renderCore.threads_finished++;
@@ -674,10 +660,6 @@ bool Render_Init(int width, int height, int scale)
 	for (int i = 0; i < num_threads; i++)
 	{
 		RenderThread* thr = &s_renderCore.threads[i];
-
-		InitializeCriticalSection(&thr->mutex);
-		thr->active_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-
 		thr->thread_handle = CreateThread(NULL, 0, Render_ThreadLoop, thr, 0, &render_thread_id);
 	}
 
@@ -707,9 +689,7 @@ void Render_ShutDown()
 
 		WaitForSingleObject(thr->thread_handle, INFINITE);
 
-		DeleteCriticalSection(&thr->mutex);
 		CloseHandle(thr->thread_handle);
-		CloseHandle(thr->active_event);
 
 		RenderUtl_DestroyRenderData(&thr->render_data);
 	}
@@ -733,27 +713,6 @@ void Render_ShutDown()
 	if (s_renderCore.ceil_plane_ybottom) free(s_renderCore.ceil_plane_ybottom);
 	if (s_renderCore.yslopes) free(s_renderCore.yslopes);
 	if (s_renderCore.threads) free(s_renderCore.threads);
-}
-
-
-void Render_LockThreadsMutex()
-{
-	for (int i = 0; i < s_renderCore.num_threads; i++)
-	{
-		RenderThread* thr = &s_renderCore.threads[i];
-
-		Render_ThreadMutexLock(thr);
-	}
-}
-
-void Render_UnlockThreadsMutex()
-{
-	for (int i = 0; i < s_renderCore.num_threads; i++)
-	{
-		RenderThread* thr = &s_renderCore.threads[i];
-
-		Render_ThreadMutexUnlock(thr);
-	}
 }
 
 void Render_LockObjectMutex(bool writer)

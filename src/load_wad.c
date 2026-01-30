@@ -10,7 +10,7 @@
 #include "u_math.h"
 #include "utility.h"
 
-#define NO_MONSTERS
+//#define NO_MONSTERS
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
