@@ -20,18 +20,16 @@
 
 #define NUM_BOUNCES 8
 #define RADIOSITY_TRACE_DIST 1024 
-#define RADIOSITY_SAMPLES 64
+#define RADIOSITY_SAMPLES 128
 #define RADIOSITY_RADIUS 512
 #define RADIOSITY_ATTENUATION 0.5
-#define RADIOSITY_SCALE 2
+#define RADIOSITY_SCALE 1.25
 
 #define DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SAMPLES 4
 #define SUN_DEVIANCE_SCALE 0.05
 
 #define SKY_SCALE 0.25
-
-#define LIGHTGRID_RADIOSITY_SCALE 2.5
 
 //Taken from q3map2
 #define AO_CONE_ANGLE 88
@@ -123,27 +121,33 @@ static void LightThread_Loop(LightTraceThread* thread)
 				Lightmap_Sector(global, thread, sector, bounce);
 			}
 
+			if (bounce != BOUNCE_AO)
+			{
+				for (int i = thread->grid_start; i < thread->grid_end; i++)
+				{
+					Lightblock* block = &lightgrid->blocks[i];
+					int z = (i / ((int)lightgrid->bounds[0] * (int)lightgrid->bounds[1]));
+					int y = (i / (int)lightgrid->bounds[0]) % (int)lightgrid->bounds[1];
+					int x = i % (int)lightgrid->bounds[0];
+
+					float position[3];
+
+					position[0] = lightgrid->origin[0] + (x * lightgrid->size[0]);
+					position[1] = lightgrid->origin[1] + (y * lightgrid->size[1]);
+					position[2] = lightgrid->origin[2] + (z * lightgrid->size[2]);
+
+					if (!Lightblock_Process(global, thread, block, position, bounce))
+					{
+						//mark as out of bounds, so that the sample will be ignored
+						//block->light.r = 0xffff;
+						//block->light.g = 0xffff;
+						//block->light.b = 0xffff;
+					}
+				}
+			}
 			bounces_performed++;
 		}
-		//light grid
-		else if(bounce == BOUNCE_LIGHTGRID && lightgrid->blocks)
-		{
-			for (int i = thread->grid_start; i < thread->grid_end; i++)
-			{
-				Lightblock* block = &lightgrid->blocks[i];
-				int z = (i / ((int)lightgrid->bounds[0] * (int)lightgrid->bounds[1]));
-				int y = (i / (int)lightgrid->bounds[0]) % (int)lightgrid->bounds[1];
-				int x = i % (int)lightgrid->bounds[0];
 
-				float position[3];
-
-				position[0] = lightgrid->origin[0] + (x * lightgrid->size[0]);
-				position[1] = lightgrid->origin[1] + (y * lightgrid->size[1]);
-				position[2] = lightgrid->origin[2] + (z * lightgrid->size[2]);
-
-				Lightblock_Process(global, thread, block, position);
-			}
-		}
 		
 		ResetEvent(thread->active_event);
 		SetEvent(thread->finished_event);
@@ -2712,6 +2716,34 @@ static void Lightmap_DispatchLightmapWork(LightGlobal* global, Map* map, int bou
 
 			Lightmap_Sector(global, global->thread, sector, bounce);
 		}
+
+		Lightgrid* lightgrid = &map->lightgrid;
+
+		//do it our selves
+		for (int x = 0; x < lightgrid->block_size[0]; x++)
+		{
+			for (int y = 0; y < lightgrid->block_size[1]; y++)
+			{
+				for (int z = 0; z < lightgrid->block_size[2]; z++)
+				{
+					int flat_index = ((int)lightgrid->bounds[0] * (int)lightgrid->bounds[1] * z) + ((int)lightgrid->bounds[0] * y) + x;
+					Lightblock* block = &lightgrid->blocks[flat_index];
+					float position[3];
+
+					position[0] = lightgrid->origin[0] + (x * lightgrid->size[0]);
+					position[1] = lightgrid->origin[1] + (y * lightgrid->size[1]);
+					position[2] = lightgrid->origin[2] + (z * lightgrid->size[2]);
+
+					if (!Lightblock_Process(global, global->thread, block, position, 0))
+					{
+						//mark as out of bounds, so that the sample will be ignored
+						//block->light.r = 0xffff;
+						//block->light.g = 0xffff;
+						//block->light.b = 0xffff;
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -2759,10 +2791,8 @@ void Lightmap_Create(LightGlobal* global, Map* map)
 	printf("Finished creating lightmaps. Time: %f \n", end - start);
 }
 
-bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3])
+bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3], int bounce)
 {
-	Map* map = Map_GetMap();
-
 	//check if sample is outside bounds
 	Sector* sector = Map_FindSector(position[0], position[1]);
 
@@ -2776,101 +2806,48 @@ bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightbloc
 		return false;
 	}
 
+	if (position[2] > sector->base_ceil || position[2] < sector->floor)
+	{
+		//return false;
+	}
+
 	if (!Lightmap_CheckForLeakingLineSide(global, sector, NULL, position, LST__POINT, NULL))
 	{
 		return false;
 	}
 
 	Vec4 total_light = Vec4_Zero();
-	//calc direct light
-	//for each light
-	for (int i = 0; i < dA_size(global->light_list); i++)
-	{
-		LightDef* light = dA_at(global->light_list, i);
 
-		if (light->type == LDT__POINT || light->type == LDT__AREA)
+	if (bounce == 0)
+	{
+		//calc direct light
+		//for each light
+		for (int i = 0; i < dA_size(global->light_list); i++)
 		{
-			if (!Math_BoxContainsPoint(light->bbox, position))
+			LightDef* light = dA_at(global->light_list, i);
+
+			if (light->type == LDT__POINT || light->type == LDT__AREA)
 			{
-				continue;
+				if (!Math_BoxContainsPoint(light->bbox, position))
+				{
+					continue;
+				}
 			}
+
+			Vec4 result_light = Lightmap_CalcDirectLight(global, thread, NULL, light, position, NULL, LST__POINT);
+
+			Vec4_Add(&total_light, result_light);
 		}
-
-		Vec4 result_light = Lightmap_CalcDirectLight(global, thread, NULL, light, position, NULL, LST__POINT);
-
-		Vec4_Add(&total_light, result_light);
-	}
-
-	if (NUM_BOUNCES > 1)
-	{
-		Vec4 radiosity = Lightmap_CalcRadiosity(global, thread, position, NULL, NULL, LST__POINT);
-		Vec4_ScaleScalar(&radiosity, LIGHTGRID_RADIOSITY_SCALE);
-		Vec4_Add(&total_light, radiosity);
-	}
-
-	block->light.r = Math_Clampl(total_light.r, 0, MAX_LIGHT_VALUE - 255);
-	block->light.g = Math_Clampl(total_light.g, 0, MAX_LIGHT_VALUE - 255);
-	block->light.b = Math_Clampl(total_light.b, 0, MAX_LIGHT_VALUE - 255);
-
-	return true;
-}
-
-void Lightblocks_Create(LightGlobal* global, Map* map)
-{
-	if (dA_size(global->light_list) <= 0)
-	{
-		return;
-	}
-
-	global->num_deviance_vectors = 1;
-
-	Lightgrid* lightgrid = &map->lightgrid;
-
-	printf("Creating Lightgrid, %i threads\n", global->num_threads);
-
-	double start = glfwGetTime();
-
-	//let the threads do it
-	if (global->num_threads > 0)
-	{
-		//make threads do the work
-		LightGlobal_SetWorkStateForAllThreads(global, BOUNCE_LIGHTGRID);
-
-		//wait for them to finish
-		LightGlobal_WaitForAllThreads(global);
 	}
 	else
 	{
-		//do it our selves
-		for (int x = 0; x < lightgrid->block_size[0]; x++)
-		{
-			for (int y = 0; y < lightgrid->block_size[1]; y++)
-			{
-				for (int z = 0; z < lightgrid->block_size[2]; z++)
-				{
-					int flat_index = ((int)lightgrid->bounds[0] * (int)lightgrid->bounds[1] * z) + ((int)lightgrid->bounds[0] * y) + x;
-					Lightblock* block = &lightgrid->blocks[flat_index];
-					float position[3];
-
-					position[0] = lightgrid->origin[0] + (x * lightgrid->size[0]);
-					position[1] = lightgrid->origin[1] + (y * lightgrid->size[1]);
-					position[2] = lightgrid->origin[2] + (z * lightgrid->size[2]);
-
-					if (!Lightblock_Process(global, global->thread, block, position))
-					{
-						//mark as out of bounds, so that the sample will be ignored
-						block->light.r = 0xffff;
-						block->light.g = 0xffff;
-						block->light.b = 0xffff;
-					}
-				}
-			}
-		}
+		Vec4 radiosity = Lightmap_CalcRadiosity(global, thread, position, NULL, NULL, LST__POINT);
+		Vec4_Add(&total_light, radiosity);
 	}
 
-	double end = glfwGetTime();
+	block->light.r = Math_Clampl((unsigned short)total_light.r + block->light.r, 0, MAX_LIGHT_VALUE - 255);
+	block->light.g = Math_Clampl((unsigned short)total_light.g + block->light.g, 0, MAX_LIGHT_VALUE - 255);
+	block->light.b = Math_Clampl((unsigned short)total_light.b + block->light.b, 0, MAX_LIGHT_VALUE - 255);
 
-	printf("Finished creating lightgrid. Time: %f \n", end - start);
-
-	Map_UpdateObjectsLight();
+	return true;
 }

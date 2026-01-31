@@ -130,8 +130,7 @@ typedef struct
 void LightGlobal_Setup(struct LightGlobal* global, struct LightCompilerInfo* compiler_info);
 void LightGlobal_Destruct(struct LightGlobal* global);
 void Lightmap_Create(struct LightGlobal* global, Map* map);
-void Lightblocks_Create(struct LightGlobal* global, Map* map);
 void Lightmap_Sector(LightGlobal* global, LightTraceThread* thread, Sector* sector, int bounce);
-bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3]);
+bool Lightblock_Process(LightGlobal* global, LightTraceThread* thread, Lightblock* block, float position[3], int bounce);
 
 #endif // !LIGHT_H

@@ -172,7 +172,7 @@ void Sector_CreateLightStrober(Sector* sector, SubType light_type)
 
 	if (!strober)
 	{
-
+		return;
 	}
 
 	strober->sector_index = sector->index;

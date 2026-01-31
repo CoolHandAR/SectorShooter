@@ -871,11 +871,6 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 
 		//draw stuff like visual map
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
-
-		//Render_DrawAllObjectBoxes();
-
-		//Render_DrawLightGrid();
-
 	}
 	else
 	{

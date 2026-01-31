@@ -371,7 +371,7 @@ static void Scene_DrawDrawSeg(Image* image, float* depth_buffer, DrawSeg* seg)
 	float tz1 = args->tz1;
 	float tz2 = args->tz2;
 
-	float line_offset = line->offset;
+	//float line_offset = line->offset;
 
 	//precompute some stuff
 	float x_pos = fabs(seg->first - args->x1);
@@ -383,7 +383,7 @@ static void Scene_DrawDrawSeg(Image* image, float* depth_buffer, DrawSeg* seg)
 		int tx = (u0 * (x_pos2 * tz2) + u1 * (x_pos * tz1)) / (x_pos2 * tz2 + x_pos * tz1);
 		int lx = tx;
 
-		tx += sidedef->x_offset + line_offset;
+		tx += sidedef->x_offset;
 
 		short ctop = 0;
 		short cbot = image->height - 1;

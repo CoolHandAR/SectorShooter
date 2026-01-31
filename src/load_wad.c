@@ -1438,11 +1438,12 @@ bool Load_Doommap(const char* filename, const char* skyname, LightCompilerInfo* 
         LightGlobal_Setup(&light_global, light_compiler_info);
 
         Lightmap_Create(&light_global, map);
-        Lightblocks_Create(&light_global, map);
-
+  
         LightGlobal_Destruct(&light_global);
 
         Save_Lightmap(filename, map);
+
+        Map_UpdateObjectsLight();
     }
 #endif // !DISABLE_LIGHTMAPS
    
