@@ -619,7 +619,7 @@ void Player_Init(int keep)
 
 	Player_SetupGunSprites();
 
-	Player_GiveAll();
+	//Player_GiveAll();
 
 	if(!keep)
 		Player_SetGun(GUN__PISTOL);

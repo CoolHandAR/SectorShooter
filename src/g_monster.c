@@ -219,7 +219,7 @@ static void Monster_EmitSound(Object* obj, MonsterSoundState state)
 
 	if (index >= 0)
 	{
-		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, obj->dir_x, obj->dir_y, obj->dir_z, 1.5);
+		Sound_EmitWorldTemp(index, obj->x, obj->y, obj->z, obj->dir_x, obj->dir_y, obj->dir_z, 1.1);
 	}
 }
 static MonsterAnimState Monster_GetAnimState(Object* obj)
