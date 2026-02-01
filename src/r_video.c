@@ -612,6 +612,10 @@ void Video_DrawScreenSprite(Image* image, Sprite* sprite, int start_x, int end_x
 					{
 						break;
 					}
+					if (y + pix_y >= image->height - 1)
+					{
+						break;
+					}
 
 					Image_Set2(image, (x + pix_x + l), y + pix_y, clr);
 				}
