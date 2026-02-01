@@ -7,7 +7,7 @@
 ![SCREENSHOT](screenshot2.png)
 
 ## Video
-https://www.youtube.com/watch?v=weuWWwH3QYY
+https://www.youtube.com/watch?v=A4ATb2nL9lI
 
 ## Lightmapper
 Offline Lightmapper that precalculates Ambient Occlusion, Direct Light and Global Illumination.
