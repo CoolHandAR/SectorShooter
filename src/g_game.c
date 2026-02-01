@@ -445,7 +445,11 @@ bool Game_ChangeLevel(int level_index, bool player_keep_stuff)
 void Game_NextLevel()
 {
 	Game_ChangeLevel(game.level_index + 1, true);
-	Game_SetState(GS__LEVEL_END);
+
+	if (Game_GetState() != GS__FINALE)
+	{
+		Game_SetState(GS__LEVEL_END);
+	}
 }
 
 void Game_Save(int slot, char desc[32])

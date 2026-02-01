@@ -271,12 +271,12 @@ int main()
 
 	//set defaults
 	Player_SetSensitivity(1);
-	Sound_setMasterVolume(3.0);
+	Sound_setMasterVolume(4.0);
 
 	//attempt to load cfg
 	Engine_LoadCfg("config.cfg");
 
-	//Render_ToggleFullscreen();
+	Render_ToggleFullscreen();
 
 	double lastTime = 0;
 	double currentTime = 0;
