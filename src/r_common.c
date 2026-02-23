@@ -159,6 +159,45 @@ void Image_Set(Image* img, int x, int y, unsigned char r, unsigned char g, unsig
 	if (img->numChannels >= 4) d[3] = a;
 }
 
+Vec4 Image_CalcAverageColor(Image* img, int min_avg, int max_avg)
+{
+	if (!img->data)
+	{
+		return Vec4_Zero();
+	}
+
+	Vec4 total_color = Vec4_Zero();
+	int samples = 0;
+
+	for (int x = 0; x < img->width; x++)
+	{
+		for (int y = 0; y < img->height; y++)
+		{
+			unsigned char* data = Image_GetFast(img, x, y);
+
+			if (!data)
+			{
+				continue;
+			}
+
+			total_color.r += (float)data[0];
+			total_color.g += (float)data[1];
+			total_color.b += (float)data[2];
+
+			samples++;
+		}
+	}
+
+	if (samples > 0)
+	{
+		total_color.r = Math_Clamp((float)total_color.r / (float)samples, min_avg, max_avg);
+		total_color.g = Math_Clamp((float)total_color.g / (float)samples, min_avg, max_avg);
+		total_color.b = Math_Clamp((float)total_color.b / (float)samples, min_avg, max_avg);
+	}
+
+	return total_color;
+}
+
 void Image_Blur(Image* img, int size, float scale)
 {
 	if (!img->data || size <= 0 || scale <= 0)

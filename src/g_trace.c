@@ -1039,6 +1039,31 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 
 			if (open_range > 0 && open_low < open_high)
 			{
+				if (frontsector->is_sky)
+				{
+					Sidedef* front_sidedef = Map_GetSideDef(line->sides[0]);
+
+					if (front_sidedef)
+					{
+						//ignore lines with no textures
+						if (z > open_high)
+						{
+							if (!front_sidedef->top_texture)
+							{
+								continue;
+							}
+						}
+						else if (z < open_low)
+						{
+							if (!front_sidedef->bottom_texture)
+							{
+								continue;
+							}
+						}
+					}
+				}
+
+					
 				//the trace will not hit floor and ceil
 				if (open_low < z && open_high > z)
 				{
@@ -1056,7 +1081,7 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 					if (sidedef->middle_texture)
 					{
 						int tx = 0;
-						int ty = (z - side_sector->floor) / (side_sector->ceil - side_sector->floor);
+						int ty = z - side_sector->ceil;
 
 						float u = 0;
 						float t = 0;
@@ -1079,6 +1104,7 @@ int Trace_FindLine(float start_x, float start_y, float start_z, float end_x, flo
 						u *= texwidth;
 
 						tx = u;
+						ty /= 2;
 
 						tx += sidedef->x_offset;
 						ty += sidedef->y_offset;

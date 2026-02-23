@@ -54,6 +54,9 @@ void RenderUtl_SetupRenderData(RenderData* data, int width, int x_start, int x_e
 	{
 		Scene_ClipAndDraw(&data->clip_segs, x_end, width, true, NULL, NULL);
 	}
+
+	data->slice_x_start = x_start;
+	data->slice_x_end = x_end;
 }
 
 void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int x_end)
@@ -72,6 +75,21 @@ void RenderUtl_Resize(RenderData* data, int width, int height, int x_start, int 
 
 	data->span_end = calloc(height + 2, sizeof(short));
 	data->clip_segs.solidsegs = calloc((x_end - x_start) + 32, sizeof(Cliprange));
+
+	data->slice_x_start = x_start;
+	data->slice_x_end = x_end;
+
+	//just free the ranges, we will allocate when we actually need the draw seg
+	for (int i = 0; i < MAX_DRAWSEGS; i++)
+	{
+		DrawSeg* seg = &data->draw_segs.segs[i];
+
+		if (seg->ranges)
+		{
+			free(seg->ranges);
+			seg->ranges = NULL;
+		}
+	}
 }
 
 void RenderUtl_DestroyRenderData(RenderData* data)
@@ -81,6 +99,17 @@ void RenderUtl_DestroyRenderData(RenderData* data)
 	if (data->clip_segs.solidsegs) free(data->clip_segs.solidsegs);
 
 	data->visited_sectors_bitset = NULL;
+
+	for (int i = 0; i < MAX_DRAWSEGS; i++)
+	{
+		DrawSeg* seg = &data->draw_segs.segs[i];
+
+		if (seg->ranges)
+		{
+			free(seg->ranges);
+			seg->ranges = NULL;
+		}
+	}
 }
 
 bool RenderUtl_CheckVisitedSectorBitset(RenderData* data, int sector)

@@ -11,7 +11,7 @@
 //#define WHITE_TEXTURES
 
 static const float PI = 3.14159265359;
-unsigned char LIGHT_LUT[256][MAX_LIGHT_VALUE];
+static unsigned char LIGHT_LUT[256][MAX_LIGHT_VALUE];
 
 const int INSIDE = 0b0000;
 const int LEFT = 0b0001;
@@ -360,7 +360,11 @@ void Video_DrawBox(Image* image, float* depth_buffer, float box[2][3], float vie
 		{
 			for (int y = draw_start_y; y < draw_end_y; y++)
 			{
-				if (transform_y_tan <= depth_buffer[x + y * image->width])
+				if (depth_buffer && transform_y_tan <= depth_buffer[x + y * image->width])
+				{
+					Image_Set2(image, x, y, color);
+				}
+				else
 				{
 					Image_Set2(image, x, y, color);
 				}

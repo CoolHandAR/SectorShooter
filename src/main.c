@@ -276,7 +276,7 @@ int main()
 	//attempt to load cfg
 	Engine_LoadCfg("config.cfg");
 
-	Render_ToggleFullscreen();
+	//Render_ToggleFullscreen();
 
 	double lastTime = 0;
 	double currentTime = 0;

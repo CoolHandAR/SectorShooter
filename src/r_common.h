@@ -78,6 +78,7 @@ void Image_Clear(Image* img, int c);
 void Image_Copy(Image* dest, Image* src);
 void Image_Blit(Image* dest, Image* src, int dstX0, int dstY0, int dstX1, int dstY1, int srcX0, int srcY0, int srcX1, int srcY1);
 void Image_Set(Image* img, int x, int y, unsigned char r, unsigned char g, unsigned char b, unsigned char a);
+Vec4 Image_CalcAverageColor(Image* img, int min_avg, int max_avg);
 
 inline void Image_Set2(Image* img, int x, int y, unsigned char* color)
 {
@@ -438,9 +439,19 @@ typedef struct
 
 typedef struct
 {
+	short y1;
+	short y2;
+} SegRange;
+
+typedef struct
+{
 	LineDrawArgs line_draw_args;
 	short first, last;
 	short light;
+
+	SegRange* ranges;
+	int index;
+	bool visible;
 } DrawSeg;
 
 #define MAX_DRAWSEGS 32
@@ -467,6 +478,9 @@ typedef struct
 	DrawPlane floor_plane;
 	DrawPlane ceil_plane;
 	short* span_end;
+
+	int slice_x_start;
+	int slice_x_end;
 } RenderData;
 
 void Video_Setup();

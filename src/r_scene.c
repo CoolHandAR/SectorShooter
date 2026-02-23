@@ -200,14 +200,21 @@ static bool Scene_IsLineSolid(Line* line, Sector* sector, Sector* backsector, fl
 	return false;
 }
 
-static DrawSeg* Scene_StoreDrawSeg(DrawSegList* seg_list)
+static DrawSeg* Scene_StoreDrawSeg(RenderData* render_data, DrawSegList* seg_list)
 {
 	if (seg_list->index >= MAX_DRAWSEGS)
 	{
 		return NULL;
 	}
 
-	return &seg_list->segs[seg_list->index++];
+	DrawSeg* seg = &seg_list->segs[seg_list->index++];
+
+	if (!seg->ranges)
+	{
+		seg->ranges = calloc((render_data->slice_x_end - render_data->slice_x_start) + 32, sizeof(SegRange));
+	}
+
+	return seg;
 }
 
 static void Scene_DrawPlane(Image* image, DrawPlane* plane, LineDrawArgs* args, int x1, int x2)
@@ -332,6 +339,11 @@ static void Scene_DrawPlane(Image* image, DrawPlane* plane, LineDrawArgs* args, 
 
 static void Scene_DrawDrawSeg(Image* image, float* depth_buffer, DrawSeg* seg)
 {
+	if (!seg->visible)
+	{
+		return;
+	}
+
 	//lay it out on the stack
 	LineDrawArgs* args = &seg->line_draw_args;
 	DrawingArgs* draw_args = args->draw_args;
@@ -378,6 +390,8 @@ static void Scene_DrawDrawSeg(Image* image, float* depth_buffer, DrawSeg* seg)
 	float x_pos2 = fabs(args->x2 - seg->first);
 	float texheight = (args->sector_height) * 0.5;
 
+	int range_index = 0;
+
 	for (int x = seg->first; x < seg->last; x++)
 	{
 		int tx = (u0 * (x_pos2 * tz2) + u1 * (x_pos * tz1)) / (x_pos2 * tz2 + x_pos * tz1);
@@ -385,8 +399,10 @@ static void Scene_DrawDrawSeg(Image* image, float* depth_buffer, DrawSeg* seg)
 
 		tx += sidedef->x_offset;
 
-		short ctop = 0;
-		short cbot = image->height - 1;
+		SegRange* range = &seg->ranges[range_index++];
+
+		short ctop = range->y1;
+		short cbot = range->y2;
 
 		float yceil = (int)(x_pos * ceil_step) + sy_ceil;
 		float yfloor = (int)(x_pos * floor_step) + sy_floor;
@@ -488,17 +504,20 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 
 	ceil_plane->is_sky = sector->is_sky;
 
+	DrawSeg* draw_seg = NULL;
+
 	//check for middle texture
 	if (is_backsector && sidedef->middle_texture)
 	{
-		DrawSeg* draw_seg = Scene_StoreDrawSeg(&render_data->draw_segs);
-
+		draw_seg = Scene_StoreDrawSeg(render_data, &render_data->draw_segs);
 		if (draw_seg)
 		{
 			draw_seg->first = first;
 			draw_seg->last = last;
 			draw_seg->light = light;
 			draw_seg->line_draw_args = *args;
+			draw_seg->visible = false;
+			draw_seg->index = 0;
 		}
 	}
 
@@ -601,7 +620,7 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 				else
 				{
 					ty_pos = (fabs(c_back_yfloor - back_yfloor)) * ty_step;
-					ly_pos = ty_pos;
+					ly_pos = (fabs(c_back_yfloor - yceil)) * ty_step;
 					ty_pos += texheight - (sector->base_ceil - sector->base_floor) * 0.5;
 				}
 				
@@ -616,6 +635,19 @@ void Scene_DrawLineSeg(Image* image, int first, int last, LineDrawArgs* args)
 			}
 			
 			draw_args->yclip_bottom[x] = Math_Clampl(min(c_yfloor, c_back_yfloor), 0, cbot);
+
+			if (mid_texture && draw_seg && draw_seg->ranges)
+			{
+				SegRange* segrange = &draw_seg->ranges[draw_seg->index++];
+
+				segrange->y1 = draw_args->yclip_top[x];
+				segrange->y2 = draw_args->yclip_bottom[x];
+
+				if (segrange->y1 < segrange->y2)
+				{
+					draw_seg->visible = true;
+				}
+			}
 		}
 		else
 		{

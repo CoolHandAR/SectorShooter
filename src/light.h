@@ -78,6 +78,8 @@ typedef struct
 
 	int grid_start;
 	int grid_end;
+
+	int seed;
 } LightTraceThread;
 
 typedef struct
@@ -97,6 +99,8 @@ typedef struct
 
 	float* ao_sample_vectors;
 	int num_ao_sample_vectors;
+
+	float sky_color[3];
 
 	dynamic_array* light_list;
 

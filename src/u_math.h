@@ -426,6 +426,76 @@ inline bool Math_TraceLineVsBox2(float p_x, float p_y, float p_endX, float p_end
 
 	return true;
 }
+inline bool Math_TraceLineVsBox3D(float p_x, float p_y, float p_z, float p_endX, float p_endY, float p_endZ, float bbox[2][3], float* r_interX, float* r_interY, float* r_interZ, float* r_dist)
+{
+	float minDistance = 0;
+	float maxDistance = 1;
+	int axis = 0;
+	float sign = 0;
+
+	for (int i = 0; i < 3; i++)
+	{
+		float box_begin = bbox[0][i];
+		float box_end = bbox[1][i];
+		float trace_start = (i == 0) ? p_x : p_y;
+		float trace_end = (i == 0) ? p_endX : p_endY;
+
+		float c_min = 0;
+		float c_max = 0;
+		float c_sign = 0;
+
+		if (trace_start < trace_end)
+		{
+			if (trace_start > box_end || trace_end < box_begin)
+			{
+				return false;
+			}
+
+			float trace_length = trace_end - trace_start;
+			c_min = (trace_start < box_begin) ? ((box_begin - trace_start) / trace_length) : 0;
+			c_max = (trace_end > box_end) ? ((box_end - trace_start) / trace_length) : 1;
+			c_sign = -1.0;
+		}
+		else
+		{
+			if (trace_end > box_end || trace_start < box_begin)
+			{
+				return false;
+			}
+
+			float trace_length = trace_end - trace_start;
+			c_min = (trace_start > box_end) ? ((box_end - trace_start) / trace_length) : 0;
+			c_max = (trace_end < box_begin) ? ((box_begin - trace_start) / trace_length) : 1;
+			c_sign = 1.0;
+		}
+
+		if (c_min > minDistance)
+		{
+			minDistance = c_min;
+			axis = i;
+			sign = c_sign;
+		}
+		if (c_max < maxDistance)
+		{
+			maxDistance = c_max;
+		}
+		if (maxDistance < minDistance)
+		{
+			return false;
+		}
+	}
+
+	if (r_interX) *r_interX = p_x + (p_endX - p_x) * minDistance;
+	if (r_interY) *r_interY = p_y + (p_endY - p_y) * minDistance;
+	if (r_interZ) *r_interZ = p_z + (p_endZ - p_z) * minDistance;
+
+	if (r_dist)
+	{
+		*r_dist = minDistance;
+	}
+
+	return true;
+}
 
 inline bool Math_BoxIntersectsBox(float aabb[2][2], float other[2][2])
 {
@@ -529,6 +599,31 @@ inline bool Math_RayIntersectsPlane(float x, float y, float ray_x, float ray_y, 
 	}
 
 	dist = -dist;
+
+	return true;
+}
+inline bool Math_RayIntersectsPlane3D(float x, float y, float z, float ray_x, float ray_y, float ray_z, float normal_x, float normal_y, float normal_z, float d
+, float* r_hitX, float* r_hitY, float* r_hitZ)
+{
+	float den = Math_XYZ_Dot(normal_x, normal_y, normal_z, ray_x, ray_y, ray_z);
+
+	if (den == 0)
+	{
+		return false;
+	}
+
+	float dist = (Math_XYZ_Dot(normal_x, normal_y, normal_z, x, y, z) - d) / den;
+
+	if (dist > CMP_EPSILON)
+	{
+		return false;
+	}
+
+	dist = -dist;
+	
+	if (r_hitX) *r_hitX = x + ray_x * dist;
+	if (r_hitY) *r_hitY = y + ray_y * dist;
+	if (r_hitZ) *r_hitZ = z + ray_z * dist;
 
 	return true;
 }

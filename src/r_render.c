@@ -10,6 +10,8 @@
 #include "utility.h"
 #include "u_math.h"
 
+extern Vec4* Light_GetLightPoints(int* r_num);
+
 static const char* VERTEX_SHADER_SOURCE[] =
 {
 	"#version 330 core \n"
@@ -289,6 +291,42 @@ static void Render_DrawLightGrid()
 					0, s_renderCore.framebuffer.width, &light);
 			}
 		}
+	}
+}
+
+static void Render_DrawLightPoints()
+{
+	float tangent = tan(Math_DegToRad(VIEW_FOV) / 2.0);
+	float view_cos = tangent * s_renderCore.view_cos;
+	float view_sin = tangent * s_renderCore.view_sin;
+
+	int num_light_points = 0;
+	Vec4* light_points = Light_GetLightPoints(&num_light_points);
+
+	Vec3_u16 light = {255, 255, 255};
+	
+
+	for (int i = 0; i < num_light_points; i+= 2)
+	{
+		Vec4* p = &light_points[i + 0];
+		Vec4* c = &light_points[i + 1];
+
+		float box[2][3];
+		float size = 1;
+		box[0][0] = p->r - size;
+		box[0][1] = p->g - size;
+		box[0][2] = p->b - size;
+					
+		box[1][0] = p->r  + size;
+		box[1][1] = p->g  + size;
+		box[1][2] = p->b  + size;
+
+		light.r = c->r;
+		light.g = c->g;
+		light.b = c->b;
+
+		Video_DrawBox(&s_renderCore.framebuffer, s_renderCore.depth_buffer, box, s_renderCore.view_x, s_renderCore.view_y, s_renderCore.view_z, s_renderCore.view_cos, s_renderCore.view_sin, view_sin, view_cos, s_renderCore.vfov * (float)s_renderCore.h,
+			0, s_renderCore.framebuffer.width, &light);
 	}
 }
 
@@ -871,6 +909,11 @@ void Render_View(float x, float y, float z, float angle, float angleCos, float a
 
 		//draw stuff like visual map
 		Game_Draw(&s_renderCore.framebuffer, &s_renderCore.font_data);
+
+#ifdef DRAW_LIGHT_POINTS
+		Render_DrawLightPoints();
+#endif // DRAW_LIGHT_POINTS
+
 	}
 	else
 	{

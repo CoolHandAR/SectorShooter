@@ -10,7 +10,7 @@
 #include "u_math.h"
 #include "utility.h"
 
-//#define NO_MONSTERS
+#define NO_MONSTERS
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -804,7 +804,7 @@ static void Load_PostProcessMap(Texture* sky_texture, Map* map)
             {
                 for (int y = 0; y < img->height; y++)
                 {
-                    unsigned char* data = Image_Get(img, x, y);
+                    unsigned char* data = Image_GetFast(img, x, y);
 
                     if (!data)
                     {
@@ -821,9 +821,9 @@ static void Load_PostProcessMap(Texture* sky_texture, Map* map)
 
             if (samples > 0)
             {
-                map->sky_color[0] = Math_Clampl(total_color[0] / samples, 0, 255);
-                map->sky_color[1] = Math_Clampl(total_color[1] / samples, 0, 255);
-                map->sky_color[2] = Math_Clampl(total_color[2] / samples, 0, 255);
+                map->sky_color[0] = Math_Clampl(total_color[0] / (float)samples, 0, 255);
+                map->sky_color[1] = Math_Clampl(total_color[1] / (float)samples, 0, 255);
+                map->sky_color[2] = Math_Clampl(total_color[2] / (float)samples, 0, 255);
             }
            
         }
@@ -949,8 +949,8 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
         }
         case THING__LAMP:
         {
-            type = OT__LIGHT;
-            sub_type = SUB__LIGHT_TORCH;
+           // type = OT__LIGHT;
+           // sub_type = SUB__LIGHT_TORCH;
             break;
         }
         case THING__SUN:

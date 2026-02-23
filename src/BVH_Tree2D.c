@@ -586,7 +586,7 @@ int BVH_Tree_Cull_Box(BVH_Tree* const p_tree, float bbox[2][2], int p_maxHitCoun
 			{
 				continue;
 			}
-			//stack_item.fully_within = Math_BoxContainsBox(node->bbox, bbox);
+			stack_item.fully_within = Math_BoxContainsBox(bbox, node->bbox);
 		}
 
 		//Is the node leaf?
