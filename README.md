@@ -13,6 +13,7 @@ https://www.youtube.com/watch?v=A4ATb2nL9lI
 Offline Lightmapper that precalculates Ambient Occlusion, Direct Light and Global Illumination.
 
 ![SCREENSHOT](lightmaps_preview.png)
+![SCREENSHOT](cornell_box.png)
 
 ## Lightgrid
 Precalculated Light Grid Points spread across the level. Used for quickly lighting dynamic objects.
