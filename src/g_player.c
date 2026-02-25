@@ -987,6 +987,10 @@ void Player_MouseCallback(float x, float y)
 
 void Player_DrawHud(Image* image, FontData* font, int start_x, int end_x)
 {
+#ifdef DONT_DRAW_HUD
+	return;
+#endif // DONT_DRAW_HUD
+
 	Render_LockObjectMutex(false);
 
 	//keep on stack

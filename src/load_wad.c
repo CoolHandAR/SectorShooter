@@ -10,7 +10,8 @@
 #include "u_math.h"
 #include "utility.h"
 
-#define NO_MONSTERS
+//#define NO_MONSTERS
+//#define LIGHTS_ONLY
 
 #define DOOM_VERTEX_SHIFT 1
 #define DOOM_Z_SHIFT 1
@@ -1284,6 +1285,12 @@ static void Load_Things(mapthing_t* mthings, int num, Map* map)
             type = OT__NONE;
 #endif // NO_MONSTERS
 
+#ifdef LIGHTS_ONLY
+        if (type != OT__LIGHT)
+        {
+            type = OT__NONE;
+        }
+#endif
 
         if (type != OT__NONE)
         {

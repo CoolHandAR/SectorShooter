@@ -1329,6 +1329,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1.0, //attenuation
 		1, // scale
 		24, //deviance
+		0, //z offset
 		255, 190, 88, //color
 	},
 	//BLUE TORCH
@@ -1338,6 +1339,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1, //attenuation
 		1, // scale
 		24, //deviance
+		0, //z offset
 		70, 70, 255, //color
 	},
 	//GREEN TORCH
@@ -1347,6 +1349,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1, //attenuation
 		1, // scale
 		24, //deviance
+		0, //z offset
 		70, 255, 70, //color
 	},
 	//LAMP
@@ -1356,6 +1359,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1.25, //attenuation
 		1, // scale
 		12, //deviance
+		-44, //z offset
 		255, 190, 88, //color
 	},
 	//BLUE LAMP
@@ -1365,6 +1369,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1.25, //attenuation
 		1, // scale
 		12, //deviance
+		-44, //z offset
 		70, 70, 255, //color
 	},
 	//GREEN LAMP
@@ -1374,6 +1379,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1.25, //attenuation
 		1, // scale
 		12, //deviance
+		-44, //z offset
 		70, 255, 70, //color
 	},
 	//FLAME URN
@@ -1383,6 +1389,7 @@ static const LightInfo LIGHT_INFOS[] =
 		1.5, //attenuation
 		1, // scale
 		12, //deviance
+		0, //z offset
 		255, 120, 10, //color
 	}
 };
@@ -1419,24 +1426,73 @@ static const LightCompilerInfo LIGHT_COMPILER_INFOS[] =
 {
 	//MAP00
 	{
-		0.3, //SKY SCALE
+		4, //SKY SCALE
 		2, //SUN Z
 		{255, 204, 51}, //SUN COLOR
 	},
 	//MAP01
 	{
-		0.4, //SKY SCALE
+		8.4, //SKY SCALE
 		1.8, //SUN Z
 		{254, 221, 150}, //SUN COLOR
 	},
 	//MAP02
 	{
-		0.2, //SKY SCALE
-		2.2, //SUN Z
-		{234, 220, 220}, //SUN COLOR
+		2.0, //SKY SCALE
+		2.0, //SUN Z
+		{224, 200, 200}, //SUN COLOR
 	},
+	//E1M1
 	{
-		0.0, //SKY SCALE
+		12, //SKY SCALE
+		2, //SUN Z
+		{255, 235, 225}, //SUN COLOR
+	},
+	//E1M2
+	{
+		12, //SKY SCALE
+		2, //SUN Z
+		{255, 235, 225}, //SUN COLOR
+	},
+	//E1M3
+	{
+		12, //SKY SCALE
+		3, //SUN Z
+		{255, 235, 225}, //SUN COLOR
+	},
+	//MAP01
+	{
+		4, //SKY SCALE
+		2, //SUN Z
+		{255, 220, 220}, //SUN COLOR
+	},
+	//MAP07
+	{
+		4, //SKY SCALE
+		2, //SUN Z
+		{155, 100, 100}, //SUN COLOR
+	},
+	//MAP13
+	{
+		4, //SKY SCALE
+		2, //SUN Z
+		{255, 230, 230}, //SUN COLOR
+	},
+	//MAP18
+	{
+		4, //SKY SCALE
+		2, //SUN Z
+		{255, 230, 230}, //SUN COLOR
+	},
+	//MAP30
+	{
+		4, //SKY SCALE
+		2, //SUN Z
+		{255, 230, 230}, //SUN COLOR
+	},
+	//TEST
+	{
+		1, //SKY SCALE
 		2, //SUN Z
 		{255, 255, 255}, //SUN COLOR
 	},

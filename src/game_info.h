@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include "g_common.h"
 
+//#define DOOM_PREVIEW
+
 typedef enum
 {
 	MS__IDLE,
@@ -306,6 +308,7 @@ typedef struct
 	float attenuation;
 	float scale;
 	float deviance;
+	float z_offset;
 	float color[3];
 } LightInfo;
 
@@ -364,14 +367,34 @@ static const char* LEVELS[] =
 {
 	"assets/maps/ourmap00.WAD",
 	"assets/maps/ourmap01.WAD",
-	"assets/maps/ourmap02.WAD"
+	"assets/maps/ourmap02.WAD",
 
+#ifdef DOOM_PREVIEW
+	"assets/maps/E1M1.WAD",
+	"assets/maps/E1M2.WAD",
+	"assets/maps/E1M3.WAD",
+	"assets/maps/MAP01.WAD",
+	"assets/maps/MAP07.WAD",
+	"assets/maps/MAP13.WAD",
+	"assets/maps/MAP18.WAD",
+	"assets/maps/MAP30.WAD",
+	"assets/maps/test.WAD"
+#endif // DOOM_PREVIEW
 };
 static const char* SKIES[] =
 {
 	"SKYPNG1",
 	"SKYPNG2",
-	"SKYPNG3"
+	"SKYPNG3",
+	"SKY1",
+	"SKY1",
+	"SKY1",
+	"SKY1",
+	"SKY1",
+	"SKY1",
+	"SKY1",
+	"SKY1",
+	"SKY1"
 };
 
 //SPECIAL ENUMS
@@ -396,6 +419,8 @@ typedef enum
 	SECTOR_SPECIAL__LIGHT_GLOW = 8,
 	SECTOR_SPECIAL__SECRET = 9,
 	SECTOR_SPECIAL__LIGHT_AREA = 21,
+	SECTOR_SPECIAL__LIGHT_CEIL_AREA = 22,
+	SECTOR_SPECIAL__LIGHT_FLOOR_AREA = 23,
 } SectorSpecialType;
 
 #endif
